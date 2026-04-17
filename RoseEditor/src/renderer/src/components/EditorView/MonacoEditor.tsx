@@ -23,6 +23,22 @@ self.MonacoEnvironment = {
 
 loader.config({ monaco })
 
+// Monaco's built-in TS/JS language service runs in an isolated worker with only
+// the currently-open buffer in scope — it can't see the rest of the project, so
+// every cross-file import surfaces as a false "Cannot find module" error.
+// Disable semantic validation so real syntax errors still surface but
+// cross-file type checking doesn't produce noise.
+for (const defaults of [
+  monaco.languages.typescript.typescriptDefaults,
+  monaco.languages.typescript.javascriptDefaults
+]) {
+  defaults.setDiagnosticsOptions({
+    noSemanticValidation: true,
+    noSyntaxValidation: false,
+    noSuggestionDiagnostics: true
+  })
+}
+
 let themesRegistered = false
 
 export function MonacoEditor(): JSX.Element | null {

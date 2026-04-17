@@ -5,6 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { useTerminalStore } from '../../../stores/useTerminalStore'
 import { useThemeStore } from '../../../stores/useThemeStore'
 import { useViewStore } from '../../../stores/useViewStore'
+import { useProjectStore } from '../../../stores/useProjectStore'
 import '@xterm/xterm/css/xterm.css'
 import styles from './TerminalPanel.module.css'
 
@@ -89,8 +90,9 @@ export function TerminalPanel(): JSX.Element {
 
     setTimeout(() => fitAddon.fit(), 100)
 
-    // Spawn a new pty session
-    initialize()
+    // Spawn a new pty session rooted at the currently-open project.
+    const cwd = useProjectStore.getState().rootPath ?? undefined
+    initialize(cwd)
 
     return () => {
       // Clean up data listeners
