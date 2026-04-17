@@ -1,5 +1,7 @@
 import { useEffect, useCallback } from 'react'
 import { TopBar } from './components/TopBar/TopBar'
+import { FileActions } from './components/TopBar/FileActions'
+import { Breadcrumbs } from './components/Breadcrumbs/Breadcrumbs'
 import { EditorView } from './components/EditorView/EditorView'
 import { ChatView } from './components/ChatView/ChatView'
 import { DockerView } from './components/DockerView/DockerView'
@@ -94,6 +96,15 @@ function App(): JSX.Element {
   return (
     <div className={styles.app}>
       <div className={styles.titleBar}>RoseEditor</div>
+      <div className={styles.toolbar}>
+        <FileActions
+          onOpenFolder={handleOpenFolder}
+          onOpenFile={handleOpenFile}
+          onNewFile={createNewFile}
+          onSave={saveActiveFile}
+        />
+      </div>
+      <Breadcrumbs />
       <main className={styles.mainContent}>
         {activeView === 'editor' && <EditorView />}
         {activeView === 'chat' && <ChatView />}

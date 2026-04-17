@@ -20,6 +20,17 @@
   color: var(--color-text-muted);
 }
 
+.toolbar {
+  height: 34px;
+  background: var(--color-topbar-bg);
+  border-bottom: 1px solid var(--color-topbar-border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .mainContent {
   flex: 1;
   display: flex;
