@@ -42,7 +42,7 @@ for (const defaults of [
 let themesRegistered = false
 
 export function MonacoEditor(): JSX.Element | null {
-  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const activeFile = useFileStore((s) => {
     const path = s.activeFilePath
     return s.openFiles.find((f) => f.filePath === path) || null
