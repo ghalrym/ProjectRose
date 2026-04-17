@@ -1,0 +1,57 @@
+.fileTree {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--color-sidebar-bg);
+  user-select: none;
+  font-size: var(--font-size-sm);
+}
+
+.header {
+  padding: 8px 12px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.empty {
+  padding: 16px 12px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  transition: background 0.1s;
+}
+
+.node:hover {
+  background: var(--color-sidebar-item-hover);
+  color: var(--color-text-primary);
+}
+
+.directory {
+  color: var(--color-text-primary);
+}
+
+.icon {
+  width: 14px;
+  flex-shrink: 0;
+  font-size: 10px;
+  text-align: center;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

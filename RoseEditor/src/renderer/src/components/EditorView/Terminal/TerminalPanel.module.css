@@ -1,0 +1,42 @@
+.terminalWrapper {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-terminal-bg);
+  border-top: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.dragHandle {
+  height: 4px;
+  cursor: ns-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.dragHandle:hover {
+  background: var(--color-accent);
+}
+
+.terminalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 12px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.terminalTitle {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+}
+
+.terminalContainer {
+  flex: 1;
+  padding: 4px 8px;
+  overflow: hidden;
+}

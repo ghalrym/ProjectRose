@@ -1,0 +1,106 @@
+.topBar {
+  height: var(--topbar-height);
+  background: var(--color-topbar-bg);
+  border-top: 1px solid var(--color-topbar-border);
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.fileActions {
+  display: flex;
+  gap: 4px;
+}
+
+.actionButton {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  background: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+
+.actionButton:hover {
+  background: var(--color-button-bg);
+  color: var(--color-text-primary);
+}
+
+.saveIndicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  min-width: 0;
+}
+
+.fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dirtyDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-unsaved);
+  flex-shrink: 0;
+}
+
+.toggleGroup {
+  display: flex;
+  background: var(--color-toggle-bg);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+
+.toggleBtn {
+  padding: 4px 14px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+
+.toggleBtn:hover {
+  color: var(--color-text-primary);
+}
+
+.toggleActive {
+  background: var(--color-toggle-active);
+  color: var(--color-text-inverse);
+}
+
+.toggleActive:hover {
+  color: var(--color-text-inverse);
+}
+
+.iconButton {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  color: var(--color-text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+
+.iconButton:hover {
+  background: var(--color-button-bg);
+  color: var(--color-text-primary);
+}
+
+.spacer {
+  flex: 1;
+}

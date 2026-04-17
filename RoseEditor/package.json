@@ -1,0 +1,51 @@
+{
+  "name": "rose-editor",
+  "version": "0.1.0",
+  "description": "RoseEditor - A code editor IDE with AI chat integration",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "postinstall": "electron-builder install-app-deps",
+    "typecheck:main": "tsc --noEmit -p tsconfig.main.json",
+    "typecheck:preload": "tsc --noEmit -p tsconfig.preload.json",
+    "typecheck:renderer": "tsc --noEmit -p tsconfig.renderer.json",
+    "typecheck": "npm run typecheck:main && npm run typecheck:preload && npm run typecheck:renderer",
+    "dist": "electron-vite build && electron-builder"
+  },
+  "build": {
+    "appId": "com.roseeditor.app",
+    "productName": "RoseEditor",
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": ["nsis"]
+    }
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zustand": "^5.0.5",
+    "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.52.2",
+    "@xterm/xterm": "^5.5.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "clsx": "^2.1.1"
+  },
+  "devDependencies": {
+    "electron": "^33.4.0",
+    "electron-vite": "^3.1.0",
+    "vite": "^6.3.3",
+    "@vitejs/plugin-react": "^4.5.0",
+    "typescript": "^5.8.3",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^3.0.0",
+    "node-pty": "^1.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

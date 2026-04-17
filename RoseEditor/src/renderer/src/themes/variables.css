@@ -1,0 +1,121 @@
+[data-theme='dark'] {
+  --color-bg-primary: #1e1e2e;
+  --color-bg-secondary: #181825;
+  --color-bg-tertiary: #11111b;
+  --color-bg-elevated: #313244;
+
+  --color-sidebar-bg: #181825;
+  --color-sidebar-item-hover: #313244;
+  --color-sidebar-item-active: #45475a;
+
+  --color-topbar-bg: #11111b;
+  --color-topbar-border: #313244;
+
+  --color-tab-bg: #181825;
+  --color-tab-active-bg: #1e1e2e;
+  --color-tab-hover-bg: #313244;
+  --color-tab-border: #313244;
+
+  --color-text-primary: #cdd6f4;
+  --color-text-secondary: #a6adc8;
+  --color-text-muted: #6c7086;
+  --color-text-inverse: #11111b;
+
+  --color-accent: #cba6f7;
+  --color-accent-hover: #b4befe;
+  --color-button-bg: #313244;
+  --color-button-hover-bg: #45475a;
+
+  --color-border: #313244;
+  --color-border-strong: #45475a;
+
+  --color-unsaved: #f9e2af;
+  --color-saved: #a6e3a1;
+  --color-error: #f38ba8;
+
+  --color-terminal-bg: #11111b;
+
+  --color-chat-user-bg: #313244;
+  --color-chat-assistant-bg: #1e1e2e;
+  --color-chat-border: #45475a;
+
+  --color-toggle-bg: #45475a;
+  --color-toggle-active: #cba6f7;
+
+  --topbar-height: 40px;
+  --tab-height: 36px;
+  --sidebar-min-width: 180px;
+  --sidebar-max-width: 400px;
+  --terminal-min-height: 100px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  --font-family-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 14px;
+}
+
+[data-theme='light'] {
+  --color-bg-primary: #eff1f5;
+  --color-bg-secondary: #e6e9ef;
+  --color-bg-tertiary: #dce0e8;
+  --color-bg-elevated: #ccd0da;
+
+  --color-sidebar-bg: #e6e9ef;
+  --color-sidebar-item-hover: #ccd0da;
+  --color-sidebar-item-active: #bcc0cc;
+
+  --color-topbar-bg: #dce0e8;
+  --color-topbar-border: #ccd0da;
+
+  --color-tab-bg: #e6e9ef;
+  --color-tab-active-bg: #eff1f5;
+  --color-tab-hover-bg: #ccd0da;
+  --color-tab-border: #ccd0da;
+
+  --color-text-primary: #4c4f69;
+  --color-text-secondary: #5c5f77;
+  --color-text-muted: #9ca0b0;
+  --color-text-inverse: #eff1f5;
+
+  --color-accent: #8839ef;
+  --color-accent-hover: #7287fd;
+  --color-button-bg: #ccd0da;
+  --color-button-hover-bg: #bcc0cc;
+
+  --color-border: #ccd0da;
+  --color-border-strong: #bcc0cc;
+
+  --color-unsaved: #df8e1d;
+  --color-saved: #40a02b;
+  --color-error: #d20f39;
+
+  --color-terminal-bg: #dce0e8;
+
+  --color-chat-user-bg: #ccd0da;
+  --color-chat-assistant-bg: #eff1f5;
+  --color-chat-border: #bcc0cc;
+
+  --color-toggle-bg: #bcc0cc;
+  --color-toggle-active: #8839ef;
+
+  --topbar-height: 40px;
+  --tab-height: 36px;
+  --sidebar-min-width: 180px;
+  --sidebar-max-width: 400px;
+  --terminal-min-height: 100px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  --font-family-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 14px;
+}

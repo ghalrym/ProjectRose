@@ -1,0 +1,53 @@
+.cell {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.userCell {
+  background: var(--color-chat-user-bg);
+  border: 1px solid var(--color-chat-border);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.assistantCell {
+  background: var(--color-chat-assistant-bg);
+  border: 1px solid var(--color-chat-border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  margin-bottom: 16px;
+}
+
+.cellHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+}
+
+.userLabel {
+  color: var(--color-accent);
+}
+
+.assistantLabel {
+  color: var(--color-saved);
+}
+
+.cellContent {
+  padding: 8px 12px 12px;
+  font-size: var(--font-size-md);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
+  max-height: 50vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

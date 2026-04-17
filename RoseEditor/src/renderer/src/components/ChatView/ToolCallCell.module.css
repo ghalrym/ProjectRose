@@ -1,0 +1,124 @@
+.cell {
+  border: 1px solid var(--color-chat-border);
+  border-radius: var(--radius-md);
+  background: var(--color-chat-assistant-bg);
+  margin-bottom: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  min-height: 34px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  font-family: inherit;
+}
+
+.header:hover {
+  background: var(--color-toggle-bg);
+}
+
+.chevron {
+  width: 12px;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.name {
+  font-family: var(--font-family-mono), monospace;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.statusPending {
+  background: var(--color-toggle-bg);
+  color: var(--color-text-muted);
+}
+
+.statusDone {
+  background: var(--color-saved, #2e7d32);
+  color: white;
+}
+
+.statusError {
+  background: var(--color-unsaved, #c62828);
+  color: white;
+}
+
+.body {
+  border-top: 1px solid var(--color-chat-border);
+  padding: 8px 12px 12px;
+}
+
+.sectionLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  margin: 6px 0 4px;
+}
+
+.sectionLabel:first-child {
+  margin-top: 0;
+}
+
+.pre {
+  font-family: var(--font-family-mono), monospace;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text-primary);
+  background: var(--color-toggle-bg);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 0;
+  max-height: 40vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.preError {
+  color: var(--color-unsaved, #c62828);
+}
+
+.pendingOutput {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+  padding: 4px 0;
+}
