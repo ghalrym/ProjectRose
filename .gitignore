@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+env/
+.env
+.python-version
+
+# Node / Electron (per-subproject .gitignore handles more)
+node_modules/
+
+# ChromaDB vector stores
+RoseLibrary/data/
+RoseModel/.chromadb/
+**/chroma.sqlite3
+**/*.chromadb/
+
+# SQLite / WAL
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~
