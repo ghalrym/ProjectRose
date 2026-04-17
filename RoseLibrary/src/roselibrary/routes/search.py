@@ -13,9 +13,9 @@ router = APIRouter()
 
 @router.post("/search", response_model=list[SearchResult])
 async def search(body: SearchRequest, request: Request):
-    db = request.app.state.db
+    db = request.state.db
     embedding_service = request.app.state.embedding_service
-    vectorstore = request.app.state.vectorstore
+    vectorstore = request.state.vectorstore
 
     t0 = time.perf_counter()
     trace_id = getattr(request.state, "trace_id", None)

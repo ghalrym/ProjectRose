@@ -6,12 +6,19 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from roselibrary import __version__
 from roselibrary.config import get_settings
 from roselibrary.instrumentation.observability import emit, forget_trace, new_trace_id
+from roselibrary.project_store import ProjectStoreManager, is_valid_project_id
 
 logger = logging.getLogger("roselibrary")
+
+PROJECT_ID_HEADER = "X-Project-Id"
+
+# Paths that don't require a project context.
+PROJECT_EXEMPT_PATHS = {"/", "/docs", "/redoc", "/openapi.json"}
 
 
 @asynccontextmanager
@@ -22,15 +29,10 @@ async def lifespan(app: FastAPI):
     app.state.settings = settings
 
     from roselibrary.indexing.embeddings import EmbeddingService
-    from roselibrary.indexing.vectorstore import VectorStore
-    from roselibrary.models.database import Database
     from roselibrary.parsing.parser import CodeParser
     from roselibrary.parsing.references import ReferenceExtractor
 
-    db = Database(data_dir)
-    db.init_schema()
-    app.state.db = db
-
+    app.state.project_manager = ProjectStoreManager(data_dir)
     app.state.parser = CodeParser()
     app.state.ref_extractor = ReferenceExtractor()
 
@@ -39,13 +41,11 @@ async def lifespan(app: FastAPI):
     )
     app.state.embedding_service = embedding_service
 
-    app.state.vectorstore = VectorStore(data_dir)
-
     logger.info("RoseLibrary %s started (data_dir=%s)", __version__, data_dir)
     yield
 
     await embedding_service.close()
-    db.close()
+    app.state.project_manager.close_all()
 
 
 app = FastAPI(title="RoseLibrary", version=__version__, lifespan=lifespan)
@@ -59,6 +59,31 @@ app.add_middleware(
 
 
 RICH_INSTRUMENTED_PATHS = {"/search", "/update-files"}
+
+
+@app.middleware("http")
+async def resolve_project(request: Request, call_next):
+    path = request.url.path
+    if request.method == "OPTIONS" or path in PROJECT_EXEMPT_PATHS:
+        return await call_next(request)
+
+    project_id = request.headers.get(PROJECT_ID_HEADER)
+    if not project_id:
+        return JSONResponse(
+            {"detail": f"Missing required header: {PROJECT_ID_HEADER}"},
+            status_code=400,
+        )
+    if not is_valid_project_id(project_id):
+        return JSONResponse(
+            {"detail": f"Invalid {PROJECT_ID_HEADER} format"},
+            status_code=400,
+        )
+
+    store = request.app.state.project_manager.get(project_id)
+    request.state.project_id = project_id
+    request.state.db = store.db
+    request.state.vectorstore = store.vectorstore
+    return await call_next(request)
 
 
 @app.middleware("http")

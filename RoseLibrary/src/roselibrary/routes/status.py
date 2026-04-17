@@ -7,7 +7,7 @@ router = APIRouter()
 
 @router.get("/status", response_model=StatusResponse)
 async def status(request: Request):
-    db = request.app.state.db
+    db = request.state.db
     stats = db.get_summary_stats()
     unresolved_refs = db.get_all_unresolved_references()
 

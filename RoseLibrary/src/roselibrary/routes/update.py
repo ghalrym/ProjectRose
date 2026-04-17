@@ -47,11 +47,11 @@ async def _embed_in_batches(embedding_service, texts: list[str]) -> list[list[fl
 
 @router.post("/update-files", response_model=BulkUpdateResponse)
 async def update_files(body: BulkUpdateRequest, request: Request):
-    db = request.app.state.db
+    db = request.state.db
     parser = request.app.state.parser
     ref_extractor = request.app.state.ref_extractor
     embedding_service = request.app.state.embedding_service
-    vectorstore = request.app.state.vectorstore
+    vectorstore = request.state.vectorstore
 
     t0 = time.perf_counter()
     trace_id = getattr(request.state, "trace_id", None)

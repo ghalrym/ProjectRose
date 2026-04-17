@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import type {
   HealthResponse,
   FileHashEntry,
@@ -34,11 +35,35 @@ export class AmbiguousSymbolException extends RoseLibraryError {
   }
 }
 
+/**
+ * Deterministic, cross-platform project identifier derived from the workspace
+ * root. Matches the server-side validator `^[A-Za-z0-9_\-]{1,128}$`.
+ */
+export function computeProjectId(rootPath: string): string {
+  const normalized = rootPath.replace(/\\/g, '/').toLowerCase()
+  return createHash('sha256').update(normalized).digest('hex')
+}
+
+const HEALTH_PATH = '/'
+
 export class RoseLibraryClient {
   private baseUrl: string
+  private projectId: string | null = null
 
   constructor(baseUrl = 'http://127.0.0.1:8000') {
     this.baseUrl = baseUrl.replace(/\/+$/, '')
+  }
+
+  setProjectId(projectId: string | null): void {
+    this.projectId = projectId
+  }
+
+  setProjectRoot(rootPath: string): void {
+    this.projectId = computeProjectId(rootPath)
+  }
+
+  getProjectId(): string | null {
+    return this.projectId
   }
 
   private async request<T>(
@@ -47,11 +72,20 @@ export class RoseLibraryClient {
     body?: unknown
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`
-    const options: RequestInit = {
-      method,
-      headers: { 'Content-Type': 'application/json' }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+
+    if (path !== HEALTH_PATH) {
+      if (!this.projectId) {
+        throw new RoseLibraryError(
+          `No active project; open a folder before calling ${path}`,
+          0,
+          null
+        )
+      }
+      headers['X-Project-Id'] = this.projectId
     }
 
+    const options: RequestInit = { method, headers }
     if (body !== undefined) {
       options.body = JSON.stringify(body)
     }
@@ -87,7 +121,7 @@ export class RoseLibraryClient {
 
   /** Health check — verify the server is running. */
   async health(): Promise<HealthResponse> {
-    return this.request<HealthResponse>('GET', '/')
+    return this.request<HealthResponse>('GET', HEALTH_PATH)
   }
 
   /**
@@ -141,4 +175,12 @@ export class RoseLibraryClient {
   async overview(): Promise<RepositoryOverview> {
     return this.request<RepositoryOverview>('GET', '/overview')
   }
+}
+
+// Process-wide client. All main-process code should use this instance so the
+// active project id is shared across indexing, AI chat, and renderer IPC.
+export const roseLibraryClient = new RoseLibraryClient()
+
+export function setActiveProjectRoot(rootPath: string): void {
+  roseLibraryClient.setProjectRoot(rootPath)
 }

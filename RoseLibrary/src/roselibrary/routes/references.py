@@ -8,7 +8,7 @@ router = APIRouter()
 
 @router.post("/findReferences", response_model=list[ReferenceResult])
 async def find_references(body: FindReferencesRequest, request: Request):
-    db = request.app.state.db
+    db = request.state.db
 
     # Resolve the target symbol
     if body.file_path:

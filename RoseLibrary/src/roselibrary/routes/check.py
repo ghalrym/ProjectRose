@@ -18,7 +18,7 @@ def normalize_path(path: str) -> str:
 
 @router.post("/check-file", response_model=list[FileCheckResponse])
 async def check_file(files: list[FileCheckRequest], request: Request):
-    db = request.app.state.db
+    db = request.state.db
     paths = [normalize_path(f.path) for f in files]
     existing = db.get_files_by_paths(paths)
 

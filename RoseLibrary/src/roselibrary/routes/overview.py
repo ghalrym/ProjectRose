@@ -13,7 +13,7 @@ router = APIRouter()
 
 @router.get("/overview", response_model=OverviewResponse)
 async def overview(request: Request):
-    db = request.app.state.db
+    db = request.state.db
 
     files = db.get_all_files()
     stats = db.get_summary_stats()

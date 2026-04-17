@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { relative } from 'path'
-import { RoseLibraryClient, RoseLibraryError } from './roseLibraryClient'
+import { roseLibraryClient, setActiveProjectRoot } from './roseLibraryClient'
 import {
   collectIndexableFiles,
   hashFile,
@@ -8,7 +8,7 @@ import {
   isIndexableFile
 } from './fileService'
 
-const client = new RoseLibraryClient()
+const client = roseLibraryClient
 
 export interface IndexingProgress {
   phase: 'checking' | 'indexing' | 'done' | 'error'
@@ -34,6 +34,7 @@ export async function indexProject(
   rootPath: string,
   win: BrowserWindow | null
 ): Promise<{ indexed: number; total: number; error?: string }> {
+  setActiveProjectRoot(rootPath)
   try {
     await client.health()
   } catch (err) {
@@ -131,6 +132,8 @@ export async function indexSingleFile(
   rootPath: string
 ): Promise<void> {
   if (!isIndexableFile(filePath)) return
+
+  setActiveProjectRoot(rootPath)
 
   try {
     await client.health()

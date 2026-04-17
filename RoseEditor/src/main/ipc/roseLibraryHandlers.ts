@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
-import { RoseLibraryClient } from '../services/roseLibraryClient'
+import { roseLibraryClient } from '../services/roseLibraryClient'
 import type {
   FileHashEntry,
   FileUpdateItem,
@@ -8,7 +8,7 @@ import type {
   FindReferencesRequest
 } from '../../shared/roseLibraryTypes'
 
-const client = new RoseLibraryClient()
+const client = roseLibraryClient
 
 export function registerRoseLibraryHandlers(): void {
   ipcMain.handle(IPC.ROSE_HEALTH, async () => {

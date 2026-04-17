@@ -4,11 +4,11 @@ import { join, relative, extname } from 'path'
 import { execSync } from 'child_process'
 import { platform } from 'os'
 import { randomBytes } from 'crypto'
-import { RoseLibraryClient } from './roseLibraryClient'
+import { roseLibraryClient, setActiveProjectRoot } from './roseLibraryClient'
 import { isIndexableFile } from './fileService'
 import { BrowserWindow } from 'electron'
 
-const roseLibrary = new RoseLibraryClient()
+const roseLibrary = roseLibraryClient
 
 let server: Server | null = null
 let serverPort = 0
@@ -195,6 +195,7 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
 
 export function startCallbackServer(rootPath: string): Promise<number> {
   projectRoot = rootPath
+  setActiveProjectRoot(rootPath)
 
   return new Promise((resolve, reject) => {
     if (server) {
@@ -233,4 +234,5 @@ export function stopCallbackServer(): void {
 
 export function updateProjectRoot(rootPath: string): void {
   projectRoot = rootPath
+  setActiveProjectRoot(rootPath)
 }

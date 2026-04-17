@@ -1,6 +1,6 @@
 import { platform } from 'os'
 import { RoseModelClient } from './roseModelClient'
-import { RoseLibraryClient } from './roseLibraryClient'
+import { roseLibraryClient, setActiveProjectRoot } from './roseLibraryClient'
 import {
   startCallbackServer,
   getCallbackBaseUrl,
@@ -11,7 +11,7 @@ import type { Tool, Message } from '../../shared/roseModelTypes'
 import type { RepositoryOverview } from '../../shared/roseLibraryTypes'
 
 const client = new RoseModelClient()
-const roseLibrary = new RoseLibraryClient()
+const roseLibrary = roseLibraryClient
 
 function buildTools(): Tool[] {
   const base = getCallbackBaseUrl()
@@ -136,6 +136,7 @@ export async function chat(
   // Ensure callback server is running
   await startCallbackServer(rootPath)
   updateProjectRoot(rootPath)
+  setActiveProjectRoot(rootPath)
 
   // Fetch repository overview for context
   let overview: RepositoryOverview | null = null

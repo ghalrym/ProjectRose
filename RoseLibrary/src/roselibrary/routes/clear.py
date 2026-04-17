@@ -5,8 +5,8 @@ router = APIRouter()
 
 @router.post("/clear")
 async def clear(request: Request):
-    db = request.app.state.db
-    vectorstore = request.app.state.vectorstore
+    db = request.state.db
+    vectorstore = request.state.vectorstore
 
     # Get all symbol IDs for vector cleanup
     symbol_ids = [

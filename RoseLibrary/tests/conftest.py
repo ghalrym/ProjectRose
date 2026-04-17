@@ -1,17 +1,21 @@
 import random
-from contextlib import asynccontextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from httpx import ASGITransport, AsyncClient
 
-from roselibrary.config import Settings, get_settings
+from roselibrary import __version__
+from roselibrary.config import Settings
 from roselibrary.indexing.embeddings import EmbeddingService
-from roselibrary.indexing.vectorstore import VectorStore
-from roselibrary.models.database import Database
+from roselibrary.main import PROJECT_EXEMPT_PATHS, PROJECT_ID_HEADER
 from roselibrary.parsing.parser import CodeParser
 from roselibrary.parsing.references import ReferenceExtractor
+from roselibrary.project_store import ProjectStoreManager, is_valid_project_id
+
+TEST_PROJECT_ID = "test-project"
 
 
 @pytest.fixture
@@ -46,36 +50,46 @@ async def _fake_generate(name, qualified_name, symbol_type, parameters, docstrin
 
 @pytest.fixture
 async def client(settings):
-    from fastapi import FastAPI
-    from roselibrary import __version__
-
     app = FastAPI(title="RoseLibrary", version=__version__)
 
     data_dir = Path(settings.data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
 
-    db = Database(data_dir)
-    db.init_schema()
-    app.state.db = db
+    manager = ProjectStoreManager(data_dir)
+    app.state.project_manager = manager
     app.state.settings = settings
     app.state.parser = CodeParser()
     app.state.ref_extractor = ReferenceExtractor()
-    app.state.vectorstore = VectorStore(data_dir)
 
-    # Create a mock embedding service
     embedding_service = EmbeddingService.__new__(EmbeddingService)
     embedding_service.model = "test"
     embedding_service.embed = AsyncMock(side_effect=_fake_embed)
     embedding_service.generate_symbol_embeddings = _fake_generate
     app.state.embedding_service = embedding_service
 
-    # Import and include routers
+    @app.middleware("http")
+    async def resolve_project(request: Request, call_next):
+        path = request.url.path
+        if request.method == "OPTIONS" or path in PROJECT_EXEMPT_PATHS:
+            return await call_next(request)
+        project_id = request.headers.get(PROJECT_ID_HEADER)
+        if not project_id or not is_valid_project_id(project_id):
+            return JSONResponse(
+                {"detail": f"Missing or invalid {PROJECT_ID_HEADER}"},
+                status_code=400,
+            )
+        store = request.app.state.project_manager.get(project_id)
+        request.state.project_id = project_id
+        request.state.db = store.db
+        request.state.vectorstore = store.vectorstore
+        return await call_next(request)
+
     from roselibrary.routes.check import router as check_router
     from roselibrary.routes.clear import router as clear_router
+    from roselibrary.routes.overview import router as overview_router
     from roselibrary.routes.references import router as references_router
     from roselibrary.routes.search import router as search_router
     from roselibrary.routes.status import router as status_router
-    from roselibrary.routes.overview import router as overview_router
     from roselibrary.routes.update import router as update_router
 
     app.include_router(check_router)
@@ -90,12 +104,13 @@ async def client(settings):
     async def health():
         return {"name": "RoseLibrary", "version": __version__}
 
+    project_store = manager.get(TEST_PROJECT_ID)
+
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"X-Project-Id": TEST_PROJECT_ID},
     ) as c:
-        # Monkey-patch a single-file convenience helper onto the client so tests
-        # can call `client.update_file(path, content)` instead of wrapping each
-        # file in a bulk payload.
         async def update_file(path: str, content: str):
             return await c.post(
                 "/update-files",
@@ -103,6 +118,8 @@ async def client(settings):
             )
 
         c.update_file = update_file  # type: ignore[attr-defined]
+        c.db = project_store.db  # type: ignore[attr-defined]
+        c.vectorstore = project_store.vectorstore  # type: ignore[attr-defined]
         yield c
 
-    db.close()
+    manager.close_all()
