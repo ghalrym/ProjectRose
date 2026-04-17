@@ -30,29 +30,26 @@
   color: var(--color-text-primary);
 }
 
-.saveIndicator {
+.left {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex: 1;
-  justify-content: center;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
+  gap: 8px;
   min-width: 0;
 }
 
-.fileName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.dirtyDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-unsaved);
-  flex-shrink: 0;
+.right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .toggleGroup {

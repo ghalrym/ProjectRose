@@ -17,11 +17,6 @@ function App(): JSX.Element {
   const theme = useThemeStore((s) => s.theme)
   const activeView = useViewStore((s) => s.activeView)
   const rootPath = useProjectStore((s) => s.rootPath)
-  const activeFile = useFileStore((s) => {
-    const path = s.activeFilePath
-    return s.openFiles.find((f) => f.filePath === path) || null
-  })
-  const isDirty = useFileStore((s) => s.isDirty)
   const openFile = useFileStore((s) => s.openFile)
   const saveActiveFile = useFileStore((s) => s.saveActiveFile)
   const createNewFile = useFileStore((s) => s.createNewFile)
@@ -105,10 +100,7 @@ function App(): JSX.Element {
         {activeView === 'docker' && <DockerView />}
         {activeView === 'git' && <GitView />}
       </main>
-      <TopBar
-        activeFileName={activeFile?.fileName || null}
-        isDirty={activeFile ? isDirty(activeFile.filePath) : false}
-      />
+      <TopBar />
     </div>
   )
 }
