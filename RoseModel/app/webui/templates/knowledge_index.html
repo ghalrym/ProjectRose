@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Knowledge{% endblock %}
+{% block content %}
+<h1>Knowledge</h1>
+<p class="description">Retrieved by pure embedding similarity — category tags are for organization only, they do not filter retrieval.</p>
+
+<div class="section-label">Files</div>
+<div class="card">
+  {% if files %}
+    <ul class="item-list">
+      {% for f in files %}
+        <li>
+          <div class="item-info">
+            <a href="/admin/prompts/knowledge/{{ f.filename }}" class="item-name">{{ f.filename }}</a>
+          </div>
+          <span class="badge">{{ f.category }}</span>
+          <form method="post" action="/admin/prompts/knowledge/{{ f.filename }}/delete" class="inline"
+                onsubmit="return confirm('Delete {{ f.filename }}?');">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty">No knowledge files yet — add one below.</div>
+  {% endif %}
+</div>
+
+<div class="section-label">Add file</div>
+<div class="card">
+  <form method="post" action="/admin/prompts/knowledge/new">
+    <div class="grid-2">
+      <div class="field">
+        <label>Filename <span style="font-weight:400;">.md added automatically</span></label>
+        <input type="text" name="filename" required placeholder="oauth2">
+      </div>
+      <div class="field">
+        <label>Category tag</label>
+        <input type="text" name="category" value="general" placeholder="general">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button type="submit">Create file</button>
+    </div>
+  </form>
+  <div class="warn" style="margin-top: 14px;">New and edited files are re-embedded on next startup or when you rebuild the index from the Dashboard.</div>
+</div>
+{% endblock %}

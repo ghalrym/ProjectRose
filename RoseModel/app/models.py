@@ -50,3 +50,4 @@ class GenerateDone(BaseModel):
     tool_calls_made: list[ToolCallResult] = Field(default_factory=list)
     context_warning: bool = False
     usage: UsageInfo = Field(default_factory=UsageInfo)
+    tools_supported: bool = True

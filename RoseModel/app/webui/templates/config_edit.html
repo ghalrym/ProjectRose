@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ name }}{% endblock %}
+{% block content %}
+<div class="breadcrumb">
+  <a href="/admin/configs">Configuration</a>
+  <span class="sep">/</span>
+  {{ name }}
+</div>
+<h1>{{ name }}</h1>
+{% if request.query_params.get("saved") %}
+  <div class="flash">Saved.</div>
+{% endif %}
+
+<form method="post" action="/admin/configs/{{ name }}">
+  <div class="card">
+    <div class="grid-2">
+      <div class="field">
+        <label>Provider type</label>
+        <select name="provider_type" id="provider_type_edit" onchange="updateEditFields()">
+          {% for p in provider_types %}
+            <option value="{{ p }}" {% if entry.provider_type == p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Model</label>
+        <input type="text" name="model" value="{{ entry.model or '' }}">
+      </div>
+    </div>
+    <div class="field" id="edit_base_url_wrap">
+      <label>Base URL</label>
+      <input type="text" name="base_url" value="{{ entry.base_url or '' }}">
+    </div>
+    <div class="field" id="edit_api_key_wrap">
+      <label>API key</label>
+      <input type="password" name="api_key" value="{{ entry.api_key or '' }}">
+    </div>
+  </div>
+  <div class="btn-row">
+    <button type="submit">Save</button>
+    <a href="/admin/configs" class="btn btn-ghost">Back</a>
+  </div>
+</form>
+
+<script>
+  function updateEditFields() {
+    const t = document.getElementById("provider_type_edit").value;
+    const needsBase = (t === "ollama" || t === "openai_compatible");
+    const needsKey  = (t === "openai" || t === "anthropic" || t === "openai_compatible");
+    document.getElementById("edit_base_url_wrap").style.display = needsBase ? "" : "none";
+    document.getElementById("edit_api_key_wrap").style.display  = needsKey  ? "" : "none";
+  }
+  updateEditFields();
+</script>
+{% endblock %}

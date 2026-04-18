@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+{% if request.query_params.get("reindexed") %}
+  <div class="flash">Knowledge index rebuilt successfully.</div>
+{% endif %}
+
+<div class="section-label">Prompt injection levels</div>
+<div class="card" style="padding: 0;">
+  <div style="display: grid; grid-template-columns: 28px 1fr; gap: 0;">
+    <div style="background: var(--accent-dim); border-right: 1px solid var(--border); display: flex; flex-direction: column;">
+      <div style="padding: 14px 0; text-align: center; font-size: 11px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border);">1</div>
+      <div style="padding: 14px 0; text-align: center; font-size: 11px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--border);">2</div>
+      <div style="padding: 14px 0; text-align: center; font-size: 11px; font-weight: 700; color: var(--accent);">3</div>
+    </div>
+    <div>
+      <div style="padding: 12px 14px; border-bottom: 1px solid var(--border);">
+        <a href="/admin/prompts/agent" style="color: var(--text); text-decoration: none; font-weight: 500; font-size: 13px;">Agent</a>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Always injected at the top of every system prompt.</div>
+      </div>
+      <div style="padding: 12px 14px; border-bottom: 1px solid var(--border);">
+        <a href="/admin/prompts/skills" style="color: var(--text); text-decoration: none; font-weight: 500; font-size: 13px;">Skills</a>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Skill-router picks relevant categories; all files in those categories are injected.</div>
+      </div>
+      <div style="padding: 12px 14px;">
+        <a href="/admin/prompts/knowledge" style="color: var(--text); text-decoration: none; font-weight: 500; font-size: 13px;">Knowledge</a>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Retrieved by embedding similarity across every knowledge file.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section-label" style="margin-top: 20px;">Maintenance</div>
+<div class="card">
+  <form method="post" action="/admin/reindex" onsubmit="return confirm('Rebuild the knowledge index? This may take a moment for large collections.');" style="display: flex; align-items: center; gap: 14px;">
+    <button type="submit">Rebuild knowledge index</button>
+    <span style="font-size: 12px; color: var(--muted);">Runs automatically on startup when the embedding model changes.</span>
+  </form>
+</div>
+{% endblock %}

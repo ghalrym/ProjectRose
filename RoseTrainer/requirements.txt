@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+jinja2
+python-multipart
+sse-starlette
+asyncpg
+pydantic
+httpx
+torch
+tokenizers
+openai
+anthropic
+groq

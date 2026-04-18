@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Configuration{% endblock %}
+{% block content %}
+<h1>Configuration</h1>
+
+{% if request.query_params.get("saved") %}
+  <div class="flash">Saved.</div>
+{% endif %}
+
+<div class="tab-bar">
+  <button class="tab" data-tab="configs" onclick="showTab('configs')">Configs</button>
+  <button class="tab" data-tab="roles"   onclick="showTab('roles')">Role Assignments</button>
+</div>
+
+<!-- ── Configs tab ── -->
+<div class="tab-panel" id="tab-configs">
+  <div class="section-label">Saved configs</div>
+  <div class="card">
+    {% if configs %}
+      <ul class="item-list">
+        {% for name, entry in configs.items() %}
+          <li>
+            <div class="item-info">
+              <a href="/admin/configs/{{ name }}" class="item-name">{{ name }}</a>
+              <div class="item-meta">
+                {{ entry.provider_type }}
+                {% if entry.model %} · {{ entry.model }}{% endif %}
+                {% if entry.base_url %} · {{ entry.base_url }}{% endif %}
+                {% if entry.api_key %} · key set{% endif %}
+              </div>
+            </div>
+            <form method="post" action="/admin/configs/{{ name }}/delete" class="inline"
+                  onsubmit="return confirm('Delete {{ name }}? Roles pointing to it will stop working.');">
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty">No configs yet — add one below.</div>
+    {% endif %}
+  </div>
+
+  <div class="section-label">Add config</div>
+  <div class="card">
+    <form method="post" action="/admin/configs/new">
+      <div class="grid-2">
+        <div class="field">
+          <label>Name</label>
+          <input type="text" name="name" required placeholder="groq-llama-70b">
+        </div>
+        <div class="field">
+          <label>Provider type</label>
+          <select name="provider_type" id="provider_type_new" onchange="updateNewFields()">
+            {% for p in provider_types %}
+              <option value="{{ p }}">{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Model</label>
+        <input type="text" name="model" placeholder="llama-3.3-70b-versatile">
+      </div>
+      <div class="field" id="new_base_url_wrap">
+        <label>Base URL</label>
+        <input type="text" name="base_url" placeholder="https://api.groq.com/openai/v1">
+      </div>
+      <div class="field" id="new_api_key_wrap">
+        <label>API key</label>
+        <input type="password" name="api_key">
+      </div>
+      <div class="btn-row">
+        <button type="submit">Add config</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Roles tab ── -->
+<div class="tab-panel" id="tab-roles">
+  <p class="description">Assign a saved config to each role. Changing the <strong>embedding</strong> role triggers a full knowledge re-index on next startup.</p>
+  <form method="post" action="/admin/roles">
+    <div class="card">
+      {% for role in roles %}
+        <div class="field">
+          <label>{{ role }}</label>
+          <select name="role_{{ role }}">
+            {% for cname, entry in configs.items() %}
+              <option value="{{ cname }}" {% if role_assignments[role] == cname %}selected{% endif %}>
+                {{ cname }} — {{ entry.provider_type }}{% if entry.model %}/{{ entry.model }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="btn-row">
+      <button type="submit">Save assignments</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  function showTab(id) {
+    document.querySelectorAll('.tab').forEach(function (t) {
+      t.classList.toggle('active', t.getAttribute('data-tab') === id);
+    });
+    document.querySelectorAll('.tab-panel').forEach(function (p) {
+      p.classList.toggle('active', p.id === 'tab-' + id);
+    });
+    history.replaceState(null, '', location.pathname + '?tab=' + id);
+  }
+
+  function updateNewFields() {
+    const t = document.getElementById("provider_type_new").value;
+    const needsBase = (t === "ollama" || t === "openai_compatible");
+    const needsKey  = (t === "openai" || t === "anthropic" || t === "openai_compatible");
+    document.getElementById("new_base_url_wrap").style.display = needsBase ? "" : "none";
+    document.getElementById("new_api_key_wrap").style.display  = needsKey  ? "" : "none";
+  }
+
+  (function () {
+    const tab = new URLSearchParams(location.search).get('tab') || 'configs';
+    showTab(tab);
+    updateNewFields();
+  })();
+</script>
+{% endblock %}

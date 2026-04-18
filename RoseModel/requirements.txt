@@ -5,3 +5,6 @@ chromadb
 pydantic
 sse-starlette
 pyyaml
+litellm
+jinja2
+python-multipart

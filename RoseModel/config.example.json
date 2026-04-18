@@ -1,0 +1,21 @@
+{
+  "configs": {
+    "ollama-glm-4.7-flash": {
+      "provider_type": "ollama",
+      "model": "glm-4.7-flash",
+      "base_url": "http://host.docker.internal:11434"
+    },
+    "ollama-nomic-embed-text": {
+      "provider_type": "ollama",
+      "model": "nomic-embed-text",
+      "base_url": "http://host.docker.internal:11434"
+    }
+  },
+  "roles": {
+    "chat": "ollama-glm-4.7-flash",
+    "embedding": "ollama-nomic-embed-text",
+    "compression": "ollama-glm-4.7-flash",
+    "skill_router": "ollama-glm-4.7-flash"
+  },
+  "embedding_model_used_for_index": ""
+}

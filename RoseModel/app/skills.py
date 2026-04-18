@@ -1,62 +1,29 @@
-import os
-import yaml
+"""Level-2 selector: LLM picks categories (not individual files).
 
-from app.ollama import chat_sync
+Delegates all filesystem work to app.categories. This module owns the prompt
+engineering for the selector LLM and the response-parsing logic.
+"""
+from __future__ import annotations
 
-SKILLS_DIR = os.path.join(os.path.dirname(__file__), "..", "prompts", "skills")
+import json
 
-_skills_cache: dict[str, dict] = {}
+from app import categories, providers
 
 
 def load_skills() -> None:
-    """Load all skill files from the skills directory, parsing frontmatter."""
-    _skills_cache.clear()
-    skills_dir = os.path.normpath(SKILLS_DIR)
-    if not os.path.isdir(skills_dir):
-        return
-
-    for filename in os.listdir(skills_dir):
-        if not filename.endswith(".md"):
-            continue
-        filepath = os.path.join(skills_dir, filename)
-        with open(filepath, "r", encoding="utf-8") as f:
-            raw = f.read()
-
-        name, description, content = _parse_skill(raw, filename)
-        _skills_cache[name] = {
-            "name": name,
-            "description": description,
-            "content": content,
-        }
-
-
-def _parse_skill(raw: str, filename: str) -> tuple[str, str, str]:
-    """Parse a skill file with YAML frontmatter. Returns (name, description, content)."""
-    if raw.startswith("---"):
-        parts = raw.split("---", 2)
-        if len(parts) >= 3:
-            frontmatter = yaml.safe_load(parts[1])
-            content = parts[2].strip()
-            name = frontmatter.get("name", filename.replace(".md", ""))
-            description = frontmatter.get("description", "")
-            return name, description, content
-    return filename.replace(".md", ""), "", raw.strip()
+    """No-op retained for backward compatibility. Category scans are lazy."""
+    return None
 
 
 def get_manifest() -> str:
-    """Build a manifest string listing all available skills with descriptions."""
-    if not _skills_cache:
-        load_skills()
-
-    lines = []
-    for skill in _skills_cache.values():
-        lines.append(f"- {skill['name']}: {skill['description']}")
-    return "\n".join(lines)
+    return categories.get_manifest()
 
 
 async def select_skills(messages: list[dict]) -> list[str]:
-    """Use the LLM to pick relevant skills from the manifest based on conversation."""
-    manifest = get_manifest()
+    """Ask the skill_router model which category names are relevant. Returns
+    category display names (the same strings that appear in the manifest).
+    """
+    manifest = categories.get_manifest()
     if not manifest:
         return []
 
@@ -64,39 +31,47 @@ async def select_skills(messages: list[dict]) -> list[str]:
         {
             "role": "system",
             "content": (
-                "You are a skill selector. Given a conversation and a list of available skills, "
-                "return ONLY a JSON array of skill names that are relevant to the conversation. "
-                "Return an empty array if none are relevant. No explanation, just the JSON array.\n\n"
-                f"Available skills:\n{manifest}"
+                "You are a skill-category selector. Given a conversation and a "
+                "list of available skill categories, return ONLY a JSON array of "
+                "category names that are relevant to what the user is discussing. "
+                "Return an empty array if none apply. No explanation, just the "
+                f"JSON array.\n\nAvailable categories:\n{manifest}"
             ),
         },
         *messages,
         {
             "role": "user",
-            "content": "Based on this conversation, which skills from the list are relevant? Return only a JSON array of skill names.",
+            "content": (
+                "Based on this conversation, which categories are relevant? "
+                "Return only a JSON array of category names."
+            ),
         },
     ]
 
-    response = await chat_sync(selection_prompt)
-    content = response.get("message", {}).get("content", "[]")
+    try:
+        response = await providers.chat_sync(selection_prompt, role="skill_router")
+    except Exception:
+        return []
+
+    content = (response.get("content") or "").strip()
+    if content.startswith("```"):
+        # strip code fence
+        try:
+            content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        except Exception:
+            pass
 
     try:
-        # Extract JSON array from response
-        content = content.strip()
-        if content.startswith("```"):
-            content = content.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        selected = __import__("json").loads(content)
-        if isinstance(selected, list):
-            return [s for s in selected if s in _skills_cache]
+        selected = json.loads(content)
     except Exception:
-        pass
-    return []
+        return []
+    if not isinstance(selected, list):
+        return []
+
+    valid_names = {c["name"].lower() for c in categories.list_categories()}
+    return [s for s in selected if isinstance(s, str) and s.lower() in valid_names]
 
 
 def get_skill_content(names: list[str]) -> str:
-    """Return the full markdown content of the selected skills."""
-    parts = []
-    for name in names:
-        if name in _skills_cache:
-            parts.append(f"## Skill: {name}\n\n{_skills_cache[name]['content']}")
-    return "\n\n".join(parts)
+    """Return concatenated markdown for every file in the picked categories."""
+    return categories.get_category_content(names)
