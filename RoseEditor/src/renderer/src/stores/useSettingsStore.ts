@@ -8,6 +8,11 @@ interface SettingsState {
   agentName: string
   roseSpeechSpeakerId: number | null
   activeListeningSetupComplete: boolean
+  imapHost: string
+  imapPort: number
+  imapUser: string
+  imapPassword: string
+  imapTLS: boolean
   loaded: boolean
   load: () => Promise<void>
   update: (patch: Partial<Omit<SettingsState, 'loaded' | 'load' | 'update'>>) => Promise<void>
@@ -21,6 +26,11 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   agentName: '',
   roseSpeechSpeakerId: null,
   activeListeningSetupComplete: false,
+  imapHost: '',
+  imapPort: 993,
+  imapUser: '',
+  imapPassword: '',
+  imapTLS: true,
   loaded: false,
 
   load: async () => {

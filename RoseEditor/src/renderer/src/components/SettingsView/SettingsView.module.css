@@ -233,3 +233,76 @@
   outline: none;
   border-color: var(--color-accent);
 }
+
+/* ── Text input ── */
+
+.input {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.inputRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.inputRowFlex {
+  flex: 1;
+}
+
+.inputNarrow {
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.testBtn {
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.testBtn:hover {
+  background: var(--color-button-hover-bg);
+}
+
+.testBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.testOk {
+  font-size: 12px;
+  color: #22c55e;
+}
+
+.testFail {
+  font-size: 12px;
+  color: var(--color-error, #ef4444);
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}

@@ -50,6 +50,12 @@ export function ViewToggle(): JSX.Element {
       >
         Settings
       </button>
+      <button
+        className={clsx(styles.toggleBtn, activeView === 'email' && styles.toggleActive)}
+        onClick={() => setActiveView('email')}
+      >
+        Email
+      </button>
     </div>
   )
 }

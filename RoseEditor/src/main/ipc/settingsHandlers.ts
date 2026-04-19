@@ -12,6 +12,11 @@ export interface AppSettings {
   agentName: string
   roseSpeechSpeakerId: number | null
   activeListeningSetupComplete: boolean
+  imapHost: string
+  imapPort: number
+  imapUser: string
+  imapPassword: string
+  imapTLS: boolean
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -21,7 +26,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   userName: '',
   agentName: '',
   roseSpeechSpeakerId: null,
-  activeListeningSetupComplete: false
+  activeListeningSetupComplete: false,
+  imapHost: '',
+  imapPort: 993,
+  imapUser: '',
+  imapPassword: '',
+  imapTLS: true
 }
 
 const SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')

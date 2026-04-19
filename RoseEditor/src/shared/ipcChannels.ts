@@ -103,6 +103,12 @@ export const IPC = {
   GIT_STASH_APPLY: 'git:stashApply',
   GIT_HEAD_CHANGED: 'git:headChanged',
 
+  // Email view
+  EMAIL_FETCH_MESSAGES: 'email:fetchMessages',
+  EMAIL_FETCH_MESSAGE:  'email:fetchMessage',
+  EMAIL_DELETE_MESSAGE: 'email:deleteMessage',
+  EMAIL_TEST_CONN:      'email:testConnection',
+
   // Active Listening
   ACTIVE_LISTENING_LABEL_SPEAKER: 'activeSpeech:labelSpeaker',
   ACTIVE_LISTENING_TRAIN: 'activeSpeech:train',

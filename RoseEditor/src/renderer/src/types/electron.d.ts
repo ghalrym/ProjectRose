@@ -76,8 +76,8 @@ export interface ElectronAPI {
   getHeartbeatLogContent: (rootPath: string, filename: string) => Promise<string>
 
   // Settings
-  getSettings: () => Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string }>
-  setSettings: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string }>) => Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string }>
+  getSettings: () => Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean; imapHost: string; imapPort: number; imapUser: string; imapPassword: string; imapTLS: boolean }>
+  setSettings: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean; imapHost: string; imapPort: number; imapUser: string; imapPassword: string; imapTLS: boolean }>) => Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean; imapHost: string; imapPort: number; imapUser: string; imapPassword: string; imapTLS: boolean }>
   checkServicesHealth: () => Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>>
   transcribeAudio: (audioBuffer: ArrayBuffer) => Promise<string>
 
@@ -94,11 +94,29 @@ export interface ElectronAPI {
   roseSearch: (params: SearchRequest) => Promise<SearchResult[]>
   roseFindReferences: (params: FindReferencesRequest) => Promise<ReferenceResult[]>
 
+  // Email
+  email: EmailAPI
+
   // Docker
   docker: DockerAPI
 
   // Git
   git: GitAPI
+}
+
+export interface EmailMessage {
+  uid: number
+  subject: string
+  from: string
+  date: string
+  read: boolean
+}
+
+export interface EmailAPI {
+  testConnection: () => Promise<{ ok: boolean; error?: string }>
+  fetchMessages: () => Promise<EmailMessage[]>
+  fetchMessage: (uid: number) => Promise<string>
+  deleteMessage: (uid: number) => Promise<{ ok: boolean; error?: string }>
 }
 
 export interface DockerContainer {

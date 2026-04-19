@@ -106,10 +106,10 @@ const api = {
   getHeartbeatLogContent: (rootPath: string, filename: string): Promise<string> =>
     ipcRenderer.invoke(IPC.HEARTBEAT_LOG_CONTENT, { rootPath, filename }),
 
-  getSettings: (): Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean }> =>
+  getSettings: (): Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean; imapHost: string; imapPort: number; imapUser: string; imapPassword: string; imapTLS: boolean }> =>
     ipcRenderer.invoke(IPC.SETTINGS_GET),
 
-  setSettings: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean }>): Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean }> =>
+  setSettings: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean; imapHost: string; imapPort: number; imapUser: string; imapPassword: string; imapTLS: boolean }>): Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean; imapHost: string; imapPort: number; imapUser: string; imapPassword: string; imapTLS: boolean }> =>
     ipcRenderer.invoke(IPC.SETTINGS_SET, patch),
 
   checkServicesHealth: (): Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>> =>
@@ -244,6 +244,18 @@ const api = {
       ipcRenderer.invoke(IPC.DOCKER_LIST_FILES, { id, path }),
     mounts: (id: string): Promise<Array<{ Source: string; Destination: string; Type: string }>> =>
       ipcRenderer.invoke(IPC.DOCKER_MOUNTS, id)
+  },
+
+  // Email
+  email: {
+    testConnection: (): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.EMAIL_TEST_CONN),
+    fetchMessages: (): Promise<Array<{ uid: number; subject: string; from: string; date: string; read: boolean }>> =>
+      ipcRenderer.invoke(IPC.EMAIL_FETCH_MESSAGES),
+    fetchMessage: (uid: number): Promise<string> =>
+      ipcRenderer.invoke(IPC.EMAIL_FETCH_MESSAGE, uid),
+    deleteMessage: (uid: number): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke(IPC.EMAIL_DELETE_MESSAGE, uid)
   },
 
   // Git
