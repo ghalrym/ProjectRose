@@ -115,6 +115,9 @@ const api = {
   checkServicesHealth: (): Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>> =>
     ipcRenderer.invoke(IPC.HEALTH_CHECK_ALL),
 
+  transcribeAudio: (audioBuffer: ArrayBuffer): Promise<string> =>
+    ipcRenderer.invoke(IPC.WHISPER_TRANSCRIBE, audioBuffer),
+
   addRecentProject: (projectPath: string): Promise<unknown[]> =>
     ipcRenderer.invoke(IPC.PROJECTS_ADD_RECENT, projectPath),
 

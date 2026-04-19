@@ -34,6 +34,8 @@ export const IPC = {
 
   HEALTH_CHECK_ALL: 'health:checkAll',
 
+  WHISPER_TRANSCRIBE: 'whisper:transcribe',
+
   INDEXING_PROJECT: 'indexing:project',
   INDEXING_FILE: 'indexing:file',
   INDEXING_PROGRESS: 'indexing:progress',

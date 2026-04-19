@@ -3,14 +3,16 @@ import { create } from 'zustand'
 interface SettingsState {
   heartbeatEnabled: boolean
   heartbeatIntervalMinutes: number
+  micDeviceId: string
   loaded: boolean
   load: () => Promise<void>
-  update: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number }>) => Promise<void>
+  update: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string }>) => Promise<void>
 }
 
 export const useSettingsStore = create<SettingsState>()((set) => ({
   heartbeatEnabled: true,
   heartbeatIntervalMinutes: 5,
+  micDeviceId: '',
   loaded: false,
 
   load: async () => {

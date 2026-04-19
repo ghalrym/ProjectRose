@@ -214,3 +214,22 @@
 .intervalBtn:disabled {
   cursor: not-allowed;
 }
+
+/* ── Select ── */
+
+.select {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  min-width: 180px;
+  max-width: 240px;
+  cursor: pointer;
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}

@@ -49,3 +49,33 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.micBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  color: var(--color-text-secondary);
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+.micBtn:hover:not(:disabled) {
+  background: var(--color-button-hover-bg);
+}
+
+.micRecording {
+  color: #ef4444;
+  animation: micPulse 1s ease-in-out infinite;
+}
+
+.micTranscribing {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@keyframes micPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

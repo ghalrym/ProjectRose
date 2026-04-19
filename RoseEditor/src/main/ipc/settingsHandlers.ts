@@ -7,11 +7,13 @@ import { IPC } from '../../shared/ipcChannels'
 export interface AppSettings {
   heartbeatEnabled: boolean
   heartbeatIntervalMinutes: number
+  micDeviceId: string
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   heartbeatEnabled: true,
-  heartbeatIntervalMinutes: 5
+  heartbeatIntervalMinutes: 5,
+  micDeviceId: ''
 }
 
 const SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')

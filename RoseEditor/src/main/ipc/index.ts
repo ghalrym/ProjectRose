@@ -10,6 +10,7 @@ import { registerGitHandlers } from './gitHandlers'
 import { registerRoseSetupHandlers } from './roseSetupHandlers'
 import { registerHeartbeatHandlers } from './heartbeatHandlers'
 import { registerSettingsHandlers } from './settingsHandlers'
+import { registerWhisperHandlers } from './whisperHandlers'
 
 export function registerAllHandlers(): void {
   registerFileHandlers()
@@ -24,4 +25,5 @@ export function registerAllHandlers(): void {
   registerRoseSetupHandlers()
   registerHeartbeatHandlers()
   registerSettingsHandlers()
+  registerWhisperHandlers()
 }

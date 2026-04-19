@@ -2,6 +2,11 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import styles from './SettingsView.module.css'
 
+interface AudioDevice {
+  deviceId: string
+  label: string
+}
+
 interface ServiceHealth {
   name: string
   url: string
@@ -12,7 +17,8 @@ interface ServiceHealth {
 const INTERVAL_OPTIONS = [1, 2, 5, 10, 15, 30, 60]
 
 export function SettingsView(): JSX.Element {
-  const { heartbeatEnabled, heartbeatIntervalMinutes, update } = useSettingsStore()
+  const { heartbeatEnabled, heartbeatIntervalMinutes, micDeviceId, update } = useSettingsStore()
+  const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([])
   const [services, setServices] = useState<ServiceHealth[]>([
     { name: 'RoseLibrary', url: 'http://127.0.0.1:8000', status: 'checking' },
     { name: 'RoseModel',   url: 'http://127.0.0.1:8010', status: 'checking' },
@@ -25,9 +31,22 @@ export function SettingsView(): JSX.Element {
     setServices(results.map((r) => ({ ...r, status: r.status as 'up' | 'down' | 'checking' })))
   }, [])
 
+  const loadAudioDevices = useCallback(async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true }).then((s) => s.getTracks().forEach((t) => t.stop()))
+    } catch { /* permission denied — labels will be empty */ }
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    setAudioDevices(
+      devices
+        .filter((d) => d.kind === 'audioinput')
+        .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Microphone ${i + 1}` }))
+    )
+  }, [])
+
   useEffect(() => {
     checkHealth()
-  }, [checkHealth])
+    loadAudioDevices()
+  }, [checkHealth, loadAudioDevices])
 
   return (
     <div className={styles.container}>
@@ -101,6 +120,29 @@ export function SettingsView(): JSX.Element {
                 </button>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* Voice Input */}
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>Voice Input</div>
+          <div className={styles.settingRow}>
+            <div className={styles.settingInfo}>
+              <div className={styles.settingLabel}>Microphone</div>
+              <div className={styles.settingDesc}>
+                Which microphone to use for voice-to-text in the chat input.
+              </div>
+            </div>
+            <select
+              className={styles.select}
+              value={micDeviceId}
+              onChange={(e) => update({ micDeviceId: e.target.value })}
+            >
+              <option value="">System default</option>
+              {audioDevices.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
+              ))}
+            </select>
           </div>
         </section>
 
