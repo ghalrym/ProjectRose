@@ -109,6 +109,12 @@ export const IPC = {
   EMAIL_DELETE_MESSAGE: 'email:deleteMessage',
   EMAIL_TEST_CONN:      'email:testConnection',
 
+  // Chat Sessions
+  SESSION_LIST: 'session:list',
+  SESSION_LOAD: 'session:load',
+  SESSION_SAVE: 'session:save',
+  SESSION_DELETE: 'session:delete',
+
   // Active Listening
   ACTIVE_LISTENING_LABEL_SPEAKER: 'activeSpeech:labelSpeaker',
   ACTIVE_LISTENING_TRAIN: 'activeSpeech:train',

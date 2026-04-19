@@ -1,0 +1,127 @@
+.sidebar {
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--color-bg-primary);
+}
+
+.header {
+  padding: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.newBtn {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--color-toggle-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.newBtn:hover {
+  background: var(--color-toggle-active-bg, var(--color-toggle-bg));
+}
+
+.searchWrap {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  background: var(--color-bg-subtle, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: 12px;
+}
+
+.search::placeholder {
+  color: var(--color-text-muted);
+}
+
+.list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.empty {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.item {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.item:hover {
+  background: var(--color-toggle-bg);
+}
+
+.item:hover .actions {
+  opacity: 1;
+}
+
+.itemActive {
+  background: var(--color-toggle-active-bg, var(--color-toggle-bg));
+  border-left: 2px solid var(--color-toggle-active);
+}
+
+.title {
+  flex: 1;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.renameInput {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  background: var(--color-bg-subtle, transparent);
+  border: 1px solid var(--color-toggle-active);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  padding: 1px 4px;
+}
+
+.actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+.actionBtn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+}
+
+.actionBtn:hover {
+  color: var(--color-text);
+  background: var(--color-toggle-bg);
+}

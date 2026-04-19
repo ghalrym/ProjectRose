@@ -258,6 +258,18 @@ const api = {
       ipcRenderer.invoke(IPC.EMAIL_DELETE_MESSAGE, uid)
   },
 
+  // Chat Sessions
+  session: {
+    list: (rootPath: string): Promise<Array<{ id: string; title: string; createdAt: number; updatedAt: number }>> =>
+      ipcRenderer.invoke(IPC.SESSION_LIST, rootPath),
+    load: (rootPath: string, sessionId: string): Promise<{ id: string; title: string; createdAt: number; updatedAt: number; messages: unknown[] } | null> =>
+      ipcRenderer.invoke(IPC.SESSION_LOAD, rootPath, sessionId),
+    save: (rootPath: string, session: { id: string; title: string; createdAt: number; updatedAt: number; messages: unknown[] }): Promise<void> =>
+      ipcRenderer.invoke(IPC.SESSION_SAVE, rootPath, session),
+    delete: (rootPath: string, sessionId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.SESSION_DELETE, rootPath, sessionId)
+  },
+
   // Git
   git: {
     isRepo: (cwd: string): Promise<boolean> =>

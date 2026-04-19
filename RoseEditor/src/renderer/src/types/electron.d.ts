@@ -94,6 +94,9 @@ export interface ElectronAPI {
   roseSearch: (params: SearchRequest) => Promise<SearchResult[]>
   roseFindReferences: (params: FindReferencesRequest) => Promise<ReferenceResult[]>
 
+  // Chat Sessions
+  session: SessionAPI
+
   // Email
   email: EmailAPI
 
@@ -102,6 +105,24 @@ export interface ElectronAPI {
 
   // Git
   git: GitAPI
+}
+
+export interface ChatSessionMeta {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ChatSession extends ChatSessionMeta {
+  messages: unknown[]
+}
+
+export interface SessionAPI {
+  list: (rootPath: string) => Promise<ChatSessionMeta[]>
+  load: (rootPath: string, sessionId: string) => Promise<ChatSession | null>
+  save: (rootPath: string, session: ChatSession) => Promise<void>
+  delete: (rootPath: string, sessionId: string) => Promise<void>
 }
 
 export interface EmailMessage {

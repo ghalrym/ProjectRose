@@ -218,6 +218,7 @@ async def generate(request: GenerateRequest, http_request: Request):
                 if pending_tool_call is not None:
                     tc_name = pending_tool_call["name"]
                     tc_params = pending_tool_call["arguments"]
+                    is_text_based = pending_tool_call.get("_text_based", False)
 
                     result = await execute_tool_call(tc_name, tc_params, request.tools)
 
@@ -250,25 +251,40 @@ async def generate(request: GenerateRequest, http_request: Request):
                         }),
                     }
 
-                    conversation.append({
-                        "role": "assistant",
-                        "content": accumulated_content,
-                        "tool_calls": [{
-                            "id": pending_tool_call["id"],
-                            "type": "function",
-                            "function": {
-                                "name": tc_name,
-                                "arguments": json.dumps(tc_params)
-                                    if isinstance(tc_params, (dict, list))
-                                    else str(tc_params),
-                            },
-                        }],
-                    })
-                    conversation.append({
-                        "role": "tool",
-                        "tool_call_id": pending_tool_call["id"],
-                        "content": json.dumps(result),
-                    })
+                    if is_text_based:
+                        # Model doesn't understand tool_calls message format — inject as
+                        # plain text so it can follow the conversation on the next turn.
+                        tool_result_text = (
+                            result.get("content") or result.get("error") or json.dumps(result)
+                        )
+                        conversation.append({
+                            "role": "assistant",
+                            "content": json.dumps({"name": tc_name, "arguments": tc_params}),
+                        })
+                        conversation.append({
+                            "role": "user",
+                            "content": f"[Tool result for {tc_name}]\n{tool_result_text}",
+                        })
+                    else:
+                        conversation.append({
+                            "role": "assistant",
+                            "content": accumulated_content,
+                            "tool_calls": [{
+                                "id": pending_tool_call["id"],
+                                "type": "function",
+                                "function": {
+                                    "name": tc_name,
+                                    "arguments": json.dumps(tc_params)
+                                        if isinstance(tc_params, (dict, list))
+                                        else str(tc_params),
+                                },
+                            }],
+                        })
+                        conversation.append({
+                            "role": "tool",
+                            "tool_call_id": pending_tool_call["id"],
+                            "content": json.dumps(result),
+                        })
 
                     if len(conversation) > 40:
                         conversation = await _compress_messages(conversation)

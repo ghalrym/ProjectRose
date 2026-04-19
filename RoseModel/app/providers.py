@@ -8,6 +8,9 @@ Streaming chunks are yielded in OpenAI delta shape:
     {"content": str, "tool_call": dict | None, "usage": UsageInfo | None, "done": bool}
 
 A tool_call is yielded once — after its arguments have been fully accumulated.
+Content is buffered per-stream and emitted as a single chunk after completion so
+that text-based tool call output (models that emit JSON instead of tool_calls delta)
+can be detected and re-routed before being forwarded as text.
 """
 from __future__ import annotations
 
@@ -102,13 +105,56 @@ def _tools_to_openai(tools: list[dict]) -> list[dict]:
     return out
 
 
+def _try_parse_text_tool_call(text: str, tool_names: set[str]) -> dict[str, Any] | None:
+    """Detect a tool call encoded as plain JSON text (models that don't use tool_calls delta).
+
+    Returns a tool_call dict {"id", "name", "arguments", "_text_based": True} if the text
+    is a JSON object whose "name" key matches a known tool, otherwise returns None.
+    """
+    try:
+        data = json.loads(text)
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    name = data.get("name")
+    if not name or not isinstance(name, str):
+        return None
+    if tool_names and name not in tool_names:
+        return None
+    args = data.get("arguments", data.get("parameters", {}))
+    return {
+        "id": "call_text_0",
+        "name": name,
+        "arguments": args if isinstance(args, dict) else {},
+        "_text_based": True,
+    }
+
+
+def _try_unwrap_message_object(text: str) -> str | None:
+    """If text is a JSON message object {"role": ..., "content": ...}, return the content.
+
+    Some models (e.g. glm-4.7-flash via Ollama) wrap their responses in OpenAI message
+    format when they are confused by tool_calls conversation history.
+    """
+    try:
+        data = json.loads(text)
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    if data.get("role") in ("assistant", "model") and isinstance(data.get("content"), str):
+        return data["content"]
+    return None
+
+
 async def chat_stream(
     messages: list[dict],
     tools: list[dict] | None = None,
     role: str = "chat",
 ) -> AsyncGenerator[dict, None]:
     """Stream a chat completion. Yields dicts with fields:
-        content: str | None         — incremental text token
+        content: str | None         — text (emitted as one chunk after stream ends)
         tool_call: dict | None      — {"id", "name", "arguments": dict} (complete)
         usage: {"prompt_tokens", "completion_tokens"} | None (final chunk only)
         done: bool                  — True on final chunk
@@ -127,19 +173,27 @@ async def chat_stream(
     pending_calls: dict[int, dict[str, Any]] = {}
     emitted_indices: set[int] = set()
     final_usage: dict[str, int] | None = None
+    buffered_content: list[str] = []
+    has_delta_tool_calls = False
 
     async for chunk in response:
         choices = getattr(chunk, "choices", None) or []
         if choices:
             delta = getattr(choices[0], "delta", None)
-            content = getattr(delta, "content", None) if delta else None
+
+            content = (
+                getattr(delta, "content", None)
+                or getattr(delta, "reasoning_content", None)
+            ) if delta else None
+
             tool_call_deltas = getattr(delta, "tool_calls", None) if delta else None
             finish_reason = getattr(choices[0], "finish_reason", None)
 
             if content:
-                yield {"content": content, "tool_call": None, "usage": None, "done": False}
+                buffered_content.append(content)
 
             if tool_call_deltas:
+                has_delta_tool_calls = True
                 for tcd in tool_call_deltas:
                     idx = getattr(tcd, "index", 0) or 0
                     pc = pending_calls.setdefault(
@@ -180,6 +234,27 @@ async def chat_stream(
                 "prompt_tokens": int(getattr(usage, "prompt_tokens", 0) or 0),
                 "completion_tokens": int(getattr(usage, "completion_tokens", 0) or 0),
             }
+
+    # Flush buffered content. If the model emitted tool-call JSON as plain text
+    # (instead of using delta.tool_calls), intercept it and re-emit as a tool_call chunk.
+    full_content = "".join(buffered_content)
+    stripped = full_content.strip()
+    if stripped and not has_delta_tool_calls and tools:
+        tool_names = {t["name"] for t in tools}
+        text_tc = _try_parse_text_tool_call(stripped, tool_names)
+        if text_tc is not None:
+            yield {"content": None, "tool_call": text_tc, "usage": None, "done": False}
+            yield {"content": None, "tool_call": None, "usage": final_usage, "done": True}
+            return
+
+    # Some models wrap their response in a JSON message object when confused by tool history.
+    if stripped:
+        unwrapped = _try_unwrap_message_object(stripped)
+        if unwrapped is not None:
+            full_content = unwrapped
+
+    if full_content:
+        yield {"content": full_content, "tool_call": None, "usage": None, "done": False}
 
     yield {"content": None, "tool_call": None, "usage": final_usage, "done": True}
 

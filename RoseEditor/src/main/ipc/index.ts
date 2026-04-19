@@ -13,6 +13,7 @@ import { registerSettingsHandlers } from './settingsHandlers'
 import { registerWhisperHandlers } from './whisperHandlers'
 import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
 import { registerEmailHandlers } from './emailHandlers'
+import { registerSessionHandlers } from './sessionHandlers'
 
 export function registerAllHandlers(): void {
   registerFileHandlers()
@@ -30,4 +31,5 @@ export function registerAllHandlers(): void {
   registerWhisperHandlers()
   registerActiveSpeechHandlers()
   registerEmailHandlers()
+  registerSessionHandlers()
 }
