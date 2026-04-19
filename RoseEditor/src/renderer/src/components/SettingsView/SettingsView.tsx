@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { NavItem } from '../../../../shared/types'
 import styles from './SettingsView.module.css'
 
 type TestState = 'idle' | 'testing' | 'ok' | 'fail'
@@ -20,7 +21,9 @@ const INTERVAL_OPTIONS = [1, 2, 5, 10, 15, 30, 60]
 
 export function SettingsView(): JSX.Element {
   const { heartbeatEnabled, heartbeatIntervalMinutes, micDeviceId,
-          imapHost, imapPort, imapUser, imapPassword, imapTLS, update } = useSettingsStore()
+          imapHost, imapPort, imapUser, imapPassword, imapTLS, navItems, update } = useSettingsStore()
+  const dragIndexRef = useRef<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([])
   const [testState, setTestState] = useState<TestState>('idle')
   const [testError, setTestError] = useState('')
@@ -59,6 +62,42 @@ export function SettingsView(): JSX.Element {
       setTestError(result.error ?? 'Connection failed')
     }
   }, [])
+
+  const handleNavDragStart = useCallback((index: number) => {
+    dragIndexRef.current = index
+  }, [])
+
+  const handleNavDragOver = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    setDragOverIndex(index)
+  }, [])
+
+  const handleNavDrop = useCallback((dropIndex: number) => {
+    const fromIndex = dragIndexRef.current
+    if (fromIndex === null || fromIndex === dropIndex) {
+      dragIndexRef.current = null
+      setDragOverIndex(null)
+      return
+    }
+    const reordered = [...navItems]
+    const [moved] = reordered.splice(fromIndex, 1)
+    reordered.splice(dropIndex, 0, moved)
+    dragIndexRef.current = null
+    setDragOverIndex(null)
+    update({ navItems: reordered })
+  }, [navItems, update])
+
+  const handleNavDragEnd = useCallback(() => {
+    dragIndexRef.current = null
+    setDragOverIndex(null)
+  }, [])
+
+  const toggleNavItemVisible = useCallback((index: number) => {
+    const updated: NavItem[] = navItems.map((item, i) =>
+      i === index ? { ...item, visible: !item.visible } : item
+    )
+    update({ navItems: updated })
+  }, [navItems, update])
 
   useEffect(() => {
     checkHealth()
@@ -220,6 +259,39 @@ export function SettingsView(): JSX.Element {
                 <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
               ))}
             </select>
+          </div>
+        </section>
+
+        {/* Navigation Bar */}
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>Navigation Bar</div>
+          <div className={styles.navList}>
+            {navItems.map((item, index) => (
+              <div
+                key={item.viewId}
+                className={`${styles.navItem} ${dragOverIndex === index ? styles.navItemDragOver : ''}`}
+                draggable
+                onDragStart={() => handleNavDragStart(index)}
+                onDragOver={(e) => handleNavDragOver(e, index)}
+                onDrop={() => handleNavDrop(index)}
+                onDragEnd={handleNavDragEnd}
+              >
+                <span className={styles.navDragHandle}>⠿</span>
+                <span className={styles.navItemLabel}>{item.label}</span>
+                {item.viewId === 'settings' ? (
+                  <span className={styles.navItemLocked}>always visible</span>
+                ) : (
+                  <button
+                    className={`${styles.toggle} ${item.visible ? styles.toggleOn : styles.toggleOff}`}
+                    onClick={() => toggleNavItemVisible(index)}
+                    role="switch"
+                    aria-checked={item.visible}
+                  >
+                    <span className={styles.toggleThumb} />
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         </section>
 

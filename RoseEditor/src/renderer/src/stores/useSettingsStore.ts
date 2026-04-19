@@ -1,4 +1,16 @@
 import { create } from 'zustand'
+import { NavItem } from '../../../shared/types'
+
+const DEFAULT_NAV_ITEMS: NavItem[] = [
+  { viewId: 'chat',            label: 'Chat',      visible: true },
+  { viewId: 'activeListening', label: 'Listen',    visible: true },
+  { viewId: 'docker',          label: 'Docker',    visible: true },
+  { viewId: 'git',             label: 'Git',       visible: true },
+  { viewId: 'editor',          label: 'Editor',    visible: true },
+  { viewId: 'heartbeat',       label: 'Heartbeat', visible: true },
+  { viewId: 'settings',        label: 'Settings',  visible: true },
+  { viewId: 'email',           label: 'Email',     visible: true },
+]
 
 interface SettingsState {
   heartbeatEnabled: boolean
@@ -13,6 +25,7 @@ interface SettingsState {
   imapUser: string
   imapPassword: string
   imapTLS: boolean
+  navItems: NavItem[]
   loaded: boolean
   load: () => Promise<void>
   update: (patch: Partial<Omit<SettingsState, 'loaded' | 'load' | 'update'>>) => Promise<void>
@@ -31,6 +44,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   imapUser: '',
   imapPassword: '',
   imapTLS: true,
+  navItems: DEFAULT_NAV_ITEMS,
   loaded: false,
 
   load: async () => {

@@ -1,61 +1,24 @@
 import { useViewStore } from '../../stores/useViewStore'
+import { useSettingsStore } from '../../stores/useSettingsStore'
 import clsx from 'clsx'
 import styles from './TopBar.module.css'
 
 export function ViewToggle(): JSX.Element {
   const activeView = useViewStore((s) => s.activeView)
   const setActiveView = useViewStore((s) => s.setActiveView)
+  const navItems = useSettingsStore((s) => s.navItems)
 
   return (
     <div className={styles.toggleGroup}>
-      <button
-        className={clsx(styles.toggleBtn, activeView === 'chat' && styles.toggleActive)}
-        onClick={() => setActiveView('chat')}
-      >
-        Chat
-      </button>
-      <button
-        className={clsx(styles.toggleBtn, activeView === 'activeListening' && styles.toggleActive)}
-        onClick={() => setActiveView('activeListening')}
-      >
-        Listen
-      </button>
-      <button
-        className={clsx(styles.toggleBtn, activeView === 'docker' && styles.toggleActive)}
-        onClick={() => setActiveView('docker')}
-      >
-        Docker
-      </button>
-      <button
-        className={clsx(styles.toggleBtn, activeView === 'git' && styles.toggleActive)}
-        onClick={() => setActiveView('git')}
-      >
-        Git
-      </button>
-      <button
-        className={clsx(styles.toggleBtn, activeView === 'editor' && styles.toggleActive)}
-        onClick={() => setActiveView('editor')}
-      >
-        Editor
-      </button>
-      <button
-        className={clsx(styles.toggleBtn, activeView === 'heartbeat' && styles.toggleActive)}
-        onClick={() => setActiveView('heartbeat')}
-      >
-        Heartbeat
-      </button>
-      <button
-        className={clsx(styles.toggleBtn, activeView === 'settings' && styles.toggleActive)}
-        onClick={() => setActiveView('settings')}
-      >
-        Settings
-      </button>
-      <button
-        className={clsx(styles.toggleBtn, activeView === 'email' && styles.toggleActive)}
-        onClick={() => setActiveView('email')}
-      >
-        Email
-      </button>
+      {navItems.filter((item) => item.visible).map((item) => (
+        <button
+          key={item.viewId}
+          className={clsx(styles.toggleBtn, activeView === item.viewId && styles.toggleActive)}
+          onClick={() => setActiveView(item.viewId)}
+        >
+          {item.label}
+        </button>
+      ))}
     </div>
   )
 }

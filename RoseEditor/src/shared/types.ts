@@ -20,3 +20,19 @@ export interface TerminalResizePayload {
   cols: number
   rows: number
 }
+
+export type ActiveView =
+  | 'editor'
+  | 'chat'
+  | 'docker'
+  | 'git'
+  | 'heartbeat'
+  | 'settings'
+  | 'activeListening'
+  | 'email'
+
+export interface NavItem {
+  viewId: ActiveView
+  label: string
+  visible: boolean
+}

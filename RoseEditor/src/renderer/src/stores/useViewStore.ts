@@ -1,6 +1,5 @@
 import { create } from 'zustand'
-
-type ActiveView = 'editor' | 'chat' | 'docker' | 'git' | 'heartbeat' | 'settings' | 'activeListening' | 'email'
+import { ActiveView } from '../../../shared/types'
 
 interface ViewState {
   activeView: ActiveView

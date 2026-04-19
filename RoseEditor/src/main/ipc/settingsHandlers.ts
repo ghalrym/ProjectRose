@@ -3,6 +3,7 @@ import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
 import { get as httpGet } from 'http'
 import { IPC } from '../../shared/ipcChannels'
+import { NavItem } from '../../shared/types'
 
 export interface AppSettings {
   heartbeatEnabled: boolean
@@ -17,7 +18,19 @@ export interface AppSettings {
   imapUser: string
   imapPassword: string
   imapTLS: boolean
+  navItems: NavItem[]
 }
+
+const DEFAULT_NAV_ITEMS: NavItem[] = [
+  { viewId: 'chat',            label: 'Chat',      visible: true },
+  { viewId: 'activeListening', label: 'Listen',    visible: true },
+  { viewId: 'docker',          label: 'Docker',    visible: true },
+  { viewId: 'git',             label: 'Git',       visible: true },
+  { viewId: 'editor',          label: 'Editor',    visible: true },
+  { viewId: 'heartbeat',       label: 'Heartbeat', visible: true },
+  { viewId: 'settings',        label: 'Settings',  visible: true },
+  { viewId: 'email',           label: 'Email',     visible: true },
+]
 
 const DEFAULT_SETTINGS: AppSettings = {
   heartbeatEnabled: true,
@@ -31,7 +44,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   imapPort: 993,
   imapUser: '',
   imapPassword: '',
-  imapTLS: true
+  imapTLS: true,
+  navItems: DEFAULT_NAV_ITEMS
 }
 
 const SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
