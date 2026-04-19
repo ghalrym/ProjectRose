@@ -29,6 +29,11 @@ export const IPC = {
   HEARTBEAT_GET_LOGS: 'heartbeat:getLogs',
   HEARTBEAT_LOG_CONTENT: 'heartbeat:logContent',
 
+  SETTINGS_GET: 'settings:get',
+  SETTINGS_SET: 'settings:set',
+
+  HEALTH_CHECK_ALL: 'health:checkAll',
+
   INDEXING_PROJECT: 'indexing:project',
   INDEXING_FILE: 'indexing:file',
   INDEXING_PROGRESS: 'indexing:progress',

@@ -9,6 +9,7 @@ import { registerDockerHandlers } from './dockerHandlers'
 import { registerGitHandlers } from './gitHandlers'
 import { registerRoseSetupHandlers } from './roseSetupHandlers'
 import { registerHeartbeatHandlers } from './heartbeatHandlers'
+import { registerSettingsHandlers } from './settingsHandlers'
 
 export function registerAllHandlers(): void {
   registerFileHandlers()
@@ -22,4 +23,5 @@ export function registerAllHandlers(): void {
   registerGitHandlers()
   registerRoseSetupHandlers()
   registerHeartbeatHandlers()
+  registerSettingsHandlers()
 }

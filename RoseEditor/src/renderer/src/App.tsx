@@ -7,6 +7,7 @@ import { ChatView } from './components/ChatView/ChatView'
 import { DockerView } from './components/DockerView/DockerView'
 import { GitView } from './components/GitView/GitView'
 import { HeartbeatView } from './components/HeartbeatView/HeartbeatView'
+import { SettingsView } from './components/SettingsView/SettingsView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
 import { useThemeStore } from './stores/useThemeStore'
@@ -15,6 +16,7 @@ import { useFileStore } from './stores/useFileStore'
 import { useProjectStore } from './stores/useProjectStore'
 import { useIndexingStore } from './stores/useIndexingStore'
 import { useChatStore } from './stores/useChatStore'
+import { useSettingsStore } from './stores/useSettingsStore'
 import styles from './App.module.css'
 
 function App(): JSX.Element {
@@ -28,7 +30,11 @@ function App(): JSX.Element {
   const refreshTree = useProjectStore((s) => s.refreshTree)
   const toggleTerminal = useViewStore((s) => s.toggleTerminal)
 
+  const { heartbeatEnabled, heartbeatIntervalMinutes, load: loadSettings } = useSettingsStore()
   const [needsSetup, setNeedsSetup] = useState(false)
+
+  // Load persisted settings on mount
+  useEffect(() => { loadSettings() }, [loadSettings])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -61,18 +67,18 @@ function App(): JSX.Element {
     window.api.checkRoseMd(rootPath).then((hasMd) => setNeedsSetup(!hasMd))
   }, [rootPath])
 
-  // Run heartbeat on project open and then every 5 minutes.
+  // Run heartbeat on project open and then on the configured interval.
   useEffect(() => {
-    if (!rootPath || needsSetup) return
+    if (!rootPath || needsSetup || !heartbeatEnabled) return
 
     window.api.runHeartbeat(rootPath).catch(() => {})
 
     const interval = setInterval(() => {
       window.api.runHeartbeat(rootPath).catch(() => {})
-    }, 5 * 60 * 1000)
+    }, heartbeatIntervalMinutes * 60 * 1000)
 
     return () => clearInterval(interval)
-  }, [rootPath, needsSetup])
+  }, [rootPath, needsSetup, heartbeatEnabled, heartbeatIntervalMinutes])
 
   // Poll the file tree every minute to catch external changes.
   useEffect(() => {
@@ -151,6 +157,7 @@ function App(): JSX.Element {
         {activeView === 'docker' && <DockerView />}
         {activeView === 'git' && <GitView />}
         {activeView === 'heartbeat' && <HeartbeatView />}
+        {activeView === 'settings' && <SettingsView />}
       </main>
       <TopBar />
     </div>

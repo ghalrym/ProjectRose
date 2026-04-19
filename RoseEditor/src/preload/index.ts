@@ -106,6 +106,15 @@ const api = {
   getHeartbeatLogContent: (rootPath: string, filename: string): Promise<string> =>
     ipcRenderer.invoke(IPC.HEARTBEAT_LOG_CONTENT, { rootPath, filename }),
 
+  getSettings: (): Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number }> =>
+    ipcRenderer.invoke(IPC.SETTINGS_GET),
+
+  setSettings: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number }>): Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number }> =>
+    ipcRenderer.invoke(IPC.SETTINGS_SET, patch),
+
+  checkServicesHealth: (): Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>> =>
+    ipcRenderer.invoke(IPC.HEALTH_CHECK_ALL),
+
   addRecentProject: (projectPath: string): Promise<unknown[]> =>
     ipcRenderer.invoke(IPC.PROJECTS_ADD_RECENT, projectPath),
 

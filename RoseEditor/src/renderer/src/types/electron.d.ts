@@ -75,6 +75,11 @@ export interface ElectronAPI {
   getHeartbeatLogs: (rootPath: string) => Promise<string[]>
   getHeartbeatLogContent: (rootPath: string, filename: string) => Promise<string>
 
+  // Settings
+  getSettings: () => Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number }>
+  setSettings: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number }>) => Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number }>
+  checkServicesHealth: () => Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>>
+
   // Indexing
   indexProject: (rootPath: string) => Promise<IndexingResult>
   indexFile: (filePath: string, content: string, rootPath: string) => Promise<void>
