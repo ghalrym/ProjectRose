@@ -1,4 +1,24 @@
 import type { FileNode } from '@shared/types'
+
+export interface AppSettingsData {
+  heartbeatEnabled: boolean
+  heartbeatIntervalMinutes: number
+  micDeviceId: string
+  userName: string
+  agentName: string
+  roseSpeechSpeakerId: number | null
+  activeListeningSetupComplete: boolean
+  imapHost: string
+  imapPort: number
+  imapUser: string
+  imapPassword: string
+  imapTLS: boolean
+  llmProvider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
+  llmModel: string
+  llmApiKey: string
+  llmBaseUrl: string
+  llmCompressModel: string
+}
 import type {
   HealthResponse,
   FileHashEntry,
@@ -38,6 +58,8 @@ export interface ElectronAPI {
   onAiFileModified: (callback: (data: { path: string }) => void) => () => void
   onAiToolCallStart: (callback: (data: { id: string; name: string; params: Record<string, unknown> }) => void) => () => void
   onAiToolCallEnd: (callback: (data: { id: string; result: string; error: boolean }) => void) => () => void
+  onAiThinking: (callback: (data: { content: string }) => void) => () => void
+  onAiToken: (callback: (data: { token: string }) => void) => () => void
 
   // Theme
   setNativeTheme: (theme: 'dark' | 'light') => void
@@ -76,8 +98,8 @@ export interface ElectronAPI {
   getHeartbeatLogContent: (rootPath: string, filename: string) => Promise<string>
 
   // Settings
-  getSettings: () => Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean; imapHost: string; imapPort: number; imapUser: string; imapPassword: string; imapTLS: boolean }>
-  setSettings: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean; imapHost: string; imapPort: number; imapUser: string; imapPassword: string; imapTLS: boolean }>) => Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean; imapHost: string; imapPort: number; imapUser: string; imapPassword: string; imapTLS: boolean }>
+  getSettings: () => Promise<AppSettingsData>
+  setSettings: (patch: Partial<AppSettingsData>) => Promise<AppSettingsData>
   checkServicesHealth: () => Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>>
   transcribeAudio: (audioBuffer: ArrayBuffer) => Promise<string>
 

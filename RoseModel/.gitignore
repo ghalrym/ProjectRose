@@ -1,6 +1,0 @@
-__pycache__/
-*.pyc
-.chromadb/
-config.json
-conversations.db
-.env

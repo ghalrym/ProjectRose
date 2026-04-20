@@ -6,7 +6,6 @@ details > summary { cursor: pointer; }
   text-transform: uppercase; padding: 2px 6px; border-radius: 4px;
   background: #1e293b; color: #cbd5e1; border: 1px solid #334155;
 }
-.badge-rosemodel { color: #fca5a5; border-color: #7f1d1d; background: #450a0a; }
 .badge-roselibrary { color: #86efac; border-color: #14532d; background: #052e16; }
 .badge-ok { color: #86efac; border-color: #14532d; background: #052e16; }
 .badge-error { color: #fca5a5; border-color: #7f1d1d; background: #450a0a; }

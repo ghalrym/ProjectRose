@@ -17,7 +17,6 @@ import { useViewStore } from './stores/useViewStore'
 import { useFileStore } from './stores/useFileStore'
 import { useProjectStore } from './stores/useProjectStore'
 import { useIndexingStore } from './stores/useIndexingStore'
-import { useChatStore } from './stores/useChatStore'
 import { useSettingsStore } from './stores/useSettingsStore'
 import styles from './App.module.css'
 
@@ -49,15 +48,6 @@ function App(): JSX.Element {
       useIndexingStore.getState().setProgress(p)
     })
     return cleanup
-  }, [])
-
-  // Subscribe to AI tool-call events and reflect them in the chat transcript.
-  useEffect(() => {
-    const cleanups = [
-      window.api.onAiToolCallStart((d) => useChatStore.getState().appendToolStart(d)),
-      window.api.onAiToolCallEnd((d) => useChatStore.getState().resolveToolEnd(d))
-    ]
-    return () => cleanups.forEach((c) => c())
   }, [])
 
   // Check for ROSE.md when a project is opened; trigger wizard if missing.

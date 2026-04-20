@@ -8,6 +8,15 @@
   min-height: 34px;
 }
 
+.cellNested {
+  border: 1px solid var(--color-chat-border);
+  border-radius: calc(var(--radius-md) - 2px);
+  background: var(--color-toggle-bg);
+  overflow: hidden;
+  flex-shrink: 0;
+  min-height: 30px;
+}
+
 .header {
   display: flex;
   align-items: center;

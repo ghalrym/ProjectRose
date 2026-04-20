@@ -4,7 +4,6 @@ import { createWindow } from './window'
 import { registerAllHandlers } from './ipc'
 import { buildAppMenu } from './menu'
 import { disposeAllTerminals } from './services/terminalService'
-import { stopCallbackServer } from './services/aiCallbackServer'
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.roseeditor.app')
@@ -24,6 +23,5 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   disposeAllTerminals()
-  stopCallbackServer()
   if (process.platform !== 'darwin') app.quit()
 })

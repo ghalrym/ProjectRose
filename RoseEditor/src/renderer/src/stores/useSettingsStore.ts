@@ -26,6 +26,11 @@ interface SettingsState {
   imapPassword: string
   imapTLS: boolean
   navItems: NavItem[]
+  llmProvider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
+  llmModel: string
+  llmApiKey: string
+  llmBaseUrl: string
+  llmCompressModel: string
   loaded: boolean
   load: () => Promise<void>
   update: (patch: Partial<Omit<SettingsState, 'loaded' | 'load' | 'update'>>) => Promise<void>
@@ -45,6 +50,11 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   imapPassword: '',
   imapTLS: true,
   navItems: DEFAULT_NAV_ITEMS,
+  llmProvider: 'anthropic' as const,
+  llmModel: 'claude-sonnet-4-6',
+  llmApiKey: '',
+  llmBaseUrl: '',
+  llmCompressModel: '',
   loaded: false,
 
   load: async () => {

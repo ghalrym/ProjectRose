@@ -12,7 +12,7 @@
     <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
       <div>
         <h1 class="text-xl font-semibold">RoseObservability</h1>
-        <p class="text-xs text-slate-400">Traces &amp; metrics for RoseModel and RoseLibrary</p>
+        <p class="text-xs text-slate-400">Traces &amp; metrics for RoseLibrary</p>
       </div>
       <nav class="flex gap-4 text-sm">
         <a href="/" class="text-rose-400 font-medium">Overview</a>
@@ -22,14 +22,10 @@
   </header>
 
   <main class="max-w-7xl mx-auto px-6 py-6 space-y-6">
-    <section class="grid grid-cols-1 md:grid-cols-4 gap-4" id="tiles">
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-4" id="tiles">
       <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
         <p class="text-xs uppercase text-slate-400 tracking-wide">Requests (60m)</p>
         <p class="text-2xl font-semibold mt-1" data-tile="total">–</p>
-      </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
-        <p class="text-xs uppercase text-slate-400 tracking-wide">RoseModel avg</p>
-        <p class="text-2xl font-semibold mt-1" data-tile="rm_avg">–</p>
       </div>
       <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
         <p class="text-xs uppercase text-slate-400 tracking-wide">RoseLibrary avg</p>
@@ -48,7 +44,6 @@
           <label class="text-xs text-slate-400">Service</label>
           <select id="filter-service" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm">
             <option value="">All</option>
-            <option value="rosemodel">RoseModel</option>
             <option value="roselibrary">RoseLibrary</option>
           </select>
           <button id="refresh" class="text-xs bg-slate-800 hover:bg-slate-700 rounded px-3 py-1 border border-slate-700">Refresh</button>

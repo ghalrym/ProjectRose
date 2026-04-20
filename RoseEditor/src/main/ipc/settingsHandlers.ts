@@ -19,6 +19,11 @@ export interface AppSettings {
   imapPassword: string
   imapTLS: boolean
   navItems: NavItem[]
+  llmProvider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible'
+  llmModel: string
+  llmApiKey: string
+  llmBaseUrl: string
+  llmCompressModel: string
 }
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
@@ -45,7 +50,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   imapUser: '',
   imapPassword: '',
   imapTLS: true,
-  navItems: DEFAULT_NAV_ITEMS
+  navItems: DEFAULT_NAV_ITEMS,
+  llmProvider: 'anthropic',
+  llmModel: 'claude-sonnet-4-6',
+  llmApiKey: '',
+  llmBaseUrl: '',
+  llmCompressModel: ''
 }
 
 const SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
@@ -89,7 +99,6 @@ function pingService(name: string, url: string): Promise<ServiceHealth> {
 
 const SERVICES = [
   { name: 'RoseLibrary', url: 'http://127.0.0.1:8000/' },
-  { name: 'RoseModel',   url: 'http://127.0.0.1:8010/' },
   { name: 'RoseTrainer', url: 'http://127.0.0.1:8030/' },
   { name: 'RoseSpeech',  url: 'http://127.0.0.1:8040/' }
 ]

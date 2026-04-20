@@ -7,28 +7,36 @@
 .userCell {
   background: var(--color-chat-user-bg);
   border: 1px solid var(--color-chat-border);
-  border-bottom: none;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-radius: var(--radius-md);
+  margin-bottom: 6px;
 }
 
 .assistantCell {
   background: var(--color-chat-assistant-bg);
   border: 1px solid var(--color-chat-border);
-  border-top: none;
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  border-radius: var(--radius-md);
   margin-bottom: 16px;
 }
 
 .cellHeader {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  width: 100%;
   padding: 6px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--color-text-muted);
+  font-family: inherit;
+}
+
+.cellHeader:hover {
+  background: var(--color-bg-hover, rgba(255,255,255,0.04));
 }
 
 .userLabel {
@@ -50,4 +58,73 @@
   max-height: 50vh;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.thinkingCell {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-chat-border);
+  background: transparent;
+  margin-bottom: 6px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.thinkingHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  font-family: inherit;
+}
+
+.thinkingHeader:hover {
+  background: var(--color-bg-hover, rgba(255,255,255,0.04));
+}
+
+.thinkingLabel {
+  opacity: 0.6;
+}
+
+.thinkingChevron {
+  font-size: 9px;
+  opacity: 0.5;
+}
+
+.thinkingContent {
+  padding: 8px 12px 12px;
+  font-size: var(--font-size-sm, 12px);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text-muted);
+  font-family: var(--font-family-mono);
+  max-height: 40vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--color-chat-border);
+  opacity: 0.7;
+}
+
+.streamCursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: currentColor;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 0.8s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
 }

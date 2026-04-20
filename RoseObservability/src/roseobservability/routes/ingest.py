@@ -22,23 +22,6 @@ def _ts(value) -> str:
     return str(value)
 
 
-def _rosemodel_start_summary(payload: dict) -> dict:
-    return {
-        "last_user": (payload.get("last_user_content") or "")[:400],
-        "messages_count": payload.get("messages_count"),
-        "tools_count": len(payload.get("tools") or []),
-    }
-
-
-def _rosemodel_end_summary(payload: dict) -> dict:
-    return {
-        "tool_calls_count": payload.get("tool_calls_count"),
-        "usage": payload.get("usage"),
-        "context_warning": payload.get("context_warning"),
-        "final_response_preview": (payload.get("final_response") or "")[:400],
-    }
-
-
 def _roselibrary_summary(payload: dict) -> dict:
     return {
         "query": payload.get("query"),
@@ -59,28 +42,7 @@ def _write_event(db, event: IngestEvent):
         payload=event.payload,
     )
 
-    if event.event_type == "request_start" and event.service == "rosemodel":
-        db.upsert_request_start(
-            trace_id=event.trace_id,
-            service=event.service,
-            endpoint=event.payload.get("endpoint") or "/generate",
-            started_at=ts,
-            summary=_rosemodel_start_summary(event.payload),
-        )
-    elif event.event_type == "request_end" and event.service == "rosemodel":
-        status = event.payload.get("status") or "ok"
-        db.upsert_request_end(
-            trace_id=event.trace_id,
-            service=event.service,
-            endpoint=event.payload.get("endpoint") or "/generate",
-            started_at=ts,
-            ended_at=ts,
-            duration_ms=event.duration_ms,
-            status=status,
-            status_code=event.payload.get("status_code"),
-            summary=_rosemodel_end_summary(event.payload),
-        )
-    elif event.event_type == "request" and event.service == "roselibrary":
+    if event.event_type == "request" and event.service == "roselibrary":
         status_code = event.payload.get("status_code")
         status = "ok" if (status_code is None or 200 <= status_code < 400) else "error"
         db.upsert_request_end(

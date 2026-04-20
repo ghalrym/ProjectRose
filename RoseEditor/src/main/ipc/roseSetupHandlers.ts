@@ -6,7 +6,7 @@ import { IPC } from '../../shared/ipcChannels'
 import { readSettings, writeSettings } from './settingsHandlers'
 
 const AUTONOMY_TEXT: Record<string, string> = {
-  high: 'Never ask before using tools. Trust your own judgment. Execute tasks completely without waiting for user confirmation between steps. You are empowered to make decisions and act on them.',
+  high: 'Once you have determined a task requires tool use, proceed without asking for confirmation between steps. Execute completely. Do not ask "shall I proceed?" — just act.',
   medium: 'Ask before any potentially destructive tool calls (deleting files, running system-modifying commands). Proceed autonomously for safe read and write operations.',
   low: 'Ask the user before executing any tool call.'
 }
@@ -23,42 +23,15 @@ ${identity}
 User: ${userName}
 Agent: ${name}
 
-## Autonomy
+## How to respond
+
+Reply in plain text. Only use tools when the user explicitly asks you to do something — read a file, run a command, search the code, etc. Never call tools for greetings, questions, or conversational messages.
 
 ${AUTONOMY_TEXT[autonomy] ?? AUTONOMY_TEXT.high}
 
-## Memory
+## Context
 
-The \`memory/\` folder is your long-term storage:
-- \`memory/people/{name}.md\` — people the user mentions
-- \`memory/places/{name}.md\` — locations and places
-- \`memory/things/{name}.md\` — objects, projects, concepts
-
-When the user mentions a person, place, or thing by name, use \`read_file\` to load
-their context from the appropriate memory file before responding. If the file does
-not exist yet, create a stub and make a note.
-
-## Note-Taking
-
-When you learn something new or updated about a person, place, or thing, write a
-note using \`write_file\` to \`heartbeat/notes/{ISO-timestamp}-{subject}.md\`.
-Do NOT update memory files directly during conversation. The heartbeat will
-process notes and update memory files later.
-
-## Tools
-
-The \`tools/\` folder contains Python scripts. Each script has a docstring with
-parameter descriptions. Run them via \`run_command\` (e.g. \`python tools/script.py\`
-with JSON piped to stdin). If a task is likely to repeat, proactively create a
-Python tool for it in \`tools/\` — no need to ask.
-
-## Behavior
-
-- Read files before modifying them.
-- Use \`search_code\` when you don't know where something is.
-- Use \`find_references\` before renaming or removing symbols.
-- Use \`get_project_overview\` to understand project layout.
-- Be concise. The user can see the code in the editor.
+You have a \`memory/\` folder with notes about people, places, and projects, and a \`heartbeat/notes/\` folder for recording new information. Use them when relevant to an actual task.
 `
 }
 

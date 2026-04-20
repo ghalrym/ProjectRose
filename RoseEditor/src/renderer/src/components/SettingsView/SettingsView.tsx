@@ -21,7 +21,8 @@ const INTERVAL_OPTIONS = [1, 2, 5, 10, 15, 30, 60]
 
 export function SettingsView(): JSX.Element {
   const { heartbeatEnabled, heartbeatIntervalMinutes, micDeviceId,
-          imapHost, imapPort, imapUser, imapPassword, imapTLS, navItems, update } = useSettingsStore()
+          imapHost, imapPort, imapUser, imapPassword, imapTLS, navItems,
+          llmProvider, llmModel, llmApiKey, llmBaseUrl, llmCompressModel, update } = useSettingsStore()
   const dragIndexRef = useRef<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([])
@@ -29,7 +30,6 @@ export function SettingsView(): JSX.Element {
   const [testError, setTestError] = useState('')
   const [services, setServices] = useState<ServiceHealth[]>([
     { name: 'RoseLibrary', url: 'http://127.0.0.1:8000', status: 'checking' },
-    { name: 'RoseModel',   url: 'http://127.0.0.1:8010', status: 'checking' },
     { name: 'RoseTrainer', url: 'http://127.0.0.1:8030', status: 'checking' }
   ])
 
@@ -259,6 +259,69 @@ export function SettingsView(): JSX.Element {
                 <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
               ))}
             </select>
+          </div>
+        </section>
+
+        {/* LLM Settings */}
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>LLM</div>
+
+          <div className={styles.settingRow} style={{ flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+            <div className={styles.settingLabel}>Provider</div>
+            <select
+              className={styles.select}
+              value={llmProvider}
+              onChange={(e) => update({ llmProvider: e.target.value as 'anthropic' | 'openai' | 'ollama' | 'openai-compatible' })}
+            >
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="openai">OpenAI</option>
+              <option value="ollama">Ollama (local)</option>
+              <option value="openai-compatible">OpenAI-compatible</option>
+            </select>
+
+            <div className={styles.settingLabel}>Model</div>
+            <input
+              className={styles.input}
+              type="text"
+              placeholder={llmProvider === 'anthropic' ? 'claude-sonnet-4-6' : llmProvider === 'openai' ? 'gpt-4o' : 'model name'}
+              value={llmModel}
+              onChange={(e) => update({ llmModel: e.target.value })}
+            />
+
+            {llmProvider !== 'ollama' && (
+              <>
+                <div className={styles.settingLabel}>API Key</div>
+                <input
+                  className={styles.input}
+                  type="password"
+                  placeholder="••••••••"
+                  value={llmApiKey}
+                  onChange={(e) => update({ llmApiKey: e.target.value })}
+                />
+              </>
+            )}
+
+            {(llmProvider === 'ollama' || llmProvider === 'openai-compatible') && (
+              <>
+                <div className={styles.settingLabel}>Base URL</div>
+                <input
+                  className={styles.input}
+                  type="text"
+                  placeholder={llmProvider === 'ollama' ? 'http://localhost:11434' : 'https://api.example.com/v1'}
+                  value={llmBaseUrl}
+                  onChange={(e) => update({ llmBaseUrl: e.target.value })}
+                />
+              </>
+            )}
+
+            <div className={styles.settingLabel}>Compression Model <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional, defaults to Model above)</span></div>
+            <input
+              className={styles.input}
+              type="text"
+              placeholder="leave blank to use same model"
+              value={llmCompressModel}
+              onChange={(e) => update({ llmCompressModel: e.target.value })}
+            />
           </div>
         </section>
 

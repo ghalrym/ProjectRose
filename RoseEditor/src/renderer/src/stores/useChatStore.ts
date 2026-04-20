@@ -16,6 +16,8 @@ export interface UserMessage extends BaseMessage {
 export interface AssistantMessage extends BaseMessage {
   role: 'assistant'
   content: string
+  streaming?: boolean
+  isError?: boolean
 }
 
 export interface ToolMessage extends BaseMessage {
@@ -28,7 +30,13 @@ export interface ToolMessage extends BaseMessage {
   pending: boolean
 }
 
-export type ChatMessage = UserMessage | AssistantMessage | ToolMessage
+export interface ThinkingMessage extends BaseMessage {
+  role: 'thinking'
+  content: string
+  streaming?: boolean
+}
+
+export type ChatMessage = UserMessage | AssistantMessage | ToolMessage | ThinkingMessage
 
 export interface SessionMeta {
   id: string
@@ -44,6 +52,8 @@ interface ChatState {
   currentSessionId: string | null
   sessions: SessionMeta[]
   searchQuery: string
+  assistantPlaceholderId: string | null
+  thinkingPlaceholderId: string | null
 
   setInputValue: (value: string) => void
   setSearchQuery: (q: string) => void
@@ -51,6 +61,8 @@ interface ChatState {
   clearMessages: () => void
   appendToolStart: (data: { id: string; name: string; params: Record<string, unknown> }) => void
   resolveToolEnd: (data: { id: string; result: string; error: boolean }) => void
+  appendThinking: (data: { content: string }) => void
+  appendToken: (data: { token: string }) => void
 
   loadSessions: (rootPath: string) => Promise<void>
   switchSession: (rootPath: string, sessionId: string) => Promise<void>
@@ -73,6 +85,21 @@ function persistSession(rootPath: string, sessionId: string, title: string, crea
   }).catch(() => { /* persistence failures are non-fatal */ })
 }
 
+function insertBefore(messages: ChatMessage[], targetId: string, insert: ChatMessage): ChatMessage[] {
+  const idx = messages.findIndex((m) => m.id === targetId)
+  if (idx < 0) return [...messages, insert]
+  return [...messages.slice(0, idx), insert, ...messages.slice(idx)]
+}
+
+function sanitizeLoadedMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((m) => {
+    if ((m.role === 'assistant' || m.role === 'thinking') && (m as AssistantMessage).streaming) {
+      return { ...m, streaming: false, content: (m as AssistantMessage).content || '[interrupted]' }
+    }
+    return m
+  })
+}
+
 export const useChatStore = create<ChatState>()((set, get) => ({
   messages: [],
   isLoading: false,
@@ -80,9 +107,24 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   currentSessionId: null,
   sessions: [],
   searchQuery: '',
+  assistantPlaceholderId: null,
+  thinkingPlaceholderId: null,
 
   setInputValue: (value) => set({ inputValue: value }),
   setSearchQuery: (q) => set({ searchQuery: q }),
+
+  appendToken: (data) => {
+    set((s) => {
+      if (!s.assistantPlaceholderId) return s
+      return {
+        messages: s.messages.map((m) =>
+          m.id === s.assistantPlaceholderId && m.role === 'assistant'
+            ? { ...m, content: m.content + data.token }
+            : m
+        )
+      }
+    })
+  },
 
   appendToolStart: (data) => {
     const msg: ToolMessage = {
@@ -96,7 +138,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       error: false,
       pending: true
     }
-    set((s) => ({ messages: [...s.messages, msg] }))
+    set((s) => ({
+      messages: s.assistantPlaceholderId
+        ? insertBefore(s.messages, s.assistantPlaceholderId, msg)
+        : [...s.messages, msg]
+    }))
   },
 
   resolveToolEnd: (data) => {
@@ -109,13 +155,48 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }))
   },
 
+  appendThinking: (data) => {
+    set((s) => {
+      if (s.thinkingPlaceholderId) {
+        return {
+          messages: s.messages.map((m) =>
+            m.id === s.thinkingPlaceholderId && m.role === 'thinking'
+              ? { ...m, content: m.content + data.content }
+              : m
+          )
+        }
+      }
+      const thinkingId = `msg-${++msgCounter}`
+      const msg: ThinkingMessage = {
+        id: thinkingId,
+        role: 'thinking',
+        timestamp: Date.now(),
+        content: data.content,
+        streaming: true
+      }
+      return {
+        messages: s.assistantPlaceholderId
+          ? insertBefore(s.messages, s.assistantPlaceholderId, msg)
+          : [...s.messages, msg],
+        thinkingPlaceholderId: thinkingId
+      }
+    })
+  },
+
   sendMessage: async () => {
-    const { inputValue, isLoading, messages } = get()
+    const { inputValue, isLoading } = get()
     const trimmed = inputValue.trim()
     if (!trimmed || isLoading) return
 
     const rootPath = useProjectStore.getState().rootPath
     if (!rootPath) return
+
+    // Snapshot API messages before adding new messages to state
+    const apiMessages = get().messages
+      .filter((m): m is UserMessage | AssistantMessage =>
+        (m.role === 'user' || m.role === 'assistant') && !(m as AssistantMessage).streaming
+      )
+      .map((m) => ({ role: m.role, content: m.content }))
 
     const userMsg: UserMessage = {
       id: `msg-${++msgCounter}`,
@@ -124,10 +205,18 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       timestamp: Date.now()
     }
 
+    const assistantMsg: AssistantMessage = {
+      id: `msg-${++msgCounter}`,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+      streaming: true
+    }
+
     // Create session on first message
     let sessionId = get().currentSessionId
     let sessionCreatedAt = Date.now()
-    let sessionTitle = trimmed.slice(0, 50)
+    const sessionTitle = trimmed.slice(0, 50)
     const isNewSession = !sessionId
 
     if (isNewSession) {
@@ -143,30 +232,46 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const title = session?.title ?? sessionTitle
 
     set((s) => ({
-      messages: [...s.messages, userMsg],
+      messages: [...s.messages, userMsg, assistantMsg],
       inputValue: '',
-      isLoading: true
+      isLoading: true,
+      assistantPlaceholderId: assistantMsg.id,
+      thinkingPlaceholderId: null
     }))
 
+    persistSession(rootPath, sessionId!, title, createdAt, get().messages)
+
+    const cleanupToken = window.api.onAiToken((d) => get().appendToken(d))
+    const cleanupToolStart = window.api.onAiToolCallStart((d) => get().appendToolStart(d))
+    const cleanupToolEnd = window.api.onAiToolCallEnd((d) => get().resolveToolEnd(d))
+    const cleanupThinking = window.api.onAiThinking((d) => get().appendThinking(d))
+
+    const cleanup = (): void => {
+      cleanupToken()
+      cleanupToolStart()
+      cleanupToolEnd()
+      cleanupThinking()
+    }
+
     try {
-      persistSession(rootPath, sessionId!, title, createdAt, get().messages)
+      const response = await window.api.aiChat([...apiMessages, { role: 'user', content: trimmed }], rootPath)
 
-      const apiMessages = [...messages, userMsg]
-        .filter((m): m is UserMessage | AssistantMessage => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({ role: m.role, content: m.content }))
+      cleanup()
 
-      const response = await window.api.aiChat(apiMessages, rootPath)
-
-      const assistantMsg: AssistantMessage = {
-        id: `msg-${++msgCounter}`,
-        role: 'assistant',
-        content: response.content,
-        timestamp: Date.now()
-      }
-
+      const placeholderId = get().assistantPlaceholderId
       set((s) => ({
-        messages: [...s.messages, assistantMsg],
-        isLoading: false
+        messages: s.messages.map((m) => {
+          if (m.id === placeholderId && m.role === 'assistant') {
+            return { ...m, streaming: false }
+          }
+          if (m.role === 'thinking' && (m as ThinkingMessage).streaming) {
+            return { ...m, streaming: false }
+          }
+          return m
+        }),
+        isLoading: false,
+        assistantPlaceholderId: null,
+        thinkingPlaceholderId: null
       }))
 
       persistSession(rootPath, sessionId!, title, createdAt, get().messages)
@@ -180,16 +285,22 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         useProjectStore.getState().refreshTree()
       }
     } catch (err) {
-      const errorMsg: AssistantMessage = {
-        id: `msg-${++msgCounter}`,
-        role: 'assistant',
-        content: `Error: ${err instanceof Error ? err.message : 'Failed to get response'}`,
-        timestamp: Date.now()
-      }
+      cleanup()
 
+      const placeholderId = get().assistantPlaceholderId
       set((s) => ({
-        messages: [...s.messages, errorMsg],
-        isLoading: false
+        messages: s.messages.map((m) => {
+          if (m.id === placeholderId && m.role === 'assistant') {
+            return { ...m, content: `Error: ${err instanceof Error ? err.message : 'Failed to get response'}`, streaming: false, isError: true }
+          }
+          if (m.role === 'thinking' && (m as ThinkingMessage).streaming) {
+            return { ...m, streaming: false }
+          }
+          return m
+        }),
+        isLoading: false,
+        assistantPlaceholderId: null,
+        thinkingPlaceholderId: null
       }))
 
       persistSession(rootPath, sessionId!, title, createdAt, get().messages)
@@ -208,7 +319,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       if (loaded) {
         set({
           currentSessionId: first.id,
-          messages: (loaded.messages as ChatMessage[]) ?? []
+          messages: sanitizeLoadedMessages((loaded.messages as ChatMessage[]) ?? [])
         })
       }
     }
@@ -219,13 +330,15 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     if (loaded) {
       set({
         currentSessionId: sessionId,
-        messages: (loaded.messages as ChatMessage[]) ?? [],
-        isLoading: false
+        messages: sanitizeLoadedMessages((loaded.messages as ChatMessage[]) ?? []),
+        isLoading: false,
+        assistantPlaceholderId: null,
+        thinkingPlaceholderId: null
       })
     }
   },
 
-  newSession: () => set({ currentSessionId: null, messages: [], isLoading: false }),
+  newSession: () => set({ currentSessionId: null, messages: [], isLoading: false, assistantPlaceholderId: null, thinkingPlaceholderId: null }),
 
   renameSession: async (rootPath, sessionId, title) => {
     const loaded = await window.api.session.load(rootPath, sessionId)

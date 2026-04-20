@@ -87,38 +87,6 @@ function renderToolResult(payload) {
   `;
 }
 
-function renderRequestStart(payload) {
-  const tools = (payload.tools || []).map((t) => `<span class="chip">${esc(t.name)}</span>`).join("")
-    || `<span class="text-xs text-slate-500">none</span>`;
-  return `
-    <p class="text-xs text-slate-400 uppercase mb-1">Endpoint</p>
-    <p class="font-mono text-sm mb-2">${esc(payload.endpoint || "")}</p>
-    <p class="text-xs text-slate-400 uppercase mb-1">Messages (${esc(payload.messages_count ?? 0)})</p>
-    <p class="text-sm text-slate-300 mb-3">last user: ${esc((payload.last_user_content || "").slice(0, 400))}</p>
-    <p class="text-xs text-slate-400 uppercase mb-1">agent_md</p>
-    <details class="mb-3"><summary class="text-xs text-slate-400">show</summary>
-      <pre class="text-xs bg-slate-950 border border-slate-800 rounded p-2 mt-1">${esc(payload.agent_md || "")}</pre>
-    </details>
-    <p class="text-xs text-slate-400 uppercase mb-1">Tools</p>
-    <div>${tools}</div>
-  `;
-}
-
-function renderRequestEnd(payload) {
-  const usage = payload.usage || {};
-  return `
-    <div class="flex flex-wrap gap-4 text-xs text-slate-400 mb-2">
-      <span>status: <span class="badge badge-${esc(payload.status || "ok")}">${esc(payload.status || "ok")}</span></span>
-      <span>tool calls: ${esc(payload.tool_calls_count ?? 0)}</span>
-      <span>prompt: ${esc(usage.prompt_tokens ?? 0)}</span>
-      <span>completion: ${esc(usage.completion_tokens ?? 0)}</span>
-      ${payload.context_warning ? `<span class="text-amber-300">context warning</span>` : ""}
-    </div>
-    <p class="text-xs text-slate-400 uppercase mb-1">Final response</p>
-    <pre class="text-xs bg-slate-950 border border-slate-800 rounded p-3">${esc(payload.final_response || "")}</pre>
-  `;
-}
-
 function renderLibraryRequest(payload) {
   const q = payload.query || {};
   const rs = payload.response_summary || {};
@@ -137,11 +105,9 @@ function renderLibraryRequest(payload) {
 function renderEventBody(ev) {
   const p = ev.payload || {};
   switch (ev.event_type) {
-    case "request_start": return renderRequestStart(p);
     case "prompt_built": return renderPromptBuilt(p);
     case "tool_call": return renderToolCall(p);
     case "tool_result": return renderToolResult(p);
-    case "request_end": return renderRequestEnd(p);
     case "request": return renderLibraryRequest(p);
     default:
       return `<pre class="text-xs bg-slate-950 border border-slate-800 rounded p-2">${esc(JSON.stringify(p, null, 2))}</pre>`;

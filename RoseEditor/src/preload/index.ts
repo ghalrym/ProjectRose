@@ -106,10 +106,10 @@ const api = {
   getHeartbeatLogContent: (rootPath: string, filename: string): Promise<string> =>
     ipcRenderer.invoke(IPC.HEARTBEAT_LOG_CONTENT, { rootPath, filename }),
 
-  getSettings: (): Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean; imapHost: string; imapPort: number; imapUser: string; imapPassword: string; imapTLS: boolean }> =>
+  getSettings: (): Promise<unknown> =>
     ipcRenderer.invoke(IPC.SETTINGS_GET),
 
-  setSettings: (patch: Partial<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean; imapHost: string; imapPort: number; imapUser: string; imapPassword: string; imapTLS: boolean }>): Promise<{ heartbeatEnabled: boolean; heartbeatIntervalMinutes: number; micDeviceId: string; userName: string; agentName: string; roseSpeechSpeakerId: number | null; activeListeningSetupComplete: boolean; imapHost: string; imapPort: number; imapUser: string; imapPassword: string; imapTLS: boolean }> =>
+  setSettings: (patch: Record<string, unknown>): Promise<unknown> =>
     ipcRenderer.invoke(IPC.SETTINGS_SET, patch),
 
   checkServicesHealth: (): Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>> =>
@@ -173,6 +173,18 @@ const api = {
     const handler = (_e: unknown, data: { id: string; result: string; error: boolean }): void => callback(data)
     ipcRenderer.on(IPC.AI_TOOL_CALL_END, handler)
     return () => { ipcRenderer.removeListener(IPC.AI_TOOL_CALL_END, handler) }
+  },
+
+  onAiThinking: (callback: (data: { content: string }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { content: string }): void => callback(data)
+    ipcRenderer.on(IPC.AI_THINKING, handler)
+    return () => { ipcRenderer.removeListener(IPC.AI_THINKING, handler) }
+  },
+
+  onAiToken: (callback: (data: { token: string }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { token: string }): void => callback(data)
+    ipcRenderer.on(IPC.AI_TOKEN, handler)
+    return () => { ipcRenderer.removeListener(IPC.AI_TOKEN, handler) }
   },
 
   // Indexing

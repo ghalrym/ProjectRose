@@ -14,18 +14,6 @@ services:
       - roseobservability
     restart: unless-stopped
 
-  rosemodel:
-    build: ./RoseModel
-    ports:
-      - "8010:8010"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      ROSE_OBSERVABILITY_URL: http://roseobservability:8020
-    depends_on:
-      - roseobservability
-    restart: unless-stopped
-
   rosetrainer:
     build: ./RoseTrainer
     ports:
@@ -37,7 +25,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      ROSEMODEL_URL: http://rosemodel:8010
       OLLAMA_HOST: http://host.docker.internal:11434
       DATABASE_URL: postgresql://rosetrainer:rosetrainer@postgres:5432/rosetrainer
       MODELS_DIR: /app/models
@@ -45,8 +32,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      rosemodel:
-        condition: service_started
     restart: unless-stopped
     deploy:
       resources:

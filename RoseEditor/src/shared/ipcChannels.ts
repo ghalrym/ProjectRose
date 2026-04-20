@@ -45,6 +45,8 @@ export const IPC = {
   AI_FILE_MODIFIED: 'ai:fileModified',
   AI_TOOL_CALL_START: 'ai:toolCallStart',
   AI_TOOL_CALL_END: 'ai:toolCallEnd',
+  AI_THINKING: 'ai:thinking',
+  AI_TOKEN: 'ai:token',
 
   ROSE_HEALTH: 'rose:health',
   ROSE_CHECK_FILES: 'rose:checkFiles',

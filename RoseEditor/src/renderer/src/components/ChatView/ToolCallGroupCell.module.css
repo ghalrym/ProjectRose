@@ -1,0 +1,84 @@
+.cell {
+  border: 1px solid var(--color-chat-border);
+  border-radius: var(--radius-md);
+  background: var(--color-chat-assistant-bg);
+  margin-bottom: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.header:hover {
+  background: var(--color-bg-hover, rgba(255,255,255,0.04));
+}
+
+.chevron {
+  font-size: 9px;
+  color: var(--color-text-muted);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+}
+
+.count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-toggle-bg);
+  border-radius: 10px;
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+
+.status {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.statusPending {
+  background: var(--color-toggle-bg);
+  color: var(--color-text-muted);
+}
+
+.statusDone {
+  background: var(--color-saved, #2e7d32);
+  color: white;
+}
+
+.statusError {
+  background: var(--color-unsaved, #c62828);
+  color: white;
+}
+
+.body {
+  border-top: 1px solid var(--color-chat-border);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

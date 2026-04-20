@@ -308,19 +308,9 @@ class Database:
                 "error_count": base["err_count"] or 0,
             }
 
-        rm = _per_service("rosemodel")
         rl = _per_service("roselibrary")
 
         with self._lock:
-            tc_row = self.conn.execute(
-                "SELECT COUNT(*) AS n FROM events WHERE service='rosemodel' "
-                "AND event_type='tool_call' AND timestamp >= ?",
-                (cutoff,),
-            ).fetchone()
-            tokens = self.conn.execute(
-                "SELECT summary_json FROM requests WHERE service='rosemodel' AND started_at >= ?",
-                (cutoff,),
-            ).fetchall()
             searches = self.conn.execute(
                 "SELECT COUNT(*) AS n FROM requests WHERE service='roselibrary' "
                 "AND endpoint='/search' AND started_at >= ?",
@@ -332,24 +322,10 @@ class Database:
                 (cutoff,),
             ).fetchone()
 
-        total_pt = 0
-        total_ct = 0
-        for row in tokens:
-            try:
-                s = json.loads(row["summary_json"])
-                usage = s.get("usage") or {}
-                total_pt += int(usage.get("prompt_tokens") or 0)
-                total_ct += int(usage.get("completion_tokens") or 0)
-            except Exception:
-                continue
-
-        rm["total_tool_calls"] = tc_row["n"] or 0
-        rm["total_prompt_tokens"] = total_pt
-        rm["total_completion_tokens"] = total_ct
         rl["searches_count"] = searches["n"] or 0
         rl["updates_count"] = updates["n"] or 0
 
-        return {"rosemodel": rm, "roselibrary": rl, "window_minutes": window_minutes}
+        return {"roselibrary": rl, "window_minutes": window_minutes}
 
     def library_searches(self, limit: int) -> dict:
         with self._lock:

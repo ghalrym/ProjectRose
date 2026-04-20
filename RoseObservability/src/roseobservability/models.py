@@ -4,7 +4,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
-ServiceName = Literal["rosemodel", "roselibrary"]
+ServiceName = Literal["roselibrary"]
 
 
 class IngestEvent(BaseModel):

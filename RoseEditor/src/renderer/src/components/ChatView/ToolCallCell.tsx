@@ -4,6 +4,7 @@ import styles from './ToolCallCell.module.css'
 
 interface ToolCallCellProps {
   message: ToolMessage
+  nested?: boolean
 }
 
 function formatParams(params: Record<string, unknown>): string {
@@ -14,7 +15,7 @@ function formatParams(params: Record<string, unknown>): string {
   }
 }
 
-export function ToolCallCell({ message }: ToolCallCellProps): JSX.Element {
+export function ToolCallCell({ message, nested }: ToolCallCellProps): JSX.Element {
   const [expanded, setExpanded] = useState(false)
 
   const statusLabel = message.pending
@@ -30,7 +31,7 @@ export function ToolCallCell({ message }: ToolCallCellProps): JSX.Element {
       : styles.statusDone
 
   return (
-    <div className={styles.cell}>
+    <div className={nested ? styles.cellNested : styles.cell}>
       <button
         type="button"
         className={styles.header}

@@ -20,11 +20,6 @@ const esc = (s) => {
 
 const summaryText = (item) => {
   const s = item.summary || {};
-  if (item.service === "rosemodel") {
-    const lu = s.last_user || "";
-    const tc = s.tool_calls_count != null ? ` · ${s.tool_calls_count} tool calls` : "";
-    return esc(lu.slice(0, 90)) + esc(tc);
-  }
   if (item.service === "roselibrary") {
     const q = (s.query && s.query.query) || "";
     const rs = s.response_summary || {};
@@ -38,12 +33,10 @@ async function loadTiles() {
   try {
     const r = await fetch("/api/metrics/summary?window_minutes=60");
     const data = await r.json();
-    const rm = data.rosemodel || {};
     const rl = data.roselibrary || {};
-    document.querySelector('[data-tile="total"]').textContent = (rm.count || 0) + (rl.count || 0);
-    document.querySelector('[data-tile="rm_avg"]').textContent = fmtMs(rm.avg_duration_ms);
+    document.querySelector('[data-tile="total"]').textContent = rl.count || 0;
     document.querySelector('[data-tile="rl_avg"]').textContent = fmtMs(rl.avg_duration_ms);
-    document.querySelector('[data-tile="errors"]').textContent = (rm.error_count || 0) + (rl.error_count || 0);
+    document.querySelector('[data-tile="errors"]').textContent = rl.error_count || 0;
   } catch (e) {
     console.error(e);
   }

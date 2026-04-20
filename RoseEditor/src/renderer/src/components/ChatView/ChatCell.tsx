@@ -1,13 +1,37 @@
-import type { UserMessage, AssistantMessage } from '../../stores/useChatStore'
+import { useState } from 'react'
+import type { UserMessage, AssistantMessage, ThinkingMessage } from '../../stores/useChatStore'
 import clsx from 'clsx'
 import styles from './ChatCell.module.css'
 
 interface ChatCellProps {
-  message: UserMessage | AssistantMessage
+  message: UserMessage | AssistantMessage | ThinkingMessage
 }
 
 export function ChatCell({ message }: ChatCellProps): JSX.Element {
+  const [expanded, setExpanded] = useState(false)
+
+  if (message.role === 'thinking') {
+    return (
+      <div className={styles.thinkingCell}>
+        <button
+          className={styles.thinkingHeader}
+          onClick={() => setExpanded((v) => !v)}
+          type="button"
+        >
+          <span className={styles.thinkingLabel}>
+            {message.streaming ? 'Thinking...' : 'Thinking'}
+          </span>
+          <span className={styles.thinkingChevron}>{expanded ? '▲' : '▼'}</span>
+        </button>
+        {expanded && (
+          <div className={styles.thinkingContent}>{message.content}</div>
+        )}
+      </div>
+    )
+  }
+
   const isUser = message.role === 'user'
+  const isStreaming = message.role === 'assistant' && message.streaming
 
   return (
     <div
@@ -16,12 +40,24 @@ export function ChatCell({ message }: ChatCellProps): JSX.Element {
         isUser ? styles.userCell : styles.assistantCell
       )}
     >
-      <div className={styles.cellHeader}>
+      <button
+        className={styles.cellHeader}
+        onClick={() => !isStreaming && setExpanded((v) => !v)}
+        type="button"
+      >
         <span className={isUser ? styles.userLabel : styles.assistantLabel}>
           {isUser ? 'Input' : 'Output'}
         </span>
-      </div>
-      <div className={styles.cellContent}>{message.content}</div>
+        <span className={styles.thinkingChevron}>{expanded ? '▲' : '▼'}</span>
+      </button>
+      {expanded && (
+        <div className={styles.cellContent}>
+          {message.content}
+          {isStreaming && (
+            <span className={styles.streamCursor} aria-hidden="true" />
+          )}
+        </div>
+      )}
     </div>
   )
 }
