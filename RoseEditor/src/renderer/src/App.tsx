@@ -134,15 +134,19 @@ function App(): JSX.Element {
           onComplete={() => { setNeedsSetup(false); refreshTree() }}
         />
       )}
-      <div className={styles.toolbar}>
-        <FileActions
-          onOpenFolder={handleOpenFolder}
-          onOpenFile={handleOpenFile}
-          onNewFile={createNewFile}
-          onSave={saveActiveFile}
-        />
-      </div>
-      <Breadcrumbs />
+      {activeView === 'editor' && (
+        <>
+          <div className={styles.toolbar}>
+            <FileActions
+              onOpenFolder={handleOpenFolder}
+              onOpenFile={handleOpenFile}
+              onNewFile={createNewFile}
+              onSave={saveActiveFile}
+            />
+          </div>
+          <Breadcrumbs />
+        </>
+      )}
       <main className={styles.mainContent}>
         {activeView === 'editor' && <EditorView />}
         {activeView === 'chat' && <ChatView />}
