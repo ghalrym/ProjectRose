@@ -294,6 +294,19 @@ const api = {
       ipcRenderer.invoke(IPC.SESSION_DELETE, rootPath, sessionId)
   },
 
+  // Tools + Project settings
+  tools: {
+    list: (rootPath: string): Promise<unknown[]> =>
+      ipcRenderer.invoke('tools:list', rootPath)
+  },
+
+  project: {
+    getSettings: (rootPath: string): Promise<unknown> =>
+      ipcRenderer.invoke('project:getSettings', rootPath),
+    setSettings: (rootPath: string, patch: Record<string, unknown>): Promise<unknown> =>
+      ipcRenderer.invoke('project:setSettings', rootPath, patch)
+  },
+
   // Git
   git: {
     isRepo: (cwd: string): Promise<boolean> =>

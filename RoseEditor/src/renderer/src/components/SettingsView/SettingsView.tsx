@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useProjectStore } from '../../stores/useProjectStore'
 import { NavItem } from '../../../../shared/types'
-import type { ModelConfig } from '../../types/electron'
+import type { ModelConfig, ToolMeta } from '../../types/electron'
 import styles from './SettingsView.module.css'
 
 type TestState = 'idle' | 'testing' | 'ok' | 'fail'
@@ -30,6 +31,10 @@ export function SettingsView(): JSX.Element {
     models, defaultModelId, providerKeys, router, compression, update
   } = useSettingsStore()
 
+  const rootPath = useProjectStore((s) => s.rootPath)
+  const [availableTools, setAvailableTools] = useState<ToolMeta[]>([])
+  const [disabledTools, setDisabledTools] = useState<string[]>([])
+
   const [activePage, setActivePage] = useState('dashboard')
   const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
   const [ollamaModels, setOllamaModels] = useState<Record<string, string[]>>({})
@@ -47,6 +52,26 @@ export function SettingsView(): JSX.Element {
     { name: 'RoseLibrary', url: 'http://127.0.0.1:8000', status: 'checking' },
     { name: 'RoseTrainer', url: 'http://127.0.0.1:8030', status: 'checking' }
   ])
+
+  useEffect(() => {
+    if (!rootPath) return
+    Promise.all([
+      window.api.tools.list(rootPath),
+      window.api.project.getSettings(rootPath)
+    ]).then(([tools, settings]) => {
+      setAvailableTools(tools)
+      setDisabledTools(settings.disabledTools)
+    }).catch(() => {})
+  }, [rootPath])
+
+  const toggleTool = useCallback(async (name: string) => {
+    if (!rootPath) return
+    const updated = disabledTools.includes(name)
+      ? disabledTools.filter((n) => n !== name)
+      : [...disabledTools, name]
+    setDisabledTools(updated)
+    await window.api.project.setSettings(rootPath, { disabledTools: updated })
+  }, [rootPath, disabledTools])
 
   const checkHealth = useCallback(async () => {
     setServices((prev) => prev.map((s) => ({ ...s, status: 'checking' as const })))
@@ -529,6 +554,55 @@ export function SettingsView(): JSX.Element {
               (v) => update({ compression: { ...compression, modelName: v } })
             )}
           </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionTitle}>Tools</div>
+          {availableTools.filter((t) => t.type === 'core').map((tool) => {
+            const enabled = !disabledTools.includes(tool.name)
+            return (
+              <div key={tool.name} className={styles.settingRow}>
+                <div className={styles.settingInfo}>
+                  <div className={styles.settingLabel}>{tool.displayName}</div>
+                  <div className={styles.settingDesc}>{tool.description}</div>
+                </div>
+                <button
+                  type="button"
+                  className={`${styles.toggle} ${enabled ? styles.toggleOn : styles.toggleOff}`}
+                  onClick={() => toggleTool(tool.name)}
+                  role="switch"
+                  aria-checked={enabled}
+                >
+                  <span className={styles.toggleThumb} />
+                </button>
+              </div>
+            )
+          })}
+          {availableTools.filter((t) => t.type === 'python').length > 0 && (
+            <>
+              <div className={styles.settingLabel} style={{ marginTop: 12 }}>Project Tools</div>
+              {availableTools.filter((t) => t.type === 'python').map((tool) => {
+                const enabled = !disabledTools.includes(tool.name)
+                return (
+                  <div key={tool.name} className={styles.settingRow}>
+                    <div className={styles.settingInfo}>
+                      <div className={styles.settingLabel}>{tool.displayName}</div>
+                      <div className={styles.settingDesc}>{tool.description}</div>
+                    </div>
+                    <button
+                      type="button"
+                      className={`${styles.toggle} ${enabled ? styles.toggleOn : styles.toggleOff}`}
+                      onClick={() => toggleTool(tool.name)}
+                      role="switch"
+                      aria-checked={enabled}
+                    >
+                      <span className={styles.toggleThumb} />
+                    </button>
+                  </div>
+                )
+              })}
+            </>
+          )}
         </section>
 
         <section className={styles.section}>

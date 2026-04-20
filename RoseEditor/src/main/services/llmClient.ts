@@ -170,13 +170,15 @@ export async function streamChat(params: {
   model: ModelConfig
   providerKeys: { anthropic: string; openai: string }
   projectRoot: string
+  disabledCoreTools?: string[]
 }): Promise<void> {
-  const { messages, systemPrompt, pythonTools, model: modelConfig, providerKeys, projectRoot } = params
+  const { messages, systemPrompt, pythonTools, model: modelConfig, providerKeys, projectRoot, disabledCoreTools } = params
   const model = resolveModel(modelConfig, providerKeys)
   const tools = {
     ...buildCoreTools(projectRoot),
     ...buildPythonTools(pythonTools, projectRoot)
   }
+  for (const name of disabledCoreTools ?? []) delete tools[name]
 
   const coreMessages = messages.map((m) => ({
     role: m.role as 'user' | 'assistant',

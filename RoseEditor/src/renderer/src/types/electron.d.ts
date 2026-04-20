@@ -72,6 +72,17 @@ export interface RecentProject {
   lastOpened: number
 }
 
+export interface ToolMeta {
+  name: string
+  displayName: string
+  description: string
+  type: 'core' | 'python'
+}
+
+export interface ProjectSettings {
+  disabledTools: string[]
+}
+
 export interface ElectronAPI {
   // AI
   aiChat: (messages: { role: string; content: string }[], rootPath: string) => Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }>
@@ -138,6 +149,15 @@ export interface ElectronAPI {
   roseStatus: () => Promise<IndexStatus>
   roseSearch: (params: SearchRequest) => Promise<SearchResult[]>
   roseFindReferences: (params: FindReferencesRequest) => Promise<ReferenceResult[]>
+
+  // Tools + Project settings
+  tools: {
+    list: (rootPath: string) => Promise<ToolMeta[]>
+  }
+  project: {
+    getSettings: (rootPath: string) => Promise<ProjectSettings>
+    setSettings: (rootPath: string, patch: Partial<ProjectSettings>) => Promise<ProjectSettings>
+  }
 
   // Chat Sessions
   session: SessionAPI

@@ -7,6 +7,7 @@ import { discoverPythonTools, getModifiedFiles, resetModifiedFiles } from './too
 import { streamChat, compressMessages, routeRequest } from './llmClient'
 import { readSettings } from '../ipc/settingsHandlers'
 import type { AppSettings, ModelConfig } from '../ipc/settingsHandlers'
+import { readProjectSettings, CORE_TOOL_NAMES } from '../ipc/projectSettingsHandlers'
 import { IPC } from '../../shared/ipcChannels'
 import type { Message } from '../../shared/roseModelTypes'
 
@@ -110,8 +111,13 @@ export async function chat(messages: Message[], rootPath: string): Promise<ChatR
   const pythonTools = await discoverPythonTools(rootPath)
   const systemPrompt = await buildAgentMd(rootPath)
 
+  const projectSettings = await readProjectSettings(rootPath)
+  const { disabledTools } = projectSettings
+  const filteredPythonTools = pythonTools.filter((t) => !disabledTools.includes(t.name))
+  const disabledCoreTools = disabledTools.filter((n) => CORE_TOOL_NAMES.has(n))
+
   try {
-    await streamChat({ messages, systemPrompt, pythonTools, model: selectedModel, providerKeys: settings.providerKeys, projectRoot: rootPath })
+    await streamChat({ messages, systemPrompt, pythonTools: filteredPythonTools, model: selectedModel, providerKeys: settings.providerKeys, projectRoot: rootPath, disabledCoreTools })
     return { content: '', modifiedFiles: getModifiedFiles(), modelDisplay }
   } catch (err) {
     const isAlreadyDefault = !defaultModel || selectedModel.id === defaultModel.id
@@ -122,7 +128,7 @@ export async function chat(messages: Message[], rootPath: string): Promise<ChatR
     notifyRenderer(IPC.AI_STREAM_RESET, { errorMessage, fallbackModel: fallbackDisplay })
     resetModifiedFiles()
 
-    await streamChat({ messages, systemPrompt, pythonTools, model: defaultModel, providerKeys: settings.providerKeys, projectRoot: rootPath })
+    await streamChat({ messages, systemPrompt, pythonTools: filteredPythonTools, model: defaultModel, providerKeys: settings.providerKeys, projectRoot: rootPath, disabledCoreTools })
     return { content: '', modifiedFiles: getModifiedFiles(), modelDisplay: fallbackDisplay }
   }
 }
