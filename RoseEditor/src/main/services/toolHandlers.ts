@@ -6,6 +6,17 @@ import { BrowserWindow } from 'electron'
 import { roseLibraryClient, setActiveProjectRoot } from './roseLibraryClient'
 import { isIndexableFile } from './fileService'
 import { IPC } from '../../shared/ipcChannels'
+import { readSettings } from '../ipc/settingsHandlers'
+import {
+  withImapClient,
+  readEmailFilters,
+  readEmailMeta,
+  writeEmailMeta,
+  matchesSpamRule,
+  matchesInjectionPattern,
+  fetchEmailBody,
+  type EmailSummary
+} from './emailService'
 
 const modifiedFiles: string[] = []
 
@@ -150,6 +161,117 @@ function parsePythonDocstring(source: string): { description: string; parameters
     }
   }
   return { description, parameters }
+}
+
+export async function handleListEmails(input: Record<string, unknown>, projectRoot: string): Promise<string> {
+  const folder = typeof input.folder === 'string' ? input.folder : undefined
+  const cfg = await readSettings(projectRoot)
+  if (!cfg.imapHost || !cfg.imapUser) return 'Email not configured. Set IMAP credentials in Settings.'
+  try {
+    const rawMessages = await withImapClient(cfg, async (client) => {
+      const lock = await client.getMailboxLock('INBOX')
+      try {
+        const mbInfo = client.mailbox
+        const total = mbInfo ? mbInfo.exists : 0
+        if (total === 0) return [] as EmailSummary[]
+        const start = Math.max(1, total - 49)
+        const messages: EmailSummary[] = []
+        for await (const msg of client.fetch(`${start}:*`, { envelope: true, flags: true, uid: true })) {
+          messages.push({
+            uid: msg.uid,
+            subject: msg.envelope?.subject ?? '(no subject)',
+            from: msg.envelope?.from?.[0]?.address ?? msg.envelope?.from?.[0]?.name ?? '',
+            date: msg.envelope?.date?.toISOString() ?? '',
+            read: msg.flags?.has('\\Seen') ?? false
+          })
+        }
+        return messages.reverse()
+      } finally {
+        lock.release()
+      }
+    })
+
+    const [filters, meta] = await Promise.all([
+      readEmailFilters(cfg.imapUser),
+      readEmailMeta(cfg.imapUser)
+    ])
+
+    const tagged = rawMessages.map(m => {
+      const cached = meta[m.uid]
+      let msgFolder = cached?.folder ?? 'inbox'
+      if (!cached) {
+        const isSpam = filters.spamRules.some(r => matchesSpamRule(r, m))
+        const isInjection = matchesInjectionPattern(filters.injectionPatterns, `${m.subject} ${m.from}`)
+        if (isSpam) msgFolder = 'spam'
+        else if (isInjection) msgFolder = 'quarantine'
+      }
+      return { ...m, folder: msgFolder }
+    })
+
+    const filtered = folder ? tagged.filter(m => m.folder === folder) : tagged
+    if (filtered.length === 0) return `No emails found${folder ? ` in ${folder}` : ''}.`
+
+    return filtered.map(m =>
+      `[UID:${m.uid}] ${m.read ? '' : '(unread) '}From: ${m.from}\nSubject: ${m.subject}\nDate: ${m.date}\nFolder: ${m.folder}`
+    ).join('\n\n')
+  } catch (err) {
+    return `Failed to fetch emails: ${(err as Error).message}`
+  }
+}
+
+export async function handleReadEmail(input: Record<string, unknown>, projectRoot: string): Promise<string> {
+  const uid = Number(input.uid)
+  if (!uid) return 'Missing uid parameter.'
+  const cfg = await readSettings(projectRoot)
+  if (!cfg.imapHost || !cfg.imapUser) return 'Email not configured.'
+  try {
+    const body = await fetchEmailBody(cfg, uid)
+    const filters = await readEmailFilters(cfg.imapUser)
+    if (matchesInjectionPattern(filters.injectionPatterns, body)) {
+      const meta = await readEmailMeta(cfg.imapUser)
+      meta[uid] = { ...(meta[uid] ?? { spamClassified: false }), folder: 'quarantine', injectionDetected: true }
+      await writeEmailMeta(cfg.imapUser, meta)
+      return '[QUARANTINED: Potential prompt injection detected in message body.]'
+    }
+    return body || '(empty message)'
+  } catch (err) {
+    return `Failed to read email: ${(err as Error).message}`
+  }
+}
+
+export async function handleMoveEmailToFolder(input: Record<string, unknown>, projectRoot: string): Promise<string> {
+  const uid = Number(input.uid)
+  const folder = String(input.folder || '')
+  if (!uid || !folder) return 'Missing uid or folder parameter.'
+  const cfg = await readSettings(projectRoot)
+  if (!cfg.imapHost || !cfg.imapUser) return 'Email not configured.'
+  const meta = await readEmailMeta(cfg.imapUser)
+  meta[uid] = { ...(meta[uid] ?? { spamClassified: false, injectionDetected: false }), folder }
+  await writeEmailMeta(cfg.imapUser, meta)
+  return `Email ${uid} moved to ${folder}.`
+}
+
+export async function handleDeleteEmail(input: Record<string, unknown>, projectRoot: string): Promise<string> {
+  const uid = Number(input.uid)
+  if (!uid) return 'Missing uid parameter.'
+  const cfg = await readSettings(projectRoot)
+  if (!cfg.imapHost || !cfg.imapUser) return 'Email not configured.'
+  try {
+    await withImapClient(cfg, async (client) => {
+      const lock = await client.getMailboxLock('INBOX')
+      try {
+        await client.messageDelete(String(uid), { uid: true })
+      } finally {
+        lock.release()
+      }
+    })
+    const meta = await readEmailMeta(cfg.imapUser)
+    delete meta[uid]
+    await writeEmailMeta(cfg.imapUser, meta)
+    return `Email ${uid} deleted.`
+  } catch (err) {
+    return `Failed to delete email: ${(err as Error).message}`
+  }
 }
 
 export interface PythonToolMeta {

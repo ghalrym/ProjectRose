@@ -15,6 +15,10 @@ import {
   handleFindReferences,
   handleGetProjectOverview,
   handleRunCommand,
+  handleListEmails,
+  handleReadEmail,
+  handleMoveEmailToFolder,
+  handleDeleteEmail,
   type PythonToolMeta
 } from './toolHandlers'
 import type { Message } from '../../shared/roseModelTypes'
@@ -157,6 +161,35 @@ function buildCoreTools(projectRoot: string): Record<string, any> {
       description: 'Get a structured map of the entire project: every file with its language, symbols (functions, classes, methods), and dependency relationships.',
       inputSchema: z.object({}),
       execute: wrapExecute('get_project_overview', () => handleGetProjectOverview(), projectRoot)
+    }),
+    list_emails: tool({
+      description: 'List emails from the configured inbox. Returns summaries with UIDs, senders, subjects, dates, and folder classification (inbox/spam/quarantine). Use the uid from results to read or delete a specific email.',
+      inputSchema: z.object({
+        folder: z.enum(['inbox', 'spam', 'quarantine']).optional().describe('Filter by folder. Omit to list all emails.')
+      }),
+      execute: wrapExecute('list_emails', handleListEmails, projectRoot)
+    }),
+    read_email: tool({
+      description: 'Read the full sanitized body of an email by UID. Links are stripped for safety. Returns a quarantine notice if prompt injection is detected in the body.',
+      inputSchema: z.object({
+        uid: z.number().describe('The email UID from list_emails')
+      }),
+      execute: wrapExecute('read_email', handleReadEmail, projectRoot)
+    }),
+    move_email_to_folder: tool({
+      description: 'Move an email to a folder to categorize it. Folders: inbox, spam, quarantine.',
+      inputSchema: z.object({
+        uid: z.number().describe('The email UID'),
+        folder: z.enum(['inbox', 'spam', 'quarantine']).describe('Target folder')
+      }),
+      execute: wrapExecute('move_email_to_folder', handleMoveEmailToFolder, projectRoot)
+    }),
+    delete_email: tool({
+      description: 'Permanently delete an email by UID from the IMAP inbox.',
+      inputSchema: z.object({
+        uid: z.number().describe('The email UID to delete')
+      }),
+      execute: wrapExecute('delete_email', handleDeleteEmail, projectRoot)
     })
   }
 }

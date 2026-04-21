@@ -11,7 +11,8 @@ const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { disabledTools: [] }
 
 export const CORE_TOOL_NAMES = new Set([
   'read_file', 'write_file', 'list_directory', 'search_code',
-  'find_references', 'run_command', 'get_project_overview'
+  'find_references', 'run_command', 'get_project_overview',
+  'list_emails', 'read_email', 'move_email_to_folder', 'delete_email'
 ])
 
 const CORE_TOOL_META = [
@@ -22,6 +23,10 @@ const CORE_TOOL_META = [
   { name: 'find_references', displayName: 'Find References', description: 'Find symbol references across the project', type: 'core' as const },
   { name: 'run_command', displayName: 'Run Command', description: 'Execute shell commands in the project', type: 'core' as const },
   { name: 'get_project_overview', displayName: 'Project Overview', description: 'Get a structured map of project dependencies', type: 'core' as const },
+  { name: 'list_emails', displayName: 'List Emails', description: 'List emails from inbox, spam, or quarantine', type: 'core' as const },
+  { name: 'read_email', displayName: 'Read Email', description: 'Read the full sanitized body of an email by UID', type: 'core' as const },
+  { name: 'move_email_to_folder', displayName: 'Move Email', description: 'Move an email to inbox, spam, or quarantine', type: 'core' as const },
+  { name: 'delete_email', displayName: 'Delete Email', description: 'Permanently delete an email from the inbox', type: 'core' as const },
 ]
 
 export async function readProjectSettings(rootPath: string): Promise<ProjectSettings> {
