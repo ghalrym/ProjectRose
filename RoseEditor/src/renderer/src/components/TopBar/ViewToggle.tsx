@@ -8,9 +8,12 @@ export function ViewToggle(): JSX.Element {
   const setActiveView = useViewStore((s) => s.setActiveView)
   const navItems = useSettingsStore((s) => s.navItems)
 
+  const visibleItems = navItems.filter((item) => item.visible && item.viewId !== 'settings')
+  const settingsItem = navItems.find((item) => item.viewId === 'settings')
+
   return (
     <div className={styles.toggleGroup}>
-      {navItems.filter((item) => item.visible).map((item, index) => (
+      {visibleItems.map((item, index) => (
         <button
           key={item.viewId}
           className={clsx(styles.toggleBtn, activeView === item.viewId && styles.toggleActive)}
@@ -20,6 +23,16 @@ export function ViewToggle(): JSX.Element {
           {item.label.toUpperCase()}
         </button>
       ))}
+      {settingsItem && (
+        <button
+          key="settings"
+          className={clsx(styles.toggleBtn, activeView === 'settings' && styles.toggleActive)}
+          onClick={() => setActiveView('settings')}
+        >
+          <span className={styles.specimenNum}>№{String(visibleItems.length + 1).padStart(2, '0')}</span>
+          SETTINGS
+        </button>
+      )}
     </div>
   )
 }

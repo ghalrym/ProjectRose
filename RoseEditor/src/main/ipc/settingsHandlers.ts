@@ -94,20 +94,24 @@ const DEFAULT_SETTINGS: AppSettings = {
 const GLOBAL_SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
 const EXTENSIONS_DIR = join(app.getPath('userData'), 'extensions')
 
-async function getInstalledExtensionIds(): Promise<Set<string>> {
+interface ExtNavItem { id: string; label: string }
+
+async function getInstalledExtensionNavItems(): Promise<ExtNavItem[]> {
   try {
     const entries = await readdir(EXTENSIONS_DIR)
-    const ids = new Set<string>()
+    const items: ExtNavItem[] = []
     for (const entry of entries) {
       try {
         const raw = await readFile(join(EXTENSIONS_DIR, entry, 'rose-extension.json'), 'utf-8')
         const manifest = JSON.parse(raw)
-        if (manifest?.id) ids.add(manifest.id as string)
+        if (!manifest?.id) continue
+        const label: string = manifest?.navItem?.label ?? manifest?.name ?? manifest.id
+        items.push({ id: manifest.id as string, label })
       } catch { /* skip invalid entries */ }
     }
-    return ids
+    return items
   } catch {
-    return new Set()
+    return []
   }
 }
 
@@ -133,16 +137,26 @@ function getRepoConfigPath(rootPath: string): string {
 }
 
 async function mergeNavItems(stored: NavItem[]): Promise<NavItem[]> {
-  const installedIds = await getInstalledExtensionIds()
-  // Keep core items + only rose-* items that are actually installed on disk
+  const installedExts = await getInstalledExtensionNavItems()
+  const installedIds = new Set(installedExts.map((e) => e.id))
+
+  // Remove rose-* items that are no longer installed
   const filtered = stored.filter((n) => !n.viewId.startsWith('rose-') || installedIds.has(n.viewId))
   const migrated = filtered.map((n) => ({
     ...n,
     viewId: NAV_ID_MIGRATIONS[n.viewId] ?? n.viewId
   }))
   const known = new Set(migrated.map((n) => n.viewId))
-  const missing = DEFAULT_NAV_ITEMS.filter((n) => !known.has(n.viewId))
-  return [...migrated, ...missing]
+
+  // Add missing core items
+  const missingCore = DEFAULT_NAV_ITEMS.filter((n) => !known.has(n.viewId))
+
+  // Add nav items for installed extensions not already present in stored navItems
+  const missingExts = installedExts
+    .filter((e) => !known.has(e.id))
+    .map((e) => ({ viewId: e.id, label: e.label, visible: true }))
+
+  return [...migrated, ...missingCore, ...missingExts]
 }
 
 export async function readSettings(rootPath?: string): Promise<AppSettings> {

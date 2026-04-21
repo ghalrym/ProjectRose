@@ -298,7 +298,10 @@ export function SettingsView(): JSX.Element {
         <section className={styles.section}>
           <div className={styles.sectionTitle}>Navigation Bar</div>
           <div className={styles.navList}>
-            {navItems.map((item, index) => (
+            {navItems
+              .map((item, index) => ({ item, index }))
+              .filter(({ item }) => item.viewId !== 'settings')
+              .map(({ item, index }) => (
               <div
                 key={item.viewId}
                 className={`${styles.navItem} ${dragOverIndex === index ? styles.navItemDragOver : ''}`}
@@ -310,21 +313,25 @@ export function SettingsView(): JSX.Element {
               >
                 <span className={styles.navDragHandle}>⠿</span>
                 <span className={styles.navItemLabel}>{item.label}</span>
-                {item.viewId === 'settings' ? (
-                  <span className={styles.navItemLocked}>always visible</span>
-                ) : (
-                  <button
-                    type="button"
-                    className={`${styles.toggle} ${item.visible ? styles.toggleOn : styles.toggleOff}`}
-                    onClick={() => toggleNavItemVisible(index)}
-                    role="switch"
-                    aria-checked={item.visible}
-                  >
-                    <span className={styles.toggleThumb} />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className={`${styles.toggle} ${item.visible ? styles.toggleOn : styles.toggleOff}`}
+                  onClick={() => toggleNavItemVisible(index)}
+                  role="switch"
+                  aria-checked={item.visible}
+                >
+                  <span className={styles.toggleThumb} />
+                </button>
               </div>
             ))}
+            {/* Settings is always last and always visible — not draggable */}
+            {navItems.find((item) => item.viewId === 'settings') && (
+              <div className={styles.navItem}>
+                <span className={styles.navDragHandle} style={{ opacity: 0.2, cursor: 'default' }}>⠿</span>
+                <span className={styles.navItemLabel}>Settings</span>
+                <span className={styles.navItemLocked}>always visible</span>
+              </div>
+            )}
           </div>
         </section>
       </>
