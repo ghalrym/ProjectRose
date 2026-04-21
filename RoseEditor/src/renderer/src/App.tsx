@@ -36,6 +36,9 @@ function App(): JSX.Element {
   // Load persisted settings on mount
   useEffect(() => { loadSettings() }, [loadSettings])
 
+  // Reload settings when a project is opened to merge in repo config
+  useEffect(() => { if (rootPath) loadSettings() }, [rootPath, loadSettings])
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     window.api.setNativeTheme(theme === 'herbarium' ? 'light' : theme)

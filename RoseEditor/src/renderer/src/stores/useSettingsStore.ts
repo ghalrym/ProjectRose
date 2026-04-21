@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { NavItem } from '../../../shared/types'
 import type { ModelConfig, RouterConfig, CompressionConfig } from '../types/electron'
+import { useProjectStore } from './useProjectStore'
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
   { viewId: 'chat',            label: 'Chat',      visible: true },
@@ -59,12 +60,14 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   loaded: false,
 
   load: async () => {
-    const s = await window.api.getSettings()
+    const rootPath = useProjectStore.getState().rootPath ?? undefined
+    const s = await window.api.getSettings(rootPath)
     set({ ...s, loaded: true })
   },
 
   update: async (patch) => {
-    const s = await window.api.setSettings(patch)
+    const rootPath = useProjectStore.getState().rootPath ?? undefined
+    const s = await window.api.setSettings(patch, rootPath)
     set(s)
   }
 }))

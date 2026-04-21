@@ -1,6 +1,6 @@
 import { ipcMain, app } from 'electron'
-import { join } from 'path'
-import { readFile, writeFile } from 'fs/promises'
+import { join, dirname } from 'path'
+import { readFile, writeFile, mkdir } from 'fs/promises'
 import { get as httpGet } from 'http'
 import { IPC } from '../../shared/ipcChannels'
 import { NavItem } from '../../shared/types'
@@ -79,19 +79,59 @@ const DEFAULT_SETTINGS: AppSettings = {
   compression: { provider: 'anthropic', modelName: '', baseUrl: '' }
 }
 
-const SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
+const GLOBAL_SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
 
-export async function readSettings(): Promise<AppSettings> {
-  try {
-    const raw = await readFile(SETTINGS_PATH, 'utf-8')
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
-  } catch {
-    return { ...DEFAULT_SETTINGS }
+const SENSITIVE_FIELDS = ['providerKeys', 'imapPassword'] as const
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function pick(obj: any, keys: readonly string[]): any {
+  const result: Record<string, unknown> = {}
+  for (const k of keys) if (k in obj) result[k] = obj[k]
+  return result
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function omit(obj: any, keys: readonly string[]): any {
+  const keySet = new Set(keys)
+  const result: Record<string, unknown> = {}
+  for (const k of Object.keys(obj)) if (!keySet.has(k)) result[k] = obj[k]
+  return result
+}
+
+function getRepoConfigPath(rootPath: string): string {
+  return join(rootPath, '.rose', 'config.json')
+}
+
+export async function readSettings(rootPath?: string): Promise<AppSettings> {
+  let globalSettings: Partial<AppSettings> = {}
+  try { globalSettings = JSON.parse(await readFile(GLOBAL_SETTINGS_PATH, 'utf-8')) } catch { /* defaults */ }
+
+  // Non-sensitive fields from old userData file serve as migration fallback
+  const nonSensitiveFallback: Partial<AppSettings> = omit(globalSettings, SENSITIVE_FIELDS)
+
+  let repoConfig: Partial<AppSettings> = {}
+  if (rootPath) {
+    try { repoConfig = JSON.parse(await readFile(getRepoConfigPath(rootPath), 'utf-8')) } catch { /* not created yet */ }
+  }
+
+  return {
+    ...DEFAULT_SETTINGS,
+    ...nonSensitiveFallback,
+    ...repoConfig,
+    ...pick(globalSettings, SENSITIVE_FIELDS)
   }
 }
 
-export async function writeSettings(settings: AppSettings): Promise<void> {
-  await writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8')
+export async function writeSettings(settings: AppSettings, rootPath?: string): Promise<void> {
+  let existing: Partial<AppSettings> = {}
+  try { existing = JSON.parse(await readFile(GLOBAL_SETTINGS_PATH, 'utf-8')) } catch { /* ok */ }
+  await writeFile(GLOBAL_SETTINGS_PATH, JSON.stringify({ ...existing, ...pick(settings, SENSITIVE_FIELDS) }, null, 2), 'utf-8')
+
+  if (rootPath) {
+    const repoData = omit(settings, SENSITIVE_FIELDS)
+    await mkdir(dirname(getRepoConfigPath(rootPath)), { recursive: true })
+    await writeFile(getRepoConfigPath(rootPath), JSON.stringify(repoData, null, 2), 'utf-8')
+  }
 }
 
 // ── Service health checks ──
@@ -125,12 +165,12 @@ const SERVICES = [
 ]
 
 export function registerSettingsHandlers(): void {
-  ipcMain.handle(IPC.SETTINGS_GET, () => readSettings())
+  ipcMain.handle(IPC.SETTINGS_GET, (_event, rootPath?: string) => readSettings(rootPath))
 
-  ipcMain.handle(IPC.SETTINGS_SET, async (_event, patch: Partial<AppSettings>) => {
-    const current = await readSettings()
+  ipcMain.handle(IPC.SETTINGS_SET, async (_event, patch: Partial<AppSettings>, rootPath?: string) => {
+    const current = await readSettings(rootPath)
     const updated = { ...current, ...patch }
-    await writeSettings(updated)
+    await writeSettings(updated, rootPath)
     return updated
   })
 

@@ -106,11 +106,11 @@ const api = {
   getHeartbeatLogContent: (rootPath: string, filename: string): Promise<string> =>
     ipcRenderer.invoke(IPC.HEARTBEAT_LOG_CONTENT, { rootPath, filename }),
 
-  getSettings: (): Promise<unknown> =>
-    ipcRenderer.invoke(IPC.SETTINGS_GET),
+  getSettings: (rootPath?: string): Promise<unknown> =>
+    ipcRenderer.invoke(IPC.SETTINGS_GET, rootPath),
 
-  setSettings: (patch: Record<string, unknown>): Promise<unknown> =>
-    ipcRenderer.invoke(IPC.SETTINGS_SET, patch),
+  setSettings: (patch: Record<string, unknown>, rootPath?: string): Promise<unknown> =>
+    ipcRenderer.invoke(IPC.SETTINGS_SET, patch, rootPath),
 
   checkServicesHealth: (): Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>> =>
     ipcRenderer.invoke(IPC.HEALTH_CHECK_ALL),

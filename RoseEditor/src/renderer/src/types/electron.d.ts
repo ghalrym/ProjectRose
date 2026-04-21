@@ -159,8 +159,8 @@ export interface ElectronAPI {
   getHeartbeatLogContent: (rootPath: string, filename: string) => Promise<string>
 
   // Settings
-  getSettings: () => Promise<AppSettingsData>
-  setSettings: (patch: Partial<AppSettingsData>) => Promise<AppSettingsData>
+  getSettings: (rootPath?: string) => Promise<AppSettingsData>
+  setSettings: (patch: Partial<AppSettingsData>, rootPath?: string) => Promise<AppSettingsData>
   checkServicesHealth: () => Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>>
   transcribeAudio: (audioBuffer: ArrayBuffer) => Promise<string>
 
