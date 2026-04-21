@@ -16,7 +16,7 @@ interface GithubRelease {
 async function getLatestRelease(): Promise<GithubRelease | null> {
   try {
     const res = await fetch(
-      'https://api.github.com/repos/ghalrym/ProjectRose/releases/latest',
+      'https://api.github.com/repos/RoseAgent/ProjectRose/releases/latest',
       {
         next: { revalidate: 3600 },
         headers: { Accept: 'application/vnd.github+json' }
@@ -72,7 +72,7 @@ export default async function DownloadPage() {
       ) : (
         <p style={{ color: 'var(--ink-soft)', fontSize: 13, marginBottom: 48 }}>
           No release found yet. Check the{' '}
-          <a href="https://github.com/ghalrym/ProjectRose/releases" target="_blank" rel="noopener noreferrer">
+          <a href="https://github.com/RoseAgent/ProjectRose/releases" target="_blank" rel="noopener noreferrer">
             GitHub releases page
           </a>{' '}
           directly.

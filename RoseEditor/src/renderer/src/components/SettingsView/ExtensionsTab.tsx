@@ -4,7 +4,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore'
 import styles from './SettingsView.module.css'
 
 const REGISTRY_URL =
-  'https://raw.githubusercontent.com/ghalrym/ProjectRose/master/extensions/registry.json'
+  'https://raw.githubusercontent.com/RoseAgent/ProjectRose/master/extensions/registry.json'
 
 type SubTab = 'installed' | 'browse'
 

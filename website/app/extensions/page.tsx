@@ -1,7 +1,7 @@
 import type { RegistryExtension } from './types'
 
 const REGISTRY_URL =
-  'https://raw.githubusercontent.com/ghalrym/ProjectRose/master/extensions/registry.json'
+  'https://raw.githubusercontent.com/RoseAgent/ProjectRose/master/extensions/registry.json'
 
 const CATEGORY_LABELS: Record<string, string> = {
   communication: 'Communication',
@@ -48,7 +48,7 @@ export default async function ExtensionsPage() {
       {Object.keys(byCategory).length === 0 && (
         <div style={{ color: 'var(--ink-soft)', fontSize: 13 }}>
           No extensions found. Check back soon or{' '}
-          <a href="https://github.com/ghalrym/ProjectRose" target="_blank" rel="noopener noreferrer">
+          <a href="https://github.com/RoseAgent/ProjectRose" target="_blank" rel="noopener noreferrer">
             contribute one on GitHub
           </a>.
         </div>

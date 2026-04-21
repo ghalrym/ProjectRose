@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <a href="/download">DOWNLOAD</a>
             <a href="/extensions">EXTENSIONS</a>
             <a href="/docs">DOCS</a>
-            <a href="https://github.com/ghalrym/ProjectRose" target="_blank" rel="noopener noreferrer">GITHUB</a>
+            <a href="https://github.com/RoseAgent/ProjectRose" target="_blank" rel="noopener noreferrer">GITHUB</a>
           </nav>
         </header>
         {children}

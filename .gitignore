@@ -18,6 +18,8 @@ env/
 
 # Node / Electron (per-subproject .gitignore handles more)
 node_modules/
+website/.next/
+website/out/
 
 # ChromaDB vector stores
 RoseLibrary/data/

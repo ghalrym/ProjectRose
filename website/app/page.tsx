@@ -74,7 +74,7 @@ export default function HomePage() {
             DOWNLOAD
           </Link>
           <a
-            href="https://github.com/ghalrym/ProjectRose"
+            href="https://github.com/RoseAgent/ProjectRose"
             target="_blank"
             rel="noopener noreferrer"
             style={{
