@@ -140,18 +140,16 @@ function buildCoreTools(projectRoot: string, emit: EmitFn): Record<string, any> 
       execute: wrapExecute('read_file', handleReadFile, projectRoot, emit)
     }),
     write_file: tool({
-      description: 'Write content to a file. Requires a file_token obtained from read_file — call read_file first if you do not have one. Returns a new file_token you can use for subsequent writes to the same file.',
+      description: 'Write content to a file. Creates the file and any missing parent directories if they do not exist.',
       inputSchema: z.object({
-        file_token: z.string().optional().describe('Token from a recent read_file call. Required — call read_file first to obtain one.'),
         path: z.string().describe('File path relative to the project root'),
         content: z.string().describe('The full file content to write')
       }),
       execute: wrapExecute('write_file', handleWriteFile, projectRoot, emit)
     }),
     edit_file: tool({
-      description: 'Replace a unique string in a file with new content. Requires a file_token from read_file. Fails if old_string is not found or appears more than once — add more surrounding context to disambiguate. Returns a new file_token for subsequent edits.',
+      description: 'Replace a unique string in a file with new content. Fails if old_string is not found or appears more than once — add more surrounding context to disambiguate.',
       inputSchema: z.object({
-        file_token: z.string().optional().describe('Token from a recent read_file call. Required — call read_file first to obtain one.'),
         path: z.string().describe('File path relative to the project root'),
         old_string: z.string().describe('Exact string to find and replace. Must appear exactly once in the file.'),
         new_string: z.string().describe('String to replace old_string with')
@@ -258,7 +256,8 @@ function isHookMessage(content: unknown): boolean {
 }
 
 function isXmlParseError(message: string): boolean {
-  return message.toLowerCase().includes('xml syntax error')
+  const lower = message.toLowerCase()
+  return lower.includes('xml syntax error') || lower.includes('expected element type')
 }
 
 function extractCompletedToolCalls(msgs: ModelMessage[]): Array<{ name: string; summary: string }> {
@@ -340,53 +339,55 @@ export async function streamChat(params: {
         abortSignal
       })
 
-      let shouldRetry = false
-      stream: for await (const chunk of result.fullStream) {
-        switch (chunk.type) {
-          case 'text-delta':
-            if (chunk.text) {
-              accumulatedText += chunk.text
-              emit(IPC.AI_TOKEN, { token: chunk.text })
+      let stepError: Error | null = null
+
+      try {
+        for await (const chunk of result.fullStream) {
+          switch (chunk.type) {
+            case 'text-delta':
+              if (chunk.text) {
+                accumulatedText += chunk.text
+                emit(IPC.AI_TOKEN, { token: chunk.text })
+              }
+              break
+            case 'reasoning-delta':
+              if (chunk.text) emit(IPC.AI_THINKING, { content: chunk.text })
+              break
+            case 'finish':
+              if (chunk.totalUsage) {
+                inputTokens += chunk.totalUsage.inputTokens ?? 0
+                outputTokens += chunk.totalUsage.outputTokens ?? 0
+              }
+              break
+            case 'error': {
+              const e = chunk.error
+              const errMsg = e instanceof Error ? e.message : (
+                typeof e === 'object' && e !== null && 'message' in e
+                  ? String((e as { message: unknown }).message)
+                  : JSON.stringify(e)
+              )
+              if (e instanceof Error) throw e
+              throw new Error(errMsg)
             }
-            break
-          case 'reasoning-delta':
-            if (chunk.text) emit(IPC.AI_THINKING, { content: chunk.text })
-            break
-          case 'finish':
-            if (chunk.totalUsage) {
-              inputTokens += chunk.totalUsage.inputTokens ?? 0
-              outputTokens += chunk.totalUsage.outputTokens ?? 0
-            }
-            break
-          case 'error': {
-            const e = chunk.error
-            const errMsg = e instanceof Error ? e.message : (
-              typeof e === 'object' && e !== null && 'message' in e
-                ? String((e as { message: unknown }).message)
-                : JSON.stringify(e)
-            )
-            if (isXmlParseError(errMsg) && xmlRetries < 2) {
-              shouldRetry = true
-              break stream  // exit the for-await cleanly; retry the step
-            }
-            if (e instanceof Error) throw e
-            throw new Error(errMsg)
           }
         }
+
+        const steps = await result.steps
+        const resp = await result.response
+        const lastStep = steps.at(-1)
+        hadTools = (lastStep?.toolCalls?.length ?? 0) > 0
+        finishReason = lastStep?.finishReason
+        stepToolNames = (lastStep?.toolCalls ?? []).map(
+          (tc) => (tc as { toolName: string }).toolName
+        )
+        coreMessages = [...coreMessages, ...resp.messages]
+      } catch (err) {
+        stepError = err instanceof Error ? err : new Error(String(err))
       }
 
-      if (shouldRetry) continue  // next xmlRetries iteration
-
-      const steps = await result.steps
-      const resp = await result.response
-      const lastStep = steps.at(-1)
-      hadTools = (lastStep?.toolCalls?.length ?? 0) > 0
-      finishReason = lastStep?.finishReason
-      stepToolNames = (lastStep?.toolCalls ?? []).map(
-        (tc) => (tc as { toolName: string }).toolName
-      )
-      coreMessages = [...coreMessages, ...resp.messages]
-      break  // step succeeded — exit retry loop
+      if (!stepError) break  // step succeeded — exit retry loop
+      if (isXmlParseError(stepError.message) && xmlRetries < 2) continue
+      throw stepError
     }
 
     if (!hadTools || finishReason === 'length' || finishReason === 'content-filter') break

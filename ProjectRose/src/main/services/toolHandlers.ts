@@ -1,6 +1,5 @@
 import { readFile, writeFile, readdir, mkdir, stat } from 'fs/promises'
 import { join, basename, dirname } from 'path'
-import { createHash } from 'crypto'
 import { prPath } from '../lib/projectPaths'
 import { execSync } from 'child_process'
 import { platform } from 'os'
@@ -10,12 +9,6 @@ import { lspRequest } from './lspManager'
 
 const modifiedFiles: string[] = []
 let _activeProjectRoot: string | null = null
-
-const validFileTokens = new Map<string, string>() // absolutePath → token
-
-function computeToken(input: string): string {
-  return createHash('sha256').update(input).digest('hex').slice(0, 16)
-}
 
 export function resetModifiedFiles(): void {
   modifiedFiles.length = 0
@@ -47,64 +40,33 @@ export async function handleReadFile(input: Record<string, unknown>, projectRoot
     return 'Access denied: .env files cannot be read.'
   }
 
-  let content: string
-  let tokenBase: string
   try {
-    content = await readFile(absolute, 'utf-8')
-    tokenBase = content
+    return await readFile(absolute, 'utf-8')
   } catch {
-    content = 'File does not exist.'
-    tokenBase = absolute + ':new'
+    return 'File does not exist.'
   }
-
-  const token = computeToken(tokenBase)
-  validFileTokens.set(absolute, token)
-  return `${content}\n[file_token: ${token}]`
 }
 
 export async function handleWriteFile(input: Record<string, unknown>, projectRoot: string): Promise<string> {
-  const providedToken = String(input.file_token || '')
-  if (!providedToken) {
-    return 'Missing file_token. Call the read_file tool on this file first to get a token before writing.'
-  }
-
   const filePath = String(input.path || '')
   const absolute = filePath.startsWith('/') || filePath.includes(':')
     ? filePath
     : join(projectRoot, filePath)
 
-  const expectedToken = validFileTokens.get(absolute)
-  if (!expectedToken || expectedToken !== providedToken) {
-    return `Invalid or expired file_token for ${filePath}. Call read_file on this specific file to get a valid token.`
-  }
-
-  const content = String(input.content || '')
+  const content = String(input.content ?? '')
   await mkdir(dirname(absolute), { recursive: true })
   await writeFile(absolute, content, 'utf-8')
   modifiedFiles.push(absolute)
   notifyRenderer(IPC.AI_FILE_MODIFIED, { path: absolute })
 
-  const newToken = computeToken(content + Date.now())
-  validFileTokens.set(absolute, newToken)
-
-  return `File written: ${filePath}\n[file_token: ${newToken}]`
+  return `File written: ${filePath}`
 }
 
 export async function handleEditFile(input: Record<string, unknown>, projectRoot: string): Promise<string> {
-  const providedToken = String(input.file_token || '')
-  if (!providedToken) {
-    return 'Missing file_token. Call the read_file tool on this file first to get a token before editing.'
-  }
-
   const filePath = String(input.path || '')
   const absolute = filePath.startsWith('/') || filePath.includes(':')
     ? filePath
     : join(projectRoot, filePath)
-
-  const expectedToken = validFileTokens.get(absolute)
-  if (!expectedToken || expectedToken !== providedToken) {
-    return `Invalid or expired file_token for ${filePath}. Call read_file on this specific file to get a valid token.`
-  }
 
   const oldString = String(input.old_string ?? '')
   const newString = String(input.new_string ?? '')
@@ -123,10 +85,7 @@ export async function handleEditFile(input: Record<string, unknown>, projectRoot
   modifiedFiles.push(absolute)
   notifyRenderer(IPC.AI_FILE_MODIFIED, { path: absolute })
 
-  const newToken = computeToken(updated + Date.now())
-  validFileTokens.set(absolute, newToken)
-
-  return `File edited: ${filePath}\n[file_token: ${newToken}]`
+  return `File edited: ${filePath}`
 }
 
 export async function handleListDirectory(input: Record<string, unknown>, projectRoot: string): Promise<string> {
