@@ -816,6 +816,46 @@
   opacity: 0.6;
 }
 
+/* ── Skills ── */
+
+.skillRow {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border);
+  gap: 10px;
+}
+
+.skillName {
+  font-size: 11px;
+  color: var(--color-text-primary);
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skillDesc {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skillRemoveBtn {
+  all: unset;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+
+.skillRemoveBtn:hover { color: var(--color-error, #e05); }
+
 /* ── Colophon ── */
 
 .colophon {

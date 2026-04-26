@@ -295,6 +295,8 @@ export async function streamChat(params: {
   // Useful for injecting agent-command tools (create_subagents, explore, etc.).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   extraTools?: Record<string, any>
+  // Called fresh before each step — allows dynamic system prompt updates (e.g. loaded skills).
+  getSystemPrompt?: () => string
 }): Promise<StreamResult> {
   const { messages, systemPrompt, pythonTools, extensionTools, model: modelConfig, providerKeys, projectRoot, disabledCoreTools, abortSignal } = params
   const emit: EmitFn = params.notify ?? notifyRenderer
@@ -331,7 +333,7 @@ export async function streamChat(params: {
     for (let xmlRetries = 0; xmlRetries <= 2; xmlRetries++) {
       const result = streamText({
         model,
-        system: systemPrompt,
+        system: params.getSystemPrompt?.() ?? systemPrompt,
         messages: coreMessages,
         tools,
         stopWhen: stepCountIs(1),

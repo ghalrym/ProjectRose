@@ -328,6 +328,16 @@ const api = {
     }
   },
 
+  // Skills
+  skills: {
+    list: (rootPath: string): Promise<{ name: string; description: string }[]> =>
+      ipcRenderer.invoke(IPC.SKILLS_LIST, rootPath),
+    upload: (rootPath: string): Promise<{ ok: boolean; canceled?: boolean; skills?: { name: string; description: string }[] }> =>
+      ipcRenderer.invoke(IPC.SKILLS_UPLOAD, rootPath),
+    delete: (rootPath: string, name: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.SKILLS_DELETE, rootPath, name)
+  },
+
   // Generic IPC bridge — used by dynamically-loaded extensions
   invoke: (channel: string, ...args: unknown[]): Promise<unknown> =>
     ipcRenderer.invoke(channel, ...args),

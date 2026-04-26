@@ -298,6 +298,28 @@ export function SettingsView(): JSX.Element {
   const [, setExtVersion] = useState(0)
   useEffect(() => subscribeToExtensionsChange(() => setExtVersion((v) => v + 1)), [])
 
+  // ── skills ──
+  const [skills, setSkills] = useState<{ name: string; description: string }[]>([])
+
+  const reloadSkills = useCallback(() => {
+    if (!rootPath) return
+    window.api.skills.list(rootPath).then(setSkills).catch(() => {})
+  }, [rootPath])
+
+  useEffect(() => { reloadSkills() }, [reloadSkills])
+
+  const uploadSkill = useCallback(async () => {
+    if (!rootPath) return
+    const result = await window.api.skills.upload(rootPath)
+    if (result.ok && result.skills) setSkills(result.skills)
+  }, [rootPath])
+
+  const deleteSkill = useCallback(async (name: string) => {
+    if (!rootPath) return
+    await window.api.skills.delete(rootPath, name)
+    setSkills((prev) => prev.filter((s) => s.name !== name))
+  }, [rootPath])
+
   // ── tools ──
   const reloadTools = useCallback(() => {
     if (!rootPath) return
@@ -1113,6 +1135,44 @@ export function SettingsView(): JSX.Element {
               })}
             </div>
           )}
+        </div>
+
+        {/* ══ PLATE V · SKILLS ══ */}
+        <div className={styles.plateSection}>
+          <SectionHeader
+            n="V"
+            title="Skills"
+            sub="Markdown files injected into the system prompt when the agent loads them."
+          />
+          <div className={styles.sectionGapSm} />
+
+          <div className={styles.panelBlock}>
+            <div className={styles.panelHeader}>
+              <span>SKILLS · PROJECT</span>
+              <span className={styles.panelHeaderCount}>{skills.length} available</span>
+            </div>
+            {skills.length === 0 && (
+              <div style={{ padding: '14px 18px', fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                No skills yet. Add a .md file to get started.
+              </div>
+            )}
+            {skills.map((skill) => (
+              <div key={skill.name} className={styles.skillRow}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className={styles.skillName}>{skill.name}</div>
+                  {skill.description && (
+                    <div className={styles.skillDesc}>{skill.description}</div>
+                  )}
+                </div>
+                <button className={styles.skillRemoveBtn} onClick={() => deleteSkill(skill.name)} title="Remove skill">
+                  ×
+                </button>
+              </div>
+            ))}
+            <button className={styles.addModelRow} onClick={uploadSkill}>
+              + ADD SKILL
+            </button>
+          </div>
         </div>
 
         {/* Colophon */}

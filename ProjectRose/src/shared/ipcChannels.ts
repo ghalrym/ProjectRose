@@ -80,6 +80,11 @@ export const IPC = {
   EXTENSION_LOAD_RENDERER: 'extension:loadRenderer',
   EXTENSION_LOAD_MAIN: 'extension:loadMain',
 
+  // Skills
+  SKILLS_LIST: 'skills:list',
+  SKILLS_UPLOAD: 'skills:upload',
+  SKILLS_DELETE: 'skills:delete',
+
   // Account auth
   AUTH_LOGIN: 'auth:login',
   AUTH_LOGOUT: 'auth:logout',

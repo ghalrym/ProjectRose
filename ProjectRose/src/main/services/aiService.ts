@@ -11,6 +11,7 @@ import { readProjectSettings, CORE_TOOL_NAMES } from '../ipc/projectSettingsHand
 import { listInstalledExtensions, getRegisteredExtensionTools } from '../ipc/extensionHandlers'
 import { buildRoseMd } from '../ipc/roseSetupHandlers'
 import { buildSubagentTools } from './subagentTools'
+import { buildSkillTools, getSessionSkillsPrompt } from './skillService'
 import type { AgentContext, SubagentCounter } from './agentRunner'
 import { IPC } from '../../shared/ipcChannels'
 import type { Message } from '../../shared/roseModelTypes'
@@ -176,9 +177,12 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
     }
     const counter: SubagentCounter = { value: 0 }
     const subagentTools = buildSubagentTools(agentCtx, selectedModel, settings.providerKeys, counter, systemPrompt)
+    const skillTools = buildSkillTools(rootPath, sessionId, notifyRenderer)
+    const getSystemPrompt = (): string => systemPrompt + getSessionSkillsPrompt(sessionId)
 
     const streamParams = {
       systemPrompt,
+      getSystemPrompt,
       pythonTools: filteredPythonTools,
       extensionTools,
       providerKeys: settings.providerKeys,
@@ -186,7 +190,7 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
       disabledCoreTools,
       abortSignal: abortController.signal,
       notify: notifyRenderer,
-      extraTools: subagentTools
+      extraTools: { ...subagentTools, ...skillTools }
     }
 
     let streamResult: Awaited<ReturnType<typeof streamChat>>
@@ -207,7 +211,7 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
 
       // Rebuild subagent tools with the fallback model
       const fallbackSubagentTools = buildSubagentTools(agentCtx, defaultModel, settings.providerKeys, counter, systemPrompt)
-      streamResult = await streamChat({ messages, model: defaultModel, ...streamParams, extraTools: fallbackSubagentTools })
+      streamResult = await streamChat({ messages, model: defaultModel, ...streamParams, extraTools: { ...fallbackSubagentTools, ...skillTools } })
       activeModelDisplay = fallbackDisplay
       activeModel = defaultModel
     }
