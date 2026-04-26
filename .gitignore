@@ -40,9 +40,6 @@ RoseModel/.chromadb/
 # Logs
 *.log
 
-# Extensions — each is its own git repo
-RoseExtensions/rose-listen
-
 dist/
 
 # OS / editor junk
@@ -53,3 +50,9 @@ desktop.ini
 .vscode/
 *.swp
 *~
+
+# Ai Harnesses
+.agent/
+.claude/
+.cursor/
+.projectrose/
