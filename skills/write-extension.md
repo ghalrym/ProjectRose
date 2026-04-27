@@ -19,8 +19,6 @@ A ProjectRose extension is a set of TypeScript source files that live in the `Ro
 
 ## Folder Structure
 
-Extensions live at `RoseExtensions/{id}/`. The structure mirrors `rose-discord` as the canonical reference:
-
 ```
 RoseExtensions/
 └── rose-{name}/
@@ -33,6 +31,7 @@ RoseExtensions/
         │   ├── MyView.module.css  # CSS Modules — supported
         │   └── MySettings.tsx     # SettingsView component (optional)
         └── main/
+            ├── types.ts           # Local type definitions
             ├── handlers.ts        # IPC handler registration
             └── tools.ts           # Tool definitions (optional)
 ```
@@ -77,9 +76,10 @@ RoseExtensions/
 
 ## 2. renderer.ts (entry point)
 
-This file just re-exports components from `src/renderer/`. The build script compiles it to a CJS bundle.
+This file re-exports components from `src/renderer/` and the manifest. The build script compiles it to a CJS bundle.
 
 ```ts
+export { default as manifest } from './rose-extension.json'
 export { MyView as PageView } from './src/renderer/MyView'
 export { MySettings as SettingsView } from './src/renderer/MySettings'
 ```
@@ -116,20 +116,48 @@ import { useServiceStore }  from '@renderer/stores/useServiceStore'
 
 ### Reading and writing extension settings
 
-Extension settings are stored on the top-level `AppSettings` object under dedicated fields (like `discordBotToken`, `discordChannels`). Add new fields to `AppSettings` in `ProjectRose/src/main/ipc/settingsHandlers.ts` and `ProjectRose/src/renderer/src/stores/useSettingsStore.ts` if needed.
+Extension settings are stored on the top-level `AppSettings` object. Add new fields to `AppSettings` in `ProjectRose/src/main/ipc/settingsHandlers.ts` and `ProjectRose/src/renderer/src/stores/useSettingsStore.ts` if needed.
 
 ```tsx
-// Read a top-level setting
-const { discordBotToken, update } = useSettingsStore()
+// Read top-level settings
+const { myExtensionApiKey, myExtensionEnabled, update } = useSettingsStore()
 
-// Write it back
-update({ discordBotToken: newValue })
+// Write them back
+update({ myExtensionApiKey: newValue })
+update({ myExtensionEnabled: true })
 ```
 
 ### Calling main-process handlers from the renderer
 
 ```ts
-const result = await window.api.invoke('rose-{name}:some-action') as { ok: boolean }
+const result = await window.api.invoke('rose-{name}:some-action', arg1, arg2) as { ok: boolean }
+```
+
+### SettingsView example — src/renderer/MySettings.tsx
+
+```tsx
+import { useSettingsStore } from '@renderer/stores/useSettingsStore'
+
+export function MySettings(): JSX.Element {
+  const { myExtensionApiKey, update } = useSettingsStore()
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 8 }}>
+          API Key
+        </div>
+        <input
+          type="password"
+          placeholder="Enter API key…"
+          value={myExtensionApiKey ?? ''}
+          onChange={(e) => update({ myExtensionApiKey: e.target.value })}
+          style={{ width: '100%', padding: '6px 10px', background: 'var(--color-input-bg, var(--color-bg))', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm, 4px)', color: 'var(--color-text-primary)', fontSize: 13, boxSizing: 'border-box' }}
+        />
+      </div>
+    </div>
+  )
+}
 ```
 
 ### CSS Modules
@@ -155,8 +183,24 @@ export function register(ctx: ExtensionMainContext): () => void {
 
 ### src/main/types.ts
 
+Define the types locally — do not import from the host app.
+
 ```ts
-export type { ExtensionMainContext } from '@main/extensions/types'
+export interface ExtensionToolEntry {
+  name: string
+  description: string
+  schema: Record<string, unknown>
+  execute: (input: Record<string, unknown>, projectRoot: string) => Promise<string>
+}
+
+export interface ExtensionMainContext {
+  rootPath: string
+  getSettings: () => Promise<Record<string, unknown>>
+  updateSettings: (patch: Record<string, unknown>) => Promise<void>
+  broadcast: (channel: string, data: unknown) => void
+  registerTools: (tools: ExtensionToolEntry[]) => void
+  runBackgroundAgent: (prompt: string) => Promise<string>
+}
 ```
 
 ### src/main/handlers.ts
@@ -166,31 +210,72 @@ import { ipcMain } from 'electron'
 import type { ExtensionMainContext } from './types'
 
 export function registerHandlers(ctx: ExtensionMainContext): () => void {
-  ipcMain.handle('rose-{name}:some-action', async () => {
-    // do something with ctx.rootPath, ctx.getSettings(), etc.
-    return { ok: true }
+  ipcMain.handle('rose-{name}:fetch-items', async () => {
+    const settings = await ctx.getSettings()
+    const apiKey = String(settings['myExtensionApiKey'] ?? '')
+    if (!apiKey) return { ok: false, error: 'No API key configured' }
+    // do work…
+    return { ok: true, items: [] }
+  })
+
+  ipcMain.handle('rose-{name}:create-item', async (_event, title: string, body: string) => {
+    try {
+      // do work…
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: String(err) }
+    }
   })
 
   return () => {
-    ipcMain.removeHandler('rose-{name}:some-action')
+    ipcMain.removeHandler('rose-{name}:fetch-items')
+    ipcMain.removeHandler('rose-{name}:create-item')
   }
 }
 ```
 
 ### src/main/tools.ts
 
+The schema must follow JSON Schema format: `type: 'object'` with a `properties` map. Use `required` for mandatory params.
+
 ```ts
-import type { ExtensionToolEntry } from '@main/extensions/types'
+import type { ExtensionToolEntry } from './types'
 
 export const MY_TOOLS: ExtensionToolEntry[] = [
   {
-    name: 'tool_name',
-    description: 'What this tool does',
+    name: 'search_items',
+    description: 'Search items by keyword. Returns a list of matching results.',
     schema: {
-      input: { type: 'string', description: 'The input value' }
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'The search query' },
+        limit: { type: 'number', description: 'Max results to return (default 10)' }
+      },
+      required: ['query']
     },
     execute: async (args, projectRoot) => {
-      return 'result string'
+      const query = String(args.query ?? '')
+      // do work using projectRoot…
+      return JSON.stringify({ results: [] })
+    }
+  },
+  {
+    name: 'create_item',
+    description: 'Create a new item with a title and body.',
+    schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Item title' },
+        body: { type: 'string', description: 'Item body text' }
+      },
+      required: ['title', 'body']
+    },
+    execute: async (args, _projectRoot) => {
+      const title = String(args.title ?? '')
+      const body = String(args.body ?? '')
+      if (!title) return 'Missing title.'
+      // do work…
+      return `Item "${title}" created.`
     }
   }
 ]
@@ -200,11 +285,11 @@ export const MY_TOOLS: ExtensionToolEntry[] = [
 
 ```ts
 ctx.rootPath                            // absolute path to project root
-ctx.getSettings()                       // Promise<AppSettings>
+ctx.getSettings()                       // Promise<Record<string, unknown>>
 ctx.updateSettings(patch)               // Promise<void>
 ctx.broadcast(channel, data)            // send IPC event to all renderer windows
 ctx.registerTools(tools)                // register AI tools
-ctx.runBackgroundAgent(prompt)          // invoke the AI agent
+ctx.runBackgroundAgent(prompt)          // invoke the AI agent with a prompt
 ```
 
 ---
@@ -229,13 +314,7 @@ No per-extension build config is needed — the root `scripts/package-extensions
 2. **Choose the ID** — `rose-{kebab-name}`.
 3. **Write `rose-extension.json`** with the right `provides` flags.
 4. **Write `renderer.ts`** + component source in `src/renderer/` if it has a UI.
-5. **Write `main.ts`** + `src/main/handlers.ts` and/or `src/main/tools.ts` if it has background logic or tools.
+5. **Write `main.ts`** + `src/main/types.ts`, `src/main/handlers.ts`, and/or `src/main/tools.ts` if it has background logic or tools.
 6. If the extension adds new settings fields, add them to `AppSettings` in `settingsHandlers.ts` and `useSettingsStore.ts`.
 7. Run `make package-extensions` to build and package.
 8. Install via Settings → Extensions → INSTALL FROM DISK → select `dist/extensions/{id}.zip`.
-
----
-
-## 6. Reference: rose-discord
-
-The most complete example is `RoseExtensions/rose-discord/`. It has a `PageView`, a `SettingsView`, a main-process handler, and three registered AI tools. Read it when in doubt.
