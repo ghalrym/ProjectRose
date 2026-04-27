@@ -1,4 +1,4 @@
-.PHONY: build run dist build-rosespeech setup start clean package-extensions ci typecheck test-unit test-e2e help
+.PHONY: build run dist build-rosespeech setup start clean ci typecheck test-unit test-e2e help
 
 # ── Editor ─────────────────────────────────────────────────────────────
 
@@ -24,9 +24,6 @@ build-rosespeech: ## Bundle RoseSpeech into a self-contained executable via PyIn
 start: setup build ## Install all dependencies then launch in dev mode
 	cd ProjectRose && npm run dev
 
-package-extensions: ## Package RoseExtensions into ZIPs in dist/extensions/
-	node scripts/package-extensions.mjs
-
 # ── CI ──────────────────────────────────────────────────────────────────
 
 ci: typecheck test-unit test-e2e ## Run all CI checks locally (typecheck + unit + e2e)
@@ -42,7 +39,7 @@ test-e2e: ## Build app and run E2E tests (requires Electron binary)
 	cd ProjectRose && npm run build && npm run test:e2e
 
 clean: ## Remove build artifacts
-	rm -rf ProjectRose/node_modules ProjectRose/out ProjectRose/release rosespeech-dist dist/extensions
+	rm -rf ProjectRose/node_modules ProjectRose/out ProjectRose/release rosespeech-dist
 
 # ── Help ───────────────────────────────────────────────────────────────
 
