@@ -71,7 +71,7 @@ async function buildExtension(dir: string): Promise<void> {
 
   // Surface dist artifacts at the install root so the harness can load them
   const distDir = join(dir, 'dist')
-  for (const fname of ['main.js', 'renderer.js']) {
+  for (const fname of ['main.js', 'renderer.js', 'renderer.css']) {
     const distFile = join(distDir, fname)
     if (existsSync(distFile)) await copyFile(distFile, join(dir, fname))
   }
@@ -106,10 +106,18 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
   try {
     const code = readFileSync(mainPath, 'utf-8')
     const extRequire = createRequire(mainPath)
+    const hostExports: Record<string, unknown> = {
+      '@main/ipc/settingsHandlers': { readSettings, writeSettings }
+    }
+    const hostedRequire: NodeJS.Require = ((spec: string) => {
+      if (spec in hostExports) return hostExports[spec]
+      return extRequire(spec)
+    }) as NodeJS.Require
+    Object.assign(hostedRequire, extRequire)
     const mod: { exports: Record<string, unknown> } = { exports: {} }
     // eslint-disable-next-line no-new-func
     const wrapper = new Function('module', 'exports', 'require', '__dirname', '__filename', code)
-    wrapper(mod, mod.exports, extRequire, dirname(mainPath), mainPath)
+    wrapper(mod, mod.exports, hostedRequire, dirname(mainPath), mainPath)
 
     const ctx: ExtensionMainContext = {
       rootPath,
@@ -232,13 +240,13 @@ export function registerExtensionHandlers(): void {
   })
 
   ipcMain.handle(IPC.EXTENSION_LOAD_RENDERER, async (_event, rootPath: string, id: string) => {
-    const rendererPath = join(getExtensionsDir(rootPath), id, 'renderer.js')
-    try {
-      const code = await readFile(rendererPath, 'utf-8')
-      return { ok: true, code }
-    } catch {
-      return { ok: false, code: null }
-    }
+    const installDir = join(getExtensionsDir(rootPath), id)
+    let code: string | null = null
+    let css: string | null = null
+    try { code = await readFile(join(installDir, 'renderer.js'), 'utf-8') } catch { /* missing */ }
+    try { css = await readFile(join(installDir, 'renderer.css'), 'utf-8') } catch { /* optional */ }
+    if (!code) return { ok: false, code: null, css: null }
+    return { ok: true, code, css }
   })
 
   ipcMain.handle(IPC.EXTENSION_LOAD_MAIN, (_event, rootPath: string, id: string) => {

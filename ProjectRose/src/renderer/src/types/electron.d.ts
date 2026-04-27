@@ -252,7 +252,7 @@ export interface ExtensionAPI {
   uninstall: (rootPath: string, id: string) => Promise<{ ok: boolean }>
   enable: (rootPath: string, id: string) => Promise<{ ok: boolean }>
   disable: (rootPath: string, id: string) => Promise<{ ok: boolean }>
-  loadRendererCode: (rootPath: string, id: string) => Promise<{ ok: boolean; code: string | null }>
+  loadRendererCode: (rootPath: string, id: string) => Promise<{ ok: boolean; code: string | null; css?: string | null }>
   loadMainModule: (rootPath: string, id: string) => Promise<{ ok: boolean }>
 }
 

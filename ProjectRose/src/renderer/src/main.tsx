@@ -6,6 +6,11 @@ import { StrictMode } from 'react'
 import * as React from 'react'
 import * as ReactJSXRuntime from 'react/jsx-runtime'
 import { createRoot } from 'react-dom/client'
+import * as zustand from 'zustand'
+import * as monaco from 'monaco-editor'
+import * as xterm from '@xterm/xterm'
+import * as xtermAddonFit from '@xterm/addon-fit'
+import * as xtermAddonWebLinks from '@xterm/addon-web-links'
 import * as useFileStore from './stores/useFileStore'
 import * as useIndexingStore from './stores/useIndexingStore'
 import * as useProjectStore from './stores/useProjectStore'
@@ -24,6 +29,11 @@ import './themes/variables.css'
 window.__rose__ = {
   'react': React,
   'react/jsx-runtime': ReactJSXRuntime,
+  'zustand': zustand,
+  'monaco-editor': monaco,
+  '@xterm/xterm': xterm,
+  '@xterm/addon-fit': xtermAddonFit,
+  '@xterm/addon-web-links': xtermAddonWebLinks,
   '@renderer/stores/useFileStore': useFileStore,
   '@renderer/stores/useIndexingStore': useIndexingStore,
   '@renderer/stores/useProjectStore': useProjectStore,

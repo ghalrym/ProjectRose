@@ -307,7 +307,7 @@ const api = {
       ipcRenderer.invoke(IPC.EXTENSION_ENABLE, rootPath, id),
     disable: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
       ipcRenderer.invoke(IPC.EXTENSION_DISABLE, rootPath, id),
-    loadRendererCode: (rootPath: string, id: string): Promise<{ ok: boolean; code: string | null }> =>
+    loadRendererCode: (rootPath: string, id: string): Promise<{ ok: boolean; code: string | null; css?: string | null }> =>
       ipcRenderer.invoke(IPC.EXTENSION_LOAD_RENDERER, rootPath, id),
     loadMainModule: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
       ipcRenderer.invoke(IPC.EXTENSION_LOAD_MAIN, rootPath, id)

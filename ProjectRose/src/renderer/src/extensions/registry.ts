@@ -51,6 +51,19 @@ export function getExtensionNavItems(): Array<{ viewId: string; label: string }>
     }))
 }
 
+const STYLE_DATA_ATTR = 'data-rose-extension'
+
+function clearExtensionStyles(): void {
+  document.querySelectorAll(`style[${STYLE_DATA_ATTR}]`).forEach((el) => el.remove())
+}
+
+function injectExtensionStyle(extensionId: string, css: string): void {
+  const style = document.createElement('style')
+  style.setAttribute(STYLE_DATA_ATTR, extensionId)
+  style.textContent = css
+  document.head.appendChild(style)
+}
+
 /**
  * Scans installed extensions and dynamically loads each one's renderer.js
  * (compiled at packaging time).  The bundle is evaluated with a custom
@@ -60,6 +73,7 @@ export function getExtensionNavItems(): Array<{ viewId: string; label: string }>
  */
 export async function loadDynamicExtensions(rootPath: string): Promise<void> {
   DYNAMIC_EXTENSIONS.length = 0
+  clearExtensionStyles()
 
   if (!rootPath) {
     _changeListeners.forEach((fn) => fn())
@@ -86,6 +100,7 @@ export async function loadDynamicExtensions(rootPath: string): Promise<void> {
       const SettingsView = mod.exports['SettingsView'] as ComponentType<any> | undefined
       if (typeof PageView === 'function' || typeof SettingsView === 'function') {
         DYNAMIC_EXTENSIONS.push({ manifest: ext.manifest, PageView, SettingsView })
+        if (result.css) injectExtensionStyle(ext.manifest.id, result.css)
       }
 
       // Load the extension's main-process module (if it declares one)
