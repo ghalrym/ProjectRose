@@ -248,7 +248,7 @@ export interface GitOpResult {
 
 export interface ExtensionAPI {
   list: (rootPath: string) => Promise<{ installed: import('@shared/extension-types').InstalledExtension[] }>
-  installFromDisk: (rootPath: string) => Promise<{ ok: boolean; canceled?: boolean }>
+  installFromGit: (rootPath: string, url: string) => Promise<{ ok: boolean; error?: string; manifest?: import('@shared/extension-types').ExtensionManifest }>
   uninstall: (rootPath: string, id: string) => Promise<{ ok: boolean }>
   enable: (rootPath: string, id: string) => Promise<{ ok: boolean }>
   disable: (rootPath: string, id: string) => Promise<{ ok: boolean }>

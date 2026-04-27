@@ -299,8 +299,8 @@ const api = {
   extension: {
     list: (rootPath: string): Promise<{ installed: import('../shared/extension-types').InstalledExtension[] }> =>
       ipcRenderer.invoke(IPC.EXTENSION_LIST, rootPath),
-    installFromDisk: (rootPath: string): Promise<{ ok: boolean; canceled?: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_FROM_DISK, rootPath),
+    installFromGit: (rootPath: string, url: string): Promise<{ ok: boolean; error?: string; manifest?: import('../shared/extension-types').ExtensionManifest }> =>
+      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_FROM_GIT, rootPath, url),
     uninstall: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
       ipcRenderer.invoke(IPC.EXTENSION_UNINSTALL, rootPath, id),
     enable: (rootPath: string, id: string): Promise<{ ok: boolean }> =>

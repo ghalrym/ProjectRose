@@ -1,8 +1,9 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow } from 'electron'
 import { join, dirname } from 'path'
-import { readFile, writeFile, mkdir, readdir, rm } from 'fs/promises'
+import { readFile, writeFile, mkdir, readdir, rm, copyFile, rename } from 'fs/promises'
 import { existsSync, readFileSync } from 'fs'
 import { createRequire } from 'module'
+import { spawn } from 'child_process'
 import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
 import { readSettings, writeSettings } from './settingsHandlers'
@@ -41,13 +42,38 @@ async function writeEnabledState(rootPath: string, id: string, enabled: boolean)
   await writeFile(statePath, JSON.stringify({ enabled }), 'utf-8')
 }
 
-async function extractZip(zipPath: string, destDir: string): Promise<void> {
-  const { execSync } = await import('child_process')
-  if (process.platform === 'win32') {
-    const ps = `Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force`
-    execSync(`powershell -NoProfile -Command "${ps}"`)
-  } else {
-    execSync(`unzip -o "${zipPath}" -d "${destDir}"`)
+function runCommand(cmd: string, args: string[], cwd: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(cmd, args, { cwd, shell: process.platform === 'win32', stdio: 'pipe' })
+    let stderr = ''
+    proc.stderr?.on('data', (chunk) => { stderr += chunk.toString() })
+    proc.on('error', reject)
+    proc.on('close', (code) => {
+      if (code === 0) resolve()
+      else reject(new Error(`${cmd} ${args.join(' ')} failed (exit ${code}): ${stderr.trim()}`))
+    })
+  })
+}
+
+async function cloneRepo(url: string, destDir: string): Promise<void> {
+  await runCommand('git', ['clone', '--depth=1', url, destDir], dirname(destDir))
+}
+
+async function buildExtension(dir: string): Promise<void> {
+  const pkgPath = join(dir, 'package.json')
+  if (!existsSync(pkgPath)) return
+  let pkg: { scripts?: Record<string, string> } = {}
+  try { pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) } catch { return }
+  if (!pkg.scripts?.build) return
+
+  await runCommand('npm', ['install', '--no-audit', '--no-fund', '--silent'], dir)
+  await runCommand('npm', ['run', 'build', '--silent'], dir)
+
+  // Surface dist artifacts at the install root so the harness can load them
+  const distDir = join(dir, 'dist')
+  for (const fname of ['main.js', 'renderer.js']) {
+    const distFile = join(distDir, fname)
+    if (existsSync(distFile)) await copyFile(distFile, join(dir, fname))
   }
 }
 
@@ -153,36 +179,34 @@ export function registerExtensionHandlers(): void {
     return { installed }
   })
 
-  ipcMain.handle(IPC.EXTENSION_INSTALL_FROM_DISK, async (event, rootPath: string) => {
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win) return { ok: false }
+  ipcMain.handle(IPC.EXTENSION_INSTALL_FROM_GIT, async (_event, rootPath: string, url: string) => {
+    if (!rootPath) return { ok: false, error: 'No project open' }
+    const trimmedUrl = String(url ?? '').trim()
+    if (!trimmedUrl) return { ok: false, error: 'Repository URL is required' }
 
-    const result = await dialog.showOpenDialog(win, {
-      properties: ['openFile'],
-      filters: [{ name: 'Extension Package', extensions: ['zip'] }]
-    })
-    if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true }
-
-    const zipPath = result.filePaths[0]
     await ensureExtensionsDir(rootPath)
     const extensionsDir = getExtensionsDir(rootPath)
-    const tmpDir = join(extensionsDir, `_extract_${Date.now()}`)
-    await mkdir(tmpDir, { recursive: true })
+    const tmpDir = join(extensionsDir, `_clone_${Date.now()}`)
+
     try {
-      await extractZip(zipPath, tmpDir)
+      await cloneRepo(trimmedUrl, tmpDir)
 
       const manifest = await readManifest(tmpDir)
-      if (!manifest) throw new Error('Invalid extension: missing rose-extension.json')
+      if (!manifest) throw new Error('Invalid extension: repository is missing rose-extension.json')
+
+      await buildExtension(tmpDir)
 
       const destDir = join(extensionsDir, manifest.id)
-      if (existsSync(destDir)) await rm(destDir, { recursive: true, force: true })
-      const { renameSync } = await import('fs')
-      renameSync(tmpDir, destDir)
+      if (existsSync(destDir)) {
+        unloadExtensionMainModule(rootPath, manifest.id)
+        await rm(destDir, { recursive: true, force: true })
+      }
+      await rename(tmpDir, destDir)
+      return { ok: true, manifest }
     } catch (err) {
       await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
-      throw err
+      return { ok: false, error: (err as Error).message }
     }
-    return { ok: true }
   })
 
   ipcMain.handle(IPC.EXTENSION_UNINSTALL, async (_event, rootPath: string, id: string) => {

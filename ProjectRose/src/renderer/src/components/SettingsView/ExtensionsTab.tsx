@@ -7,7 +7,9 @@ import styles from './SettingsView.module.css'
 
 export function ExtensionsTab(): JSX.Element {
   const [installed, setInstalled] = useState<InstalledExtension[]>([])
-  const [diskInstalling, setDiskInstalling] = useState(false)
+  const [installing, setInstalling] = useState(false)
+  const [gitUrl, setGitUrl] = useState('')
+  const [installError, setInstallError] = useState<string | null>(null)
 
   const rootPath = useProjectStore((s) => s.rootPath)
   const navItems = useSettingsStore((s) => s.navItems)
@@ -21,12 +23,21 @@ export function ExtensionsTab(): JSX.Element {
 
   useEffect(() => { loadInstalled() }, [loadInstalled])
 
-  const handleInstallFromDisk = useCallback(async () => {
+  const handleInstallFromGit = useCallback(async () => {
     if (!rootPath) return
-    setDiskInstalling(true)
+    const url = gitUrl.trim()
+    if (!url) {
+      setInstallError('Repository URL is required')
+      return
+    }
+    setInstalling(true)
+    setInstallError(null)
     try {
-      const result = await window.api.extension.installFromDisk(rootPath)
-      if (!result.ok || result.canceled) return
+      const result = await window.api.extension.installFromGit(rootPath, url)
+      if (!result.ok) {
+        setInstallError(result.error ?? 'Install failed')
+        return
+      }
 
       const { installed: newInstalled } = await window.api.extension.list(rootPath)
       setInstalled(newInstalled)
@@ -40,10 +51,13 @@ export function ExtensionsTab(): JSX.Element {
         await updateSettings({ navItems: [...navItems, ...newNavItems] })
       }
       await loadDynamicExtensions(rootPath)
+      setGitUrl('')
+    } catch (err) {
+      setInstallError((err as Error).message ?? 'Install failed')
     } finally {
-      setDiskInstalling(false)
+      setInstalling(false)
     }
-  }, [installed, navItems, updateSettings, rootPath])
+  }, [installed, navItems, updateSettings, rootPath, gitUrl])
 
   const handleUninstall = useCallback(async (ext: InstalledExtension) => {
     if (!rootPath) return
@@ -73,51 +87,71 @@ export function ExtensionsTab(): JSX.Element {
           <div className={styles.emptyState}>Open a project to manage extensions.</div>
         )}
         {rootPath && (
-          <button
-            type="button"
-            disabled={diskInstalling}
-            onClick={handleInstallFromDisk}
+          <div
             style={{
               display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              width: '100%',
+              flexDirection: 'column',
+              gap: 8,
               padding: '14px 16px',
-              background: 'none',
               border: '1px dashed var(--color-border-strong, var(--color-border))',
               borderRadius: 'var(--radius-md, 6px)',
-              color: diskInstalling ? 'var(--color-text-muted)' : 'var(--color-text-secondary)',
-              cursor: diskInstalling ? 'not-allowed' : 'pointer',
-              fontFamily: 'var(--font-family-mono)',
-              fontSize: 11,
-              letterSpacing: '1px',
-              textAlign: 'left',
-              transition: 'border-color 0.1s, color 0.1s, background 0.1s',
-              opacity: diskInstalling ? 0.5 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (!diskInstalling) {
-                (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--color-accent)'
-                ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-primary)'
-                ;(e.currentTarget as HTMLButtonElement).style.background = 'var(--color-button-hover-bg, rgba(255,255,255,0.03))'
-              }
-            }}
-            onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLButtonElement).style.borderColor = ''
-              ;(e.currentTarget as HTMLButtonElement).style.color = diskInstalling ? 'var(--color-text-muted)' : 'var(--color-text-secondary)'
-              ;(e.currentTarget as HTMLButtonElement).style.background = 'none'
             }}
           >
-            <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0 }}>+</span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontSize: 11, letterSpacing: '1px' }}>
-                {diskInstalling ? 'INSTALLING...' : 'INSTALL FROM DISK'}
+              <span style={{ fontSize: 11, letterSpacing: '1px', fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-secondary)' }}>
+                INSTALL FROM GIT
               </span>
-              <span style={{ fontSize: 10, color: 'var(--color-text-muted)', letterSpacing: '0.3px', fontFamily: 'inherit' }}>
-                Load a local .rose extension bundle
+              <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+                Clone a repository containing a rose-extension.json manifest
               </span>
             </div>
-          </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="url"
+                value={gitUrl}
+                onChange={(e) => setGitUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !installing) handleInstallFromGit() }}
+                disabled={installing}
+                placeholder="https://github.com/owner/repo.git"
+                style={{
+                  flex: 1,
+                  padding: '8px 10px',
+                  borderRadius: 'var(--radius-sm, 4px)',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-bg-secondary)',
+                  color: 'var(--color-text-primary)',
+                  fontSize: 13,
+                  fontFamily: 'var(--font-family-mono)',
+                  outline: 'none',
+                }}
+              />
+              <button
+                type="button"
+                disabled={installing || !gitUrl.trim()}
+                onClick={handleInstallFromGit}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 'var(--radius-sm, 4px)',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-bg-secondary)',
+                  color: installing ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
+                  cursor: installing || !gitUrl.trim() ? 'not-allowed' : 'pointer',
+                  fontSize: 11,
+                  letterSpacing: '1px',
+                  fontFamily: 'var(--font-family-mono)',
+                  whiteSpace: 'nowrap',
+                  opacity: installing || !gitUrl.trim() ? 0.5 : 1,
+                }}
+              >
+                {installing ? 'INSTALLING…' : 'INSTALL'}
+              </button>
+            </div>
+            {installError && (
+              <span style={{ fontSize: 11, color: 'var(--color-danger, #dc2626)' }}>
+                {installError}
+              </span>
+            )}
+          </div>
         )}
         {rootPath && installed.map((ext) => (
           <ExtensionRow
@@ -132,7 +166,7 @@ export function ExtensionsTab(): JSX.Element {
           />
         ))}
         {rootPath && installed.length === 0 && (
-          <div className={styles.emptyState}>No extensions installed. Use "Install from disk" to add one.</div>
+          <div className={styles.emptyState}>No extensions installed. Paste a Git repository URL above to add one.</div>
         )}
       </div>
     </section>
