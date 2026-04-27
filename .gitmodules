@@ -1,0 +1,3 @@
+[submodule "RoseExtensions/rose-crm"]
+	path = RoseExtensions/rose-crm
+	url = https://github.com/RoseAgent/projectrose-crm.git

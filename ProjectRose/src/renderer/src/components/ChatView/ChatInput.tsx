@@ -90,50 +90,50 @@ export function ChatInput(): JSX.Element {
           </button>
         </div>
       )}
-    <div className={styles.inputArea}>
-      <textarea
-        ref={textareaRef}
-        className={styles.textarea}
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
-        disabled={isLoading}
-        rows={2}
-      />
-      <div className={styles.btnStack}>
-        {isLoading && (
+      <div className={styles.inputArea}>
+        <textarea
+          ref={textareaRef}
+          className={styles.textarea}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+          disabled={isLoading}
+          rows={2}
+        />
+        <div className={styles.btnStack}>
+          <div className={styles.iconRow}>
+            {isLoading && (
+              <button
+                className={styles.cancelBtn}
+                onClick={() => cancelGeneration()}
+                title="Cancel generation"
+              >
+                ✕
+              </button>
+            )}
+            <button
+              className={clsx(styles.micBtn, {
+                [styles.micRecording]: micState === 'recording',
+                [styles.micTranscribing]: micState === 'transcribing',
+                [styles.micOffline]: roseSpeechOnline === false
+              })}
+              onClick={handleMicClick}
+              disabled={isLoading || micState === 'transcribing' || roseSpeechOnline === false}
+              title={micState === 'recording' ? 'Stop recording' : 'Record voice message'}
+            >
+              {micState === 'transcribing' ? '…' : '🎙'}
+            </button>
+          </div>
           <button
-            className={styles.cancelBtn}
-            onClick={() => cancelGeneration()}
-            title="Cancel generation"
+            className={styles.sendBtn}
+            onClick={sendMessage}
+            disabled={isLoading || !inputValue.trim()}
           >
-            ✕
+            {isLoading ? 'Thinking...' : 'Send'}
           </button>
-        )}
-        <button
-          className={clsx(styles.micBtn, {
-            [styles.micRecording]: micState === 'recording',
-            [styles.micTranscribing]: micState === 'transcribing',
-            [styles.micOffline]: roseSpeechOnline === false
-          })}
-          onClick={handleMicClick}
-          disabled={isLoading || micState === 'transcribing' || roseSpeechOnline === false}
-          title={
-            micState === 'recording' ? 'Stop recording' : 'Record voice message'
-          }
-        >
-          {micState === 'transcribing' ? '…' : '🎙'}
-        </button>
-        <button
-          className={styles.sendBtn}
-          onClick={sendMessage}
-          disabled={isLoading || !inputValue.trim()}
-        >
-          {isLoading ? 'Thinking...' : 'Send'}
-        </button>
+        </div>
       </div>
-    </div>
     </div>
   )
 }

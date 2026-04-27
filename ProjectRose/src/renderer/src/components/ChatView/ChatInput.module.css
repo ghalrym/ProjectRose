@@ -96,6 +96,14 @@
   align-self: flex-end;
 }
 
+.iconRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
 .sendBtn {
   padding: 8px 20px;
   border-radius: var(--radius-md);

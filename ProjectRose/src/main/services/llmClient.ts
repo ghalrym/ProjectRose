@@ -1,6 +1,5 @@
-import { streamText, generateText, stepCountIs, tool } from 'ai'
+import { streamText, generateText, stepCountIs, tool, extractReasoningMiddleware, wrapLanguageModel } from 'ai'
 import type { ModelMessage, ToolExecutionOptions } from 'ai'
-import { applyHooks } from './chatHooks'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOllama } from 'ai-sdk-ollama'
@@ -57,7 +56,47 @@ export function resolveModel(model: ModelConfig, providerKeys: ProviderKeys): an
       return provider(model.modelName || 'gpt-4o')
     }
     case 'ollama': {
-      const provider = createOllama({ baseURL: model.baseUrl || 'http://localhost:11434' })
+      // Workaround for ai-sdk-ollama 3.8.3: it omits tool_call_id on role:"tool" messages,
+      // which breaks the link to the assistant's tool_calls and confuses models like Qwen3.
+      const patchedFetch: typeof fetch = async (input, init) => {
+        if (init?.body && typeof init.body === 'string') {
+          try {
+            const body = JSON.parse(init.body)
+            if (Array.isArray(body.messages)) {
+              const pending: Array<{ id: string; name: string }> = []
+              let mutated = false
+              for (const msg of body.messages) {
+                if (msg && msg.role === 'assistant' && Array.isArray(msg.tool_calls)) {
+                  for (const tc of msg.tool_calls) {
+                    const id = tc?.id
+                    const name = tc?.function?.name ?? tc?.name
+                    if (typeof id === 'string' && typeof name === 'string') {
+                      pending.push({ id, name })
+                    }
+                  }
+                } else if (msg && msg.role === 'tool' && !msg.tool_call_id) {
+                  const idx = pending.findIndex((p) => p.name === msg.tool_name)
+                  if (idx !== -1) {
+                    msg.tool_call_id = pending[idx].id
+                    pending.splice(idx, 1)
+                    mutated = true
+                  }
+                }
+              }
+              if (mutated) {
+                init = { ...init, body: JSON.stringify(body) }
+              }
+            }
+          } catch {
+            // not JSON or unexpected shape — pass through unchanged
+          }
+        }
+        return globalThis.fetch(input, init)
+      }
+      const provider = createOllama({
+        baseURL: model.baseUrl || 'http://localhost:11434',
+        fetch: patchedFetch
+      })
       return provider(model.modelName || 'llama3', { think: true })
     }
     case 'openai-compatible': {
@@ -65,7 +104,10 @@ export function resolveModel(model: ModelConfig, providerKeys: ProviderKeys): an
         apiKey: 'not-needed',
         baseURL: model.baseUrl
       })
-      return provider(model.modelName)
+      return wrapLanguageModel({
+        model: provider.chat(model.modelName),
+        middleware: extractReasoningMiddleware({ tagName: 'think' })
+      })
     }
     case 'bedrock': {
       const creds = providerKeys.bedrock
@@ -251,30 +293,9 @@ export interface StreamResult {
   outputTokens: number
 }
 
-function isHookMessage(content: unknown): boolean {
-  return typeof content === 'string' && content.startsWith('[HOOK]')
-}
-
 function isXmlParseError(message: string): boolean {
   const lower = message.toLowerCase()
   return lower.includes('xml syntax error') || lower.includes('expected element type')
-}
-
-function extractCompletedToolCalls(msgs: ModelMessage[]): Array<{ name: string; summary: string }> {
-  const calls: Array<{ name: string; summary: string }> = []
-  for (const m of msgs) {
-    if (m.role !== 'assistant' || !Array.isArray(m.content)) continue
-    for (const part of m.content) {
-      if (typeof part !== 'object' || part === null) continue
-      if ((part as { type: string }).type !== 'tool-call') continue
-      const tc = part as { toolName: string; args?: Record<string, unknown> }
-      const args = tc.args ?? {}
-      const keyArg = args.path ?? args.command ?? args.query ?? args.pattern ?? args.wing ?? args.drawer
-      const summary = keyArg ? `${tc.toolName}("${String(keyArg).slice(0, 60)}")` : tc.toolName
-      calls.push({ name: tc.toolName, summary })
-    }
-  }
-  return calls
 }
 
 export async function streamChat(params: {
@@ -313,11 +334,6 @@ export async function streamChat(params: {
     content: m.content
   }))
 
-  const startInjections = await applyHooks('chatStart', { messages })
-  for (const msg of startInjections) {
-    coreMessages.push({ role: msg.role, content: msg.content })
-  }
-
   let accumulatedText = ''
   let inputTokens = 0
   let outputTokens = 0
@@ -325,7 +341,6 @@ export async function streamChat(params: {
   for (let stepNum = 0; stepNum < 100; stepNum++) {
     let hadTools = false
     let finishReason: string | undefined
-    let stepToolNames: string[] = []
 
     // Inner retry loop — retries up to 2 times on XML parse errors from models like QWEN
     // that use XML-based tool calling and occasionally produce malformed output.
@@ -377,9 +392,6 @@ export async function streamChat(params: {
         const lastStep = steps.at(-1)
         hadTools = (lastStep?.toolCalls?.length ?? 0) > 0
         finishReason = lastStep?.finishReason
-        stepToolNames = (lastStep?.toolCalls ?? []).map(
-          (tc) => (tc as { toolName: string }).toolName
-        )
         coreMessages = [...coreMessages, ...resp.messages]
       } catch (err) {
         stepError = err instanceof Error ? err : new Error(String(err))
@@ -391,22 +403,7 @@ export async function streamChat(params: {
     }
 
     if (!hadTools || finishReason === 'length' || finishReason === 'content-filter') break
-
-    // Skip the postToolCall hook when the step was exclusively file-write operations.
-    const WRITE_ONLY_TOOLS = new Set(['write_file', 'edit_file'])
-    const isWriteOnlyStep = stepToolNames.length > 0 && stepToolNames.every((n) => WRITE_ONLY_TOOLS.has(n))
-
-    if (!isWriteOnlyStep) {
-      coreMessages = coreMessages.filter((m) => !isHookMessage(m.content))
-      const completedToolCalls = extractCompletedToolCalls(coreMessages)
-      const postInjections = await applyHooks('postToolCall', { messages, completedToolCalls })
-      for (const msg of postInjections) {
-        coreMessages.push({ role: msg.role, content: msg.content })
-      }
-    }
   }
-
-  await applyHooks('chatEnd', { messages })
 
   return { content: accumulatedText, inputTokens, outputTokens }
 }
