@@ -1,9 +1,0 @@
-{
-  "id": "rose-docker",
-  "name": "Docker",
-  "version": "1.0.0",
-  "description": "Docker container management",
-  "author": "ProjectRose",
-  "navItem": { "label": "Docker", "iconName": "docker" },
-  "provides": { "pageView": true, "main": true }
-}

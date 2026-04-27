@@ -1,3 +1,18 @@
 [submodule "RoseExtensions/rose-crm"]
 	path = RoseExtensions/rose-crm
 	url = https://github.com/RoseAgent/projectrose-crm.git
+[submodule "RoseExtensions/rose-discord"]
+	path = RoseExtensions/rose-discord
+	url = https://github.com/RoseAgent/projectrose-discord.git
+[submodule "RoseExtensions/rose-docker"]
+	path = RoseExtensions/rose-docker
+	url = https://github.com/RoseAgent/projectrose-docker.git
+[submodule "RoseExtensions/rose-email"]
+	path = RoseExtensions/rose-email
+	url = https://github.com/RoseAgent/projectrose-email.git
+[submodule "RoseExtensions/rose-git"]
+	path = RoseExtensions/rose-git
+	url = https://github.com/RoseAgent/projectrose-git.git
+[submodule "RoseExtensions/rose-heartbeat"]
+	path = RoseExtensions/rose-heartbeat
+	url = https://github.com/RoseAgent/projectrose-heartbeat.git
