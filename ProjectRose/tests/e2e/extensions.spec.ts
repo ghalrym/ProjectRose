@@ -1,14 +1,26 @@
 import { test, expect } from './fixtures/electron'
+import type { ElectronApplication } from 'playwright'
 import { createSeedProject, openProject } from './fixtures/project'
 import { screenshot } from './fixtures/screenshot'
-import { mkdtempSync, mkdirSync, writeFileSync, createWriteStream } from 'fs'
+import { mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { tmpdir } from 'os'
 
-// Build a minimal .zip extension package for testing.
-// The manifest declares globalSettings + pageView; the renderer.js exports stubs.
-async function buildFakeExtension(id: string, name: string): Promise<string> {
-  const extDir = mkdtempSync(join(tmpdir(), `rose-ext-${id}-`))
+// Replace the install-from-git IPC handler with a no-op that returns success.
+// The actual extension files are staged from the test process via stageFakeExtension.
+async function mockInstallHandler(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('extension:installFromGit')
+    ipcMain.handle('extension:installFromGit', async () => ({ ok: true }))
+  })
+}
+
+// Write a minimal fake extension into <rootPath>/.projectrose/extensions/<id>/.
+// Must be called AFTER the Extensions tab's initial loadInstalled() resolves
+// (with the empty list) — otherwise the renderer's "newly added" detection
+// won't fire and the nav item won't register.
+function stageFakeExtension(rootPath: string, id: string, name: string): void {
+  const extDir = join(rootPath, '.projectrose', 'extensions', id)
+  mkdirSync(extDir, { recursive: true })
 
   const manifest = {
     id,
@@ -21,9 +33,7 @@ async function buildFakeExtension(id: string, name: string): Promise<string> {
   }
   writeFileSync(join(extDir, 'rose-extension.json'), JSON.stringify(manifest))
 
-  // Minimal CJS renderer bundle that exports PageView and SettingsView
-  const rendererCode = `
-"use strict";
+  const rendererCode = `"use strict";
 const React = require('react');
 function PageView() { return React.createElement('div', null, '${name} Page'); }
 function SettingsView() { return React.createElement('div', { 'data-testid': '${id}-settings' }, '${name} Settings Panel'); }
@@ -31,48 +41,48 @@ exports.PageView = PageView;
 exports.SettingsView = SettingsView;
 `
   writeFileSync(join(extDir, 'renderer.js'), rendererCode)
+}
 
-  // Build the zip using the platform command
-  const zipPath = join(tmpdir(), `${id}-test.zip`)
-  const { spawnSync } = await import('child_process')
-  if (process.platform === 'win32') {
-    const ps = `Compress-Archive -Path '${extDir}\\*' -DestinationPath '${zipPath}' -Force`
-    spawnSync('powershell', ['-NoProfile', '-Command', ps])
-  } else {
-    spawnSync('zip', ['-j', zipPath, join(extDir, 'rose-extension.json'), join(extDir, 'renderer.js')], { cwd: extDir })
-  }
-  return zipPath
+// Open Settings → Extensions, let the initial (empty) list load resolve,
+// run the staging callback to write the fake extension to disk, then paste
+// a fake URL and click the URL form's INSTALL button (the first — catalog
+// rows have their own INSTALL buttons below). The IPC handler returns ok,
+// the renderer re-lists, and the staged extension is detected as "new".
+async function installViaUrlForm(
+  win: import('playwright').Page,
+  stage: () => void
+): Promise<void> {
+  await win.locator('button', { hasText: 'SETTINGS' }).click()
+  await win.getByRole('button', { name: /Extensions/ }).click()
+  // Wait for ExtensionsTab's initial loadInstalled() to settle with empty result
+  await win.waitForTimeout(500)
+  stage()
+  await win.getByPlaceholder(/github\.com/).fill('https://example.test/repo.git')
+  await win.getByRole('button', { name: /^INSTALL$/ }).first().click()
+  await win.waitForTimeout(1500)
 }
 
 test.describe('Extension System', () => {
   test.describe('install and lifecycle', () => {
-    test('extensions tab shows install button when project is open', async ({ app, win }) => {
+    test('extensions tab shows install panel when project is open', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await win.locator('button', { hasText: 'SETTINGS' }).click()
       await win.getByRole('button', { name: /Extensions/ }).click()
-      await expect(win.getByRole('button', { name: /INSTALL FROM DISK/ })).toBeVisible({ timeout: 5000 })
+      await expect(win.getByText('INSTALL FROM GIT')).toBeVisible({ timeout: 5000 })
+      await expect(win.getByPlaceholder(/github\.com/)).toBeVisible()
       await screenshot(win, 'extensions--empty')
     })
 
     test('installing an extension adds it to the list', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
-      const zipPath = await buildFakeExtension('rose-test-ext', 'Test Extension')
+      await mockInstallHandler(app)
 
-      // Mock the file dialog to return our zip
-      await app.evaluate(({ dialog }, zip) => {
-        const d = dialog as unknown as { showOpenDialog: unknown }
-        d.showOpenDialog = (): Promise<{ canceled: boolean; filePaths: string[] }> =>
-          Promise.resolve({ canceled: false, filePaths: [zip] })
-      }, zipPath)
+      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-test-ext', 'Test Extension'))
 
-      await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: /Extensions/ }).click()
-      await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
-      await win.waitForTimeout(1500)
-
-      // Verify extension row appeared (Disable button = installed + enabled)
+      // Switch to Installed tab and verify the row is there
+      await win.getByRole('button', { name: /^Installed/ }).click()
       await expect(win.getByRole('button', { name: 'Disable', exact: true })).toBeVisible({ timeout: 5000 })
       await screenshot(win, 'extensions--installed')
     })
@@ -80,18 +90,9 @@ test.describe('Extension System', () => {
     test('installed extension appears in nav bar', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
-      const zipPath = await buildFakeExtension('rose-navtest', 'Nav Test')
+      await mockInstallHandler(app)
 
-      await app.evaluate(({ dialog }, zip) => {
-        const d = dialog as unknown as { showOpenDialog: unknown }
-        d.showOpenDialog = (): Promise<{ canceled: boolean; filePaths: string[] }> =>
-          Promise.resolve({ canceled: false, filePaths: [zip] })
-      }, zipPath)
-
-      await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: /Extensions/ }).click()
-      await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
-      await win.waitForTimeout(2000)
+      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-navtest', 'Nav Test'))
 
       // The extension's nav label should appear as a nav button (format: №XX NAV TEST)
       await expect(win.getByRole('button', { name: /^№\d+ NAV TEST$/ })).toBeVisible({ timeout: 5000 })
@@ -103,20 +104,11 @@ test.describe('Extension System', () => {
     test('installed extension with globalSettings appears in settings sidebar', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
-      const zipPath = await buildFakeExtension('rose-settingstest', 'Settings Test')
+      await mockInstallHandler(app)
 
-      await app.evaluate(({ dialog }, zip) => {
-        const d = dialog as unknown as { showOpenDialog: unknown }
-        d.showOpenDialog = (): Promise<{ canceled: boolean; filePaths: string[] }> =>
-          Promise.resolve({ canceled: false, filePaths: [zip] })
-      }, zipPath)
+      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-settingstest', 'Settings Test'))
 
-      await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: /Extensions/ }).click()
-      await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
-      await win.waitForTimeout(2000)
-
-      // Settings sidebar should now include the extension (sidebar items have №XX prefix)
+      // Settings sidebar should now include the extension
       await win.getByRole('button', { name: /^№\d+ SETTINGS$/ }).click()
       await expect(win.getByRole('button', { name: /Settings Test/ })).toBeVisible({ timeout: 5000 })
       await screenshot(win, 'extensions--settings-sidebar')
@@ -125,18 +117,9 @@ test.describe('Extension System', () => {
     test('clicking extension settings sidebar item renders SettingsView', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
-      const zipPath = await buildFakeExtension('rose-settingspanel', 'Panel Test')
+      await mockInstallHandler(app)
 
-      await app.evaluate(({ dialog }, zip) => {
-        const d = dialog as unknown as { showOpenDialog: unknown }
-        d.showOpenDialog = (): Promise<{ canceled: boolean; filePaths: string[] }> =>
-          Promise.resolve({ canceled: false, filePaths: [zip] })
-      }, zipPath)
-
-      await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: /Extensions/ }).click()
-      await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
-      await win.waitForTimeout(2000)
+      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-settingspanel', 'Panel Test'))
 
       await win.locator('button', { hasText: 'SETTINGS' }).click()
       await win.getByRole('button', { name: /Panel Test/ }).click()
@@ -151,23 +134,14 @@ test.describe('Extension System', () => {
     test('disabling an extension keeps it in list but marks it disabled', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
-      const zipPath = await buildFakeExtension('rose-disabletest', 'Disable Test')
+      await mockInstallHandler(app)
 
-      await app.evaluate(({ dialog }, zip) => {
-        const d = dialog as unknown as { showOpenDialog: unknown }
-        d.showOpenDialog = (): Promise<{ canceled: boolean; filePaths: string[] }> =>
-          Promise.resolve({ canceled: false, filePaths: [zip] })
-      }, zipPath)
+      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-disabletest', 'Disable Test'))
 
-      await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: /Extensions/ }).click()
-      await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
-      await win.waitForTimeout(1500)
-
+      await win.getByRole('button', { name: /^Installed/ }).click()
       await win.getByRole('button', { name: 'Disable', exact: true }).click()
       await win.waitForTimeout(500)
 
-      // Extension still listed with Enable button
       await expect(win.getByRole('button', { name: 'Enable', exact: true })).toBeVisible({ timeout: 3000 })
       await screenshot(win, 'extensions--disabled')
     })
@@ -175,24 +149,15 @@ test.describe('Extension System', () => {
     test('uninstalling an extension removes it from the list', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
-      const zipPath = await buildFakeExtension('rose-uninstalltest', 'Uninstall Test')
+      await mockInstallHandler(app)
 
-      await app.evaluate(({ dialog }, zip) => {
-        const d = dialog as unknown as { showOpenDialog: unknown }
-        d.showOpenDialog = (): Promise<{ canceled: boolean; filePaths: string[] }> =>
-          Promise.resolve({ canceled: false, filePaths: [zip] })
-      }, zipPath)
+      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-removetest', 'Removable Test'))
 
-      await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: /Extensions/ }).click()
-      await win.getByRole('button', { name: /INSTALL FROM DISK/ }).click()
-      await win.waitForTimeout(1500)
-
-      const extRow = win.locator('[class*="section"]').filter({ hasText: 'Uninstall Test' })
-      await extRow.getByRole('button', { name: 'Uninstall' }).click()
+      await win.getByRole('button', { name: /^Installed/ }).click()
+      await win.getByRole('button', { name: 'Uninstall', exact: true }).click()
       await win.waitForTimeout(500)
 
-      await expect(win.getByText('No extensions installed')).toBeVisible({ timeout: 3000 })
+      await expect(win.getByText(/No extensions installed/)).toBeVisible({ timeout: 3000 })
       await screenshot(win, 'extensions--uninstalled')
     })
   })

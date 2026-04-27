@@ -1,6 +1,5 @@
 import { create } from 'zustand'
-import { NavItem } from '../../../shared/types'
-import type { ModelConfig, RouterConfig } from '../types/electron'
+import type { NavItem, ModelConfig, RouterConfig } from '@shared/types'
 import { useProjectStore } from './useProjectStore'
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
@@ -17,13 +16,6 @@ interface SettingsState {
   agentName: string
   roseSpeechSpeakerId: number | null
   activeListeningSetupComplete: boolean
-  imapHost: string
-  imapPort: number
-  imapUser: string
-  imapPassword: string
-  imapTLS: boolean
-  discordBotToken: string
-  discordChannels: string[]
   navItems: NavItem[]
   models: ModelConfig[]
   defaultModelId: string
@@ -63,13 +55,6 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   agentName: 'Rose',
   roseSpeechSpeakerId: null,
   activeListeningSetupComplete: false,
-  imapHost: '',
-  imapPort: 993,
-  imapUser: '',
-  imapPassword: '',
-  imapTLS: true,
-  discordBotToken: '',
-  discordChannels: [],
   navItems: DEFAULT_NAV_ITEMS,
   models: [],
   defaultModelId: '',

@@ -4,7 +4,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { getAllExtensions, getExtensionByViewId, subscribeToExtensionsChange } from '../../extensions/registry'
 import { NavItem } from '../../../../shared/types'
-import type { ModelConfig, ToolMeta } from '../../types/electron'
+import type { ModelConfig, ToolMeta } from '@shared/types'
 import styles from './SettingsView.module.css'
 
 // ─────────────────────────────────────────────────────────────

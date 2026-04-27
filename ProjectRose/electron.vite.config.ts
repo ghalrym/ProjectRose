@@ -28,12 +28,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),
-        '@main': resolve('src/main'),
-        '@ext/rose-discord': resolve('../RoseExtensions/rose-discord'),
-        '@ext/rose-email':   resolve('../RoseExtensions/rose-email'),
-        '@ext/rose-git':     resolve('../RoseExtensions/rose-git'),
-        '@ext/rose-docker':  resolve('../RoseExtensions/rose-docker'),
-        '@ext/rose-listen':  resolve('../RoseExtensions/rose-listen')
+        '@main': resolve('src/main')
       }
     }
   },

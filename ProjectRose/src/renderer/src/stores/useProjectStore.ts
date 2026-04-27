@@ -1,6 +1,5 @@
 import { create } from 'zustand'
-import type { FileNode } from '../../../shared/types'
-import type { RecentProject } from '../types/electron'
+import type { FileNode, RecentProject } from '@shared/types'
 
 interface ProjectState {
   rootPath: string | null

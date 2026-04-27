@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipcChannels'
+import type { FileNode, RecentProject, ToolMeta } from '../shared/types'
 
 const api = {
   // Theme
@@ -50,7 +51,7 @@ const api = {
   createDirectory: (dirPath: string): Promise<void> =>
     ipcRenderer.invoke(IPC.FILE_CREATE_DIR, dirPath),
 
-  readDirectoryTree: (dirPath: string): Promise<unknown> =>
+  readDirectoryTree: (dirPath: string): Promise<FileNode | null> =>
     ipcRenderer.invoke(IPC.FILE_READ_DIR_TREE, dirPath),
 
   openFolderDialog: (): Promise<string | null> =>
@@ -100,7 +101,7 @@ const api = {
     }
   },
 
-  getRecentProjects: (): Promise<unknown[]> =>
+  getRecentProjects: (): Promise<RecentProject[]> =>
     ipcRenderer.invoke(IPC.PROJECTS_GET_RECENT),
 
   getDefaultProjectPath: (): Promise<string> =>
@@ -115,10 +116,10 @@ const api = {
   initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string; commStyle: string; depth: string; proactivity: string }): Promise<void> =>
     ipcRenderer.invoke(IPC.ROSE_INIT_PROJECT, payload),
 
-  getSettings: (rootPath?: string): Promise<unknown> =>
+  getSettings: (rootPath?: string): Promise<Record<string, unknown>> =>
     ipcRenderer.invoke(IPC.SETTINGS_GET, rootPath),
 
-  setSettings: (patch: Record<string, unknown>, rootPath?: string): Promise<unknown> =>
+  setSettings: (patch: Record<string, unknown>, rootPath?: string): Promise<Record<string, unknown>> =>
     ipcRenderer.invoke(IPC.SETTINGS_SET, patch, rootPath),
 
   checkServicesHealth: (): Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>> =>
@@ -164,10 +165,10 @@ const api = {
     }
   },
 
-  addRecentProject: (projectPath: string): Promise<unknown[]> =>
+  addRecentProject: (projectPath: string): Promise<RecentProject[]> =>
     ipcRenderer.invoke(IPC.PROJECTS_ADD_RECENT, projectPath),
 
-  removeRecentProject: (projectPath: string): Promise<unknown[]> =>
+  removeRecentProject: (projectPath: string): Promise<RecentProject[]> =>
     ipcRenderer.invoke(IPC.PROJECTS_REMOVE_RECENT, projectPath),
 
   // AI
@@ -284,14 +285,14 @@ const api = {
 
   // Tools + Project settings
   tools: {
-    list: (rootPath: string): Promise<unknown[]> =>
+    list: (rootPath: string): Promise<ToolMeta[]> =>
       ipcRenderer.invoke('tools:list', rootPath)
   },
 
   project: {
-    getSettings: (rootPath: string): Promise<unknown> =>
+    getSettings: (rootPath: string): Promise<{ disabledTools: string[] }> =>
       ipcRenderer.invoke('project:getSettings', rootPath),
-    setSettings: (rootPath: string, patch: Record<string, unknown>): Promise<unknown> =>
+    setSettings: (rootPath: string, patch: { disabledTools?: string[] }): Promise<{ disabledTools: string[] }> =>
       ipcRenderer.invoke('project:setSettings', rootPath, patch)
   },
 
@@ -349,3 +350,5 @@ const api = {
 }
 
 contextBridge.exposeInMainWorld('api', api)
+
+export type ElectronAPI = typeof api

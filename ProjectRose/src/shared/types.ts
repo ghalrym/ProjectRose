@@ -31,3 +31,33 @@ export interface NavItem {
   label: string
   visible: boolean
 }
+
+export interface ModelConfig {
+  id: string
+  displayName: string
+  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible' | 'bedrock' | 'projectrose'
+  modelName: string
+  baseUrl: string
+  tags: string[]
+}
+
+export interface RouterConfig {
+  enabled: boolean
+  modelName: string
+  baseUrl: string
+}
+
+export interface RecentProject {
+  path: string
+  name: string
+  lastOpened: number
+}
+
+export interface ToolMeta {
+  name: string
+  displayName: string
+  description: string
+  type: 'core' | 'python' | 'extension'
+  extensionId?: string
+  extensionName?: string
+}

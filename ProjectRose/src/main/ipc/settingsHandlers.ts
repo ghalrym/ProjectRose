@@ -29,13 +29,6 @@ export interface AppSettings {
   agentName: string
   roseSpeechSpeakerId: number | null
   activeListeningSetupComplete: boolean
-  imapHost: string
-  imapPort: number
-  imapUser: string
-  imapPassword: string
-  imapTLS: boolean
-  discordBotToken: string
-  discordChannels: string[]
   navItems: NavItem[]
   models: ModelConfig[]
   defaultModelId: string
@@ -48,6 +41,8 @@ export interface AppSettings {
   openaiCompatApiKey: string
   // Namespaced extension settings: { 'rose-discord': { global: {...}, project: {...} } }
   extensions: Record<string, Record<string, unknown>>
+  // Allow extensions to write arbitrary keys without the host knowing about them.
+  [key: string]: unknown
 }
 
 // Migrate old view IDs to extension IDs
@@ -74,13 +69,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   agentName: '',
   roseSpeechSpeakerId: null,
   activeListeningSetupComplete: false,
-  imapHost: '',
-  imapPort: 993,
-  imapUser: '',
-  imapPassword: '',
-  imapTLS: true,
-  discordBotToken: '',
-  discordChannels: [],
   navItems: DEFAULT_NAV_ITEMS,
   models: [],
   defaultModelId: '',
@@ -118,7 +106,19 @@ async function getInstalledExtensionNavItems(rootPath: string): Promise<ExtNavIt
   }
 }
 
-const SENSITIVE_FIELDS = ['providerKeys', 'imapPassword', 'discordBotToken'] as const
+// Host-owned secret fields (stored in userData/settings.json, not the
+// project repo config). Extensions declare their own sensitive keys via
+// registerSensitiveExtensionFields() — the host doesn't enumerate them.
+const HOST_SENSITIVE_FIELDS = ['providerKeys'] as const
+const extensionSensitiveFields: Set<string> = new Set()
+
+export function registerSensitiveExtensionFields(keys: string[]): void {
+  for (const k of keys) extensionSensitiveFields.add(k)
+}
+
+function getSensitiveFields(): string[] {
+  return [...HOST_SENSITIVE_FIELDS, ...extensionSensitiveFields]
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function pick(obj: any, keys: readonly string[]): any {
@@ -166,8 +166,9 @@ export async function readSettings(rootPath?: string): Promise<AppSettings> {
   let globalSettings: Partial<AppSettings> = {}
   try { globalSettings = JSON.parse(await readFile(GLOBAL_SETTINGS_PATH, 'utf-8')) } catch { /* defaults */ }
 
+  const sensitiveKeys = getSensitiveFields()
   // Non-sensitive fields from old userData file serve as migration fallback
-  const nonSensitiveFallback: Partial<AppSettings> = omit(globalSettings, SENSITIVE_FIELDS)
+  const nonSensitiveFallback: Partial<AppSettings> = omit(globalSettings, sensitiveKeys)
 
   let repoConfig: Partial<AppSettings> = {}
   if (rootPath) {
@@ -178,7 +179,7 @@ export async function readSettings(rootPath?: string): Promise<AppSettings> {
     ...DEFAULT_SETTINGS,
     ...nonSensitiveFallback,
     ...repoConfig,
-    ...pick(globalSettings, SENSITIVE_FIELDS)
+    ...pick(globalSettings, sensitiveKeys)
   }
 
   merged.navItems = await mergeNavItems(merged.navItems, rootPath)
@@ -186,12 +187,13 @@ export async function readSettings(rootPath?: string): Promise<AppSettings> {
 }
 
 export async function writeSettings(settings: AppSettings, rootPath?: string): Promise<void> {
+  const sensitiveKeys = getSensitiveFields()
   let existing: Partial<AppSettings> = {}
   try { existing = JSON.parse(await readFile(GLOBAL_SETTINGS_PATH, 'utf-8')) } catch { /* ok */ }
-  await writeFile(GLOBAL_SETTINGS_PATH, JSON.stringify({ ...existing, ...pick(settings, SENSITIVE_FIELDS) }, null, 2), 'utf-8')
+  await writeFile(GLOBAL_SETTINGS_PATH, JSON.stringify({ ...existing, ...pick(settings, sensitiveKeys) }, null, 2), 'utf-8')
 
   if (rootPath) {
-    const repoData = omit(settings, SENSITIVE_FIELDS)
+    const repoData = omit(settings, sensitiveKeys)
     await mkdir(dirname(getRepoConfigPath(rootPath)), { recursive: true })
     await writeFile(getRepoConfigPath(rootPath), JSON.stringify(repoData, null, 2), 'utf-8')
   }

@@ -6,7 +6,7 @@ import { createRequire } from 'module'
 import { spawn } from 'child_process'
 import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
-import { readSettings, writeSettings } from './settingsHandlers'
+import { readSettings, writeSettings, registerSensitiveExtensionFields } from './settingsHandlers'
 import { heartbeatChat } from '../services/aiService'
 import type { InstalledExtension, ExtensionManifest, ExtensionToolEntry } from '../../shared/extension-types'
 
@@ -93,6 +93,9 @@ interface ExtensionMainContext {
   updateSettings: (patch: Record<string, unknown>) => Promise<void>
   broadcast: (channel: string, data: unknown) => void
   registerTools: (tools: ExtensionToolEntry[]) => void
+  // Mark settings keys as sensitive so they're stored in userData/settings.json
+  // instead of the project repo config (where they could be committed).
+  registerSensitiveFields: (keys: string[]) => void
   runBackgroundAgent: (prompt: string) => Promise<string>
 }
 
@@ -133,6 +136,9 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
       },
       registerTools: (tools: ExtensionToolEntry[]) => {
         extensionToolsRegistry.set(key, tools)
+      },
+      registerSensitiveFields: (keys: string[]) => {
+        registerSensitiveExtensionFields(keys)
       },
       runBackgroundAgent: async (prompt: string) => {
         const { content } = await heartbeatChat([{ role: 'user', content: prompt }], rootPath)
