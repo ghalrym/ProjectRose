@@ -50,6 +50,33 @@
   letter-spacing: 1px;
 }
 
+.copyChatBtn {
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--color-text-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+
+.copyChatBtnPushRight {
+  margin-left: auto;
+}
+
+.copyChatBtn:hover:not(:disabled) {
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
+
+.copyChatBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .liveDot {
   width: 5px;
   height: 5px;
