@@ -92,6 +92,29 @@
   color: var(--color-accent);
 }
 
+.sidebarCaret {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  transition: transform 180ms ease;
+}
+
+.sidebarSubItem {
+  all: unset;
+  display: flex;
+  align-items: center;
+  padding: 7px 20px 7px 44px;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  transition: background 0.1s, color 0.1s;
+}
+
+.sidebarSubItem:hover {
+  background: var(--color-sidebar-item-hover);
+  color: var(--color-text-primary);
+}
+
 .sidebarFooter {
   margin-top: auto;
   padding: 14px 20px;

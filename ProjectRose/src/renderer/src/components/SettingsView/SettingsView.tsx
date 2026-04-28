@@ -270,7 +270,7 @@ export function SettingsView(): JSX.Element {
   const [disabledTools, setDisabledTools] = useState<string[]>([])
 
   // ── nav ──
-  const [activePage, setActivePage] = useState('dashboard')
+  const [activePage, setActivePage] = useState('general')
   const dragIndexRef = useRef<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
@@ -437,7 +437,7 @@ export function SettingsView(): JSX.Element {
   }, [])
 
   useEffect(() => {
-    if (activePage !== 'chat') return
+    if (activePage !== 'providers') return
     if (ollamaBaseUrl && !('__ollama_provider__' in ollamaModels)) {
       fetchOllamaModels('__ollama_provider__', ollamaBaseUrl)
     }
@@ -614,24 +614,35 @@ export function SettingsView(): JSX.Element {
     .filter((e) => e.SettingsView != null)
     .map((e) => ({ id: e.manifest.id, label: e.manifest.name }))
 
-  const sidebarItems = [
-    { id: 'dashboard',  label: 'Dashboard',  n: '01' },
-    { id: 'chat',       label: 'Agent',       n: '02' },
-    ...extensionSettingsItems.map((e, i) => ({ ...e, n: String(i + 3).padStart(2, '0') })),
-    { id: 'extensions', label: 'Extensions', n: String(extensionSettingsItems.length + 3).padStart(2, '0') },
+  const topLevelItems = [
+    { id: 'general',   label: 'General',   n: '01' },
+    { id: 'shortcuts', label: 'Shortcuts', n: '02' },
+    { id: 'providers', label: 'Providers', n: '03' },
+    { id: 'tools',     label: 'Tools',     n: '04' },
+    { id: 'skills',    label: 'Skills',    n: '05' },
   ]
 
+  const extensionChildIds = ['extensions', ...extensionSettingsItems.map((e) => e.id)]
+  const allPageIds = [...topLevelItems.map((i) => i.id), ...extensionChildIds]
+
+  const [extensionsExpanded, setExtensionsExpanded] = useState(false)
+
   useEffect(() => {
-    if (activePage !== 'dashboard' && !sidebarItems.some((i) => i.id === activePage)) {
-      setActivePage('dashboard')
+    if (extensionChildIds.includes(activePage)) setExtensionsExpanded(true)
+  }, [activePage]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!allPageIds.includes(activePage)) {
+      setActivePage('general')
     }
-  }, [sidebarItems.map((i) => i.id).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allPageIds.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const settingsTarget = useViewStore((s) => s.settingsTarget)
   const setSettingsTarget = useViewStore((s) => s.setSettingsTarget)
   useEffect(() => {
-    if (settingsTarget && sidebarItems.some((i) => i.id === settingsTarget)) {
+    if (settingsTarget && allPageIds.includes(settingsTarget)) {
       setActivePage(settingsTarget)
+      if (extensionChildIds.includes(settingsTarget)) setExtensionsExpanded(true)
       setSettingsTarget(null)
     }
   }, [settingsTarget]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -645,76 +656,68 @@ export function SettingsView(): JSX.Element {
     PROVIDERS.find((p) => getProviderStatus(p.kind) === 'connected')?.name ?? '—'
 
   // ─────────────────────────────────────────────────────────
-  // Render: Dashboard
+  // Render: Shortcuts
   // ─────────────────────────────────────────────────────────
 
-  function renderDashboard(): JSX.Element {
+  function renderShortcuts(): JSX.Element {
+    return (
+      <section className={styles.section}>
+        <div className={styles.sectionTitle}>Navigation Bar</div>
+        <div className={styles.navList}>
+          {navItems
+            .map((item, index) => ({ item, index }))
+            .filter(({ item }) => item.viewId !== 'settings' && item.viewId !== 'apps')
+            .map(({ item, index }) => (
+              <div
+                key={item.viewId}
+                className={`${styles.navItem} ${dragOverIndex === index ? styles.navItemDragOver : ''}`}
+                draggable
+                onDragStart={() => handleNavDragStart(index)}
+                onDragOver={(e) => handleNavDragOver(e, index)}
+                onDrop={() => handleNavDrop(index)}
+                onDragEnd={handleNavDragEnd}
+              >
+                <span className={styles.navDragHandle}>⠿</span>
+                <span className={styles.navItemLabel}>{item.label}</span>
+                <button
+                  type="button"
+                  className={`${styles.toggle} ${item.visible ? styles.toggleOn : styles.toggleOff}`}
+                  onClick={() => toggleNavItemVisible(index)}
+                  role="switch"
+                  aria-checked={item.visible}
+                >
+                  <span className={styles.toggleThumb} />
+                </button>
+              </div>
+            ))}
+          {navItems.find((item) => item.viewId === 'settings') && (
+            <div className={styles.navItem}>
+              <span className={styles.navDragHandle} style={{ opacity: 0.2, cursor: 'default' }}>⠿</span>
+              <span className={styles.navItemLabel}>Settings</span>
+              <span className={styles.navItemLocked}>always visible</span>
+            </div>
+          )}
+          {navItems.find((item) => item.viewId === 'apps') && (
+            <div className={styles.navItem}>
+              <span className={styles.navDragHandle} style={{ opacity: 0.2, cursor: 'default' }}>⠿</span>
+              <span className={styles.navItemLabel}>Apps</span>
+              <span className={styles.navItemLocked}>always visible</span>
+            </div>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // Render: General
+  // ─────────────────────────────────────────────────────────
+
+  function renderGeneral(): JSX.Element {
     return (
       <>
         <section className={styles.section}>
-          <div className={styles.sectionTitle}>Navigation Bar</div>
-          <div className={styles.navList}>
-            {navItems
-              .map((item, index) => ({ item, index }))
-              .filter(({ item }) => item.viewId !== 'settings' && item.viewId !== 'apps')
-              .map(({ item, index }) => (
-                <div
-                  key={item.viewId}
-                  className={`${styles.navItem} ${dragOverIndex === index ? styles.navItemDragOver : ''}`}
-                  draggable
-                  onDragStart={() => handleNavDragStart(index)}
-                  onDragOver={(e) => handleNavDragOver(e, index)}
-                  onDrop={() => handleNavDrop(index)}
-                  onDragEnd={handleNavDragEnd}
-                >
-                  <span className={styles.navDragHandle}>⠿</span>
-                  <span className={styles.navItemLabel}>{item.label}</span>
-                  <button
-                    type="button"
-                    className={`${styles.toggle} ${item.visible ? styles.toggleOn : styles.toggleOff}`}
-                    onClick={() => toggleNavItemVisible(index)}
-                    role="switch"
-                    aria-checked={item.visible}
-                  >
-                    <span className={styles.toggleThumb} />
-                  </button>
-                </div>
-              ))}
-            {navItems.find((item) => item.viewId === 'settings') && (
-              <div className={styles.navItem}>
-                <span className={styles.navDragHandle} style={{ opacity: 0.2, cursor: 'default' }}>⠿</span>
-                <span className={styles.navItemLabel}>Settings</span>
-                <span className={styles.navItemLocked}>always visible</span>
-              </div>
-            )}
-            {navItems.find((item) => item.viewId === 'apps') && (
-              <div className={styles.navItem}>
-                <span className={styles.navDragHandle} style={{ opacity: 0.2, cursor: 'default' }}>⠿</span>
-                <span className={styles.navItemLabel}>Apps</span>
-                <span className={styles.navItemLocked}>always visible</span>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className={styles.section} style={{ paddingTop: 16 }}>
-          <div className={styles.sectionTitle}>Voice Input</div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Microphone</div>
-              <div className={styles.settingDesc}>Which microphone to use for voice-to-text.</div>
-            </div>
-            <select
-              className={styles.select}
-              value={micDeviceId}
-              onChange={(e) => update({ micDeviceId: e.target.value })}
-            >
-              <option value="">System default</option>
-              {audioDevices.map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
-              ))}
-            </select>
-          </div>
+          <div className={styles.sectionTitle}>Names</div>
           <div className={styles.settingRow}>
             <div className={styles.settingInfo}>
               <div className={styles.settingLabel}>Your Name</div>
@@ -742,25 +745,45 @@ export function SettingsView(): JSX.Element {
             />
           </div>
         </section>
+
+        <section className={styles.section} style={{ paddingTop: 16 }}>
+          <div className={styles.sectionTitle}>Microphone and Speaker</div>
+          <div className={styles.settingRow}>
+            <div className={styles.settingInfo}>
+              <div className={styles.settingLabel}>Microphone</div>
+              <div className={styles.settingDesc}>Which microphone to use for voice-to-text.</div>
+            </div>
+            <select
+              className={styles.select}
+              value={micDeviceId}
+              onChange={(e) => update({ micDeviceId: e.target.value })}
+            >
+              <option value="">System default</option>
+              {audioDevices.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
+              ))}
+            </select>
+          </div>
+        </section>
       </>
     )
   }
 
   // ─────────────────────────────────────────────────────────
-  // Render: Agent (PLATES I – III)
+  // Render: Providers (PLATES I – II)
   // ─────────────────────────────────────────────────────────
 
-  function renderAgent(): JSX.Element {
+  function renderProviders(): JSX.Element {
     return (
       <>
         {/* Page header */}
         <div className={styles.pageHeader}>
           <div>
-            <div className={styles.pageHeaderMeta}>PROJECTROSE · SETTINGS · AGENT</div>
+            <div className={styles.pageHeaderMeta}>PROJECTROSE · SETTINGS · PROVIDERS</div>
             <div className={styles.pageTitle}>
-              <span className={styles.pageTitleAccent}>Agent</span>
+              <span className={styles.pageTitleAccent}>Providers</span>
               {' · '}
-              <span className={styles.pageTitleSub}>specimen drawer</span>
+              <span className={styles.pageTitleSub}>endpoints & router</span>
             </div>
           </div>
           <div className={styles.pageHeaderRight}>
@@ -1001,66 +1024,105 @@ export function SettingsView(): JSX.Element {
           </div>
         </div>
 
-        {/* ══ PLATE III · BEHAVIOR & TOOLS ══ */}
+        {/* ══ PLATE III · BEHAVIOR & CONTEXT ══ */}
         <div className={styles.plateSection}>
           <SectionHeader
             n="III"
-            title="Behavior & Tools"
-            sub="What the agent remembers and what it's allowed to do."
+            title="Behavior & Context"
+            sub="How the agent uses the model's context window across a session."
           />
           <div className={styles.sectionGapSm} />
 
-          <div className={styles.behaviorToolsGrid}>
-            {/* Behavior column */}
-            <div className={styles.panelBlock}>
-              <div className={styles.panelHeader}>BEHAVIOR · CONTEXT</div>
-              <HSettingRow
-                label="Include thinking in context"
-                desc="Injects the model's reasoning into the conversation history so it remembers its own thinking across messages."
-              >
-                <HToggle
-                  on={includeThinkingInContext}
-                  onChange={(v) => update({ includeThinkingInContext: v })}
-                />
-              </HSettingRow>
-              <HSettingRow
-                label="Auto-summarize at 80% context"
-                desc="Compress earlier messages once the context window fills, so long sessions don't drop the thread."
-              >
-                <HToggle on={autoSummarize} onChange={setAutoSummarize} />
-              </HSettingRow>
-              <HSettingRow
-                label="Stream tool results inline"
-                desc="Show tool output as it arrives instead of waiting for the full call to finish."
-              >
-                <HToggle on={streamToolResults} onChange={setStreamToolResults} />
-              </HSettingRow>
-            </div>
+          <div className={styles.panelBlock}>
+            <div className={styles.panelHeader}>BEHAVIOR · CONTEXT</div>
+            <HSettingRow
+              label="Include thinking in context"
+              desc="Injects the model's reasoning into the conversation history so it remembers its own thinking across messages."
+            >
+              <HToggle
+                on={includeThinkingInContext}
+                onChange={(v) => update({ includeThinkingInContext: v })}
+              />
+            </HSettingRow>
+            <HSettingRow
+              label="Auto-summarize at 80% context"
+              desc="Compress earlier messages once the context window fills, so long sessions don't drop the thread."
+            >
+              <HToggle on={autoSummarize} onChange={setAutoSummarize} />
+            </HSettingRow>
+            <HSettingRow
+              label="Stream tool results inline"
+              desc="Show tool output as it arrives instead of waiting for the full call to finish."
+            >
+              <HToggle on={streamToolResults} onChange={setStreamToolResults} />
+            </HSettingRow>
+          </div>
+        </div>
 
-            {/* Tools column */}
-            <div className={styles.panelBlock}>
-              <div className={styles.panelHeader}>
-                <span>TOOLS · CORE</span>
-                <span className={styles.panelHeaderCount}>
-                  {availableTools.filter((t) => t.type === 'core' && !disabledTools.includes(t.name)).length}
-                  /
-                  {availableTools.filter((t) => t.type === 'core').length} enabled
-                </span>
-              </div>
-              {availableTools.filter((t) => t.type === 'core').map((tool) => {
-                const enabled = !disabledTools.includes(tool.name)
-                return (
-                  <HSettingRow key={tool.name} label={tool.displayName} desc={tool.description}>
-                    <HToggle on={enabled} onChange={() => toggleTool(tool.name)} />
-                  </HSettingRow>
-                )
-              })}
-              {availableTools.filter((t) => t.type === 'core').length === 0 && (
-                <div style={{ padding: '14px 18px', fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-                  No core tools loaded.
-                </div>
-              )}
+        {/* Colophon */}
+        <div className={styles.colophon}>
+          <span>COLOPHON · settings persist on change · keys held in system keychain</span>
+          <span className={styles.colophonAccent}>Rosa configurata</span>
+        </div>
+      </>
+    )
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // Render: Tools (PLATE I)
+  // ─────────────────────────────────────────────────────────
+
+  function renderTools(): JSX.Element {
+    return (
+      <>
+        {/* Page header */}
+        <div className={styles.pageHeader}>
+          <div>
+            <div className={styles.pageHeaderMeta}>PROJECTROSE · SETTINGS · TOOLS</div>
+            <div className={styles.pageTitle}>
+              <span className={styles.pageTitleAccent}>Tools</span>
+              {' · '}
+              <span className={styles.pageTitleSub}>core, project & extension</span>
             </div>
+          </div>
+          <div className={styles.pageHeaderRight}>
+            <div>PLATE · I</div>
+            <div className={styles.colophonAccent}>Rosa configurata</div>
+          </div>
+        </div>
+        <hr className={styles.pageHeaderDivider} />
+
+        {/* ══ PLATE I · TOOLS ══ */}
+        <div className={styles.plateSection}>
+          <SectionHeader
+            n="I"
+            title="Tools"
+            sub="What the agent is allowed to do."
+          />
+          <div className={styles.sectionGapSm} />
+
+          <div className={styles.panelBlock}>
+            <div className={styles.panelHeader}>
+              <span>TOOLS · CORE</span>
+              <span className={styles.panelHeaderCount}>
+                {availableTools.filter((t) => t.type === 'core' && !disabledTools.includes(t.name)).length}
+                /
+                {availableTools.filter((t) => t.type === 'core').length} enabled
+              </span>
+            </div>
+            {availableTools.filter((t) => t.type === 'core').map((tool) => {
+              const enabled = !disabledTools.includes(tool.name)
+              return (
+                <HSettingRow key={tool.name} label={tool.displayName} desc={tool.description}>
+                  <HToggle on={enabled} onChange={() => toggleTool(tool.name)} />
+                </HSettingRow>
+              )
+            })}
+            {availableTools.filter((t) => t.type === 'core').length === 0 && (
+              <div style={{ padding: '14px 18px', fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                No core tools loaded.
+              </div>
+            )}
           </div>
 
           {/* Extension / project tools (below the grid, kept accessible) */}
@@ -1092,10 +1154,43 @@ export function SettingsView(): JSX.Element {
           )}
         </div>
 
-        {/* ══ PLATE V · SKILLS ══ */}
+        {/* Colophon */}
+        <div className={styles.colophon}>
+          <span>COLOPHON · settings persist on change · keys held in system keychain</span>
+          <span className={styles.colophonAccent}>Rosa configurata</span>
+        </div>
+      </>
+    )
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // Render: Skills (PLATE I)
+  // ─────────────────────────────────────────────────────────
+
+  function renderSkills(): JSX.Element {
+    return (
+      <>
+        {/* Page header */}
+        <div className={styles.pageHeader}>
+          <div>
+            <div className={styles.pageHeaderMeta}>PROJECTROSE · SETTINGS · SKILLS</div>
+            <div className={styles.pageTitle}>
+              <span className={styles.pageTitleAccent}>Skills</span>
+              {' · '}
+              <span className={styles.pageTitleSub}>system-prompt grafts</span>
+            </div>
+          </div>
+          <div className={styles.pageHeaderRight}>
+            <div>PLATE · I</div>
+            <div className={styles.colophonAccent}>Rosa configurata</div>
+          </div>
+        </div>
+        <hr className={styles.pageHeaderDivider} />
+
+        {/* ══ PLATE I · SKILLS ══ */}
         <div className={styles.plateSection}>
           <SectionHeader
-            n="V"
+            n="I"
             title="Skills"
             sub="Markdown files injected into the system prompt when the agent loads them."
           />
@@ -1153,8 +1248,11 @@ export function SettingsView(): JSX.Element {
 
   function renderPage(): JSX.Element {
     switch (activePage) {
-      case 'dashboard':  return renderDashboard()
-      case 'chat':       return renderAgent()
+      case 'general':    return renderGeneral()
+      case 'shortcuts':  return renderShortcuts()
+      case 'providers':  return renderProviders()
+      case 'tools':      return renderTools()
+      case 'skills':     return renderSkills()
       case 'extensions': return renderExtensions()
       default: {
         const ext = getExtensionByViewId(activePage)
@@ -1162,9 +1260,13 @@ export function SettingsView(): JSX.Element {
           const ExtSettingsView = ext.SettingsView
           return <ExtSettingsView />
         }
+        const label =
+          topLevelItems.find((i) => i.id === activePage)?.label ??
+          extensionSettingsItems.find((i) => i.id === activePage)?.label ??
+          activePage
         return (
           <section className={styles.section}>
-            <div className={styles.sectionTitle}>{sidebarItems.find((i) => i.id === activePage)?.label ?? activePage}</div>
+            <div className={styles.sectionTitle}>{label}</div>
             <div className={styles.emptyState}>No settings available for this section yet.</div>
           </section>
         )
@@ -1182,7 +1284,7 @@ export function SettingsView(): JSX.Element {
         {/* Sidebar */}
         <aside className={styles.sidebar}>
           <div className={styles.sidebarLabel}>Settings · Drawer</div>
-          {sidebarItems.map((item) => {
+          {topLevelItems.map((item) => {
             const isActive = activePage === item.id
             return (
               <button
@@ -1198,6 +1300,49 @@ export function SettingsView(): JSX.Element {
               </button>
             )
           })}
+
+          <button
+            type="button"
+            className={styles.sidebarItem}
+            onClick={() => setExtensionsExpanded((v) => !v)}
+            aria-expanded={extensionsExpanded}
+          >
+            <span className={styles.sidebarItemNum}>№06</span>
+            <span style={{ flex: 1 }}>Extensions</span>
+            <span
+              className={styles.sidebarCaret}
+              style={{ transform: extensionsExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+            >
+              ▸
+            </span>
+          </button>
+
+          {extensionsExpanded && (
+            <>
+              <button
+                key="extensions"
+                type="button"
+                className={`${styles.sidebarSubItem} ${activePage === 'extensions' ? styles.sidebarItemActive : ''}`}
+                onClick={() => setActivePage('extensions')}
+              >
+                Manage
+              </button>
+              {extensionSettingsItems.map((item) => {
+                const isActive = activePage === item.id
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`${styles.sidebarSubItem} ${isActive ? styles.sidebarItemActive : ''}`}
+                    onClick={() => setActivePage(item.id)}
+                  >
+                    {item.label}
+                  </button>
+                )
+              })}
+            </>
+          )}
+
           <div className={styles.sidebarFooter}>
             <div>SPECIMEN · CONFIG</div>
             <div style={{ fontStyle: 'italic', opacity: 0.6 }}>secrets · keychain</div>

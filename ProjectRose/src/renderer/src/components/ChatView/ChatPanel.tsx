@@ -103,7 +103,7 @@ export function ChatPanel(): JSX.Element {
   const setupKind: 'provider' | 'model' = !hasAnyProvider ? 'provider' : 'model'
 
   const openAgentSettings = (): void => {
-    setSettingsTarget('chat')
+    setSettingsTarget('providers')
     setActiveView('settings')
   }
 
@@ -167,7 +167,7 @@ export function ChatPanel(): JSX.Element {
                 : 'Add at least one model to your provider before chatting.'}
             </div>
             <button type="button" className={styles.setupBannerBtn} onClick={openAgentSettings}>
-              OPEN AGENT SETTINGS →
+              OPEN PROVIDER SETTINGS →
             </button>
           </div>
         </div>
