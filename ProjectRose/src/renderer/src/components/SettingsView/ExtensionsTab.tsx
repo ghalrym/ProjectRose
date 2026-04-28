@@ -11,6 +11,7 @@ type ExtensionPane = 'discover' | 'installed'
 export function ExtensionsTab(): JSX.Element {
   const [installed, setInstalled] = useState<InstalledExtension[]>([])
   const [installingUrl, setInstallingUrl] = useState(false)
+  const [installingDisk, setInstallingDisk] = useState(false)
   const [installingIds, setInstallingIds] = useState<Set<string>>(new Set())
   const [gitUrl, setGitUrl] = useState('')
   const [installError, setInstallError] = useState<string | null>(null)
@@ -30,11 +31,10 @@ export function ExtensionsTab(): JSX.Element {
 
   const installedIds = useMemo(() => new Set(installed.map((e) => e.manifest.id)), [installed])
 
-  const installFromUrl = useCallback(async (url: string): Promise<{ ok: boolean; error?: string }> => {
-    if (!rootPath) return { ok: false, error: 'No project open' }
-    const result = await window.api.extension.installFromGit(rootPath, url)
-    if (!result.ok) return { ok: false, error: result.error ?? 'Install failed' }
-
+  // After any install, refresh the installed list, register a nav item for any
+  // newly added extension that declares one, and load its dynamic bundle.
+  const finalizeInstall = useCallback(async (): Promise<void> => {
+    if (!rootPath) return
     const { installed: newInstalled } = await window.api.extension.list(rootPath)
     setInstalled(newInstalled)
 
@@ -47,8 +47,15 @@ export function ExtensionsTab(): JSX.Element {
       await updateSettings({ navItems: [...navItems, ...newNavItems] })
     }
     await loadDynamicExtensions(rootPath)
-    return { ok: true }
   }, [installed, navItems, updateSettings, rootPath])
+
+  const installFromUrl = useCallback(async (url: string): Promise<{ ok: boolean; error?: string }> => {
+    if (!rootPath) return { ok: false, error: 'No project open' }
+    const result = await window.api.extension.installFromGit(rootPath, url)
+    if (!result.ok) return { ok: false, error: result.error ?? 'Install failed' }
+    await finalizeInstall()
+    return { ok: true }
+  }, [rootPath, finalizeInstall])
 
   const handleInstallFromGit = useCallback(async () => {
     const url = gitUrl.trim()
@@ -68,6 +75,30 @@ export function ExtensionsTab(): JSX.Element {
       setInstallingUrl(false)
     }
   }, [gitUrl, installFromUrl])
+
+  const handleInstallFromDisk = useCallback(async () => {
+    if (!rootPath || installingDisk) return
+    setInstallError(null)
+
+    const folder = await window.api.openFolderDialog()
+    if (!folder) return
+
+    setInstallingDisk(true)
+    try {
+      const result = await window.api.extension.installFromDisk(rootPath, folder)
+      if (!result.ok) {
+        setInstallError(result.error ?? 'Install failed')
+        return
+      }
+      await finalizeInstall()
+      setActivePane('installed')
+      if (result.warning) setInstallError(result.warning)
+    } catch (err) {
+      setInstallError((err as Error).message ?? 'Install failed')
+    } finally {
+      setInstallingDisk(false)
+    }
+  }, [rootPath, installingDisk, finalizeInstall])
 
   const handleInstallFromCatalog = useCallback(async (entry: CatalogEntry) => {
     setInstallError(null)
@@ -175,6 +206,51 @@ export function ExtensionsTab(): JSX.Element {
                 {installError}
               </span>
             )}
+          </div>
+        )}
+
+        {rootPath && (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              padding: '14px 16px',
+              border: '1px dashed var(--color-border-strong, var(--color-border))',
+              borderRadius: 'var(--radius-md, 6px)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                <span style={{ fontSize: 11, letterSpacing: '1px', fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-secondary)' }}>
+                  INSTALL FROM DISK
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+                  Pick a local folder containing a rose-extension.json manifest. Use this to develop and test extensions locally.
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={installingDisk}
+                onClick={handleInstallFromDisk}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: 'var(--radius-sm, 4px)',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-bg-secondary)',
+                  color: installingDisk ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
+                  cursor: installingDisk ? 'not-allowed' : 'pointer',
+                  fontSize: 11,
+                  letterSpacing: '1px',
+                  fontFamily: 'var(--font-family-mono)',
+                  whiteSpace: 'nowrap',
+                  opacity: installingDisk ? 0.5 : 1,
+                  flexShrink: 0,
+                }}
+              >
+                {installingDisk ? 'INSTALLING…' : 'CHOOSE FOLDER'}
+              </button>
+            </div>
           </div>
         )}
 

@@ -1,6 +1,6 @@
 import { ipcMain, BrowserWindow } from 'electron'
-import { join, dirname } from 'path'
-import { readFile, writeFile, mkdir, readdir, rm, copyFile, rename } from 'fs/promises'
+import { join, dirname, resolve as resolvePath } from 'path'
+import { readFile, writeFile, mkdir, readdir, rm, copyFile, rename, cp, stat } from 'fs/promises'
 import { existsSync, readFileSync } from 'fs'
 import { createRequire } from 'module'
 import { spawn } from 'child_process'
@@ -59,22 +59,58 @@ async function cloneRepo(url: string, destDir: string): Promise<void> {
   await runCommand('git', ['clone', '--depth=1', url, destDir], dirname(destDir))
 }
 
-async function buildExtension(dir: string): Promise<void> {
-  const pkgPath = join(dir, 'package.json')
-  if (!existsSync(pkgPath)) return
-  let pkg: { scripts?: Record<string, string> } = {}
-  try { pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) } catch { return }
-  if (!pkg.scripts?.build) return
+// Copy a local extension source tree into destDir. node_modules is stripped
+// (gets reinstalled fresh in the destination) and .git is stripped (not
+// useful at runtime). dist/ IS preserved so prebuilt extensions can be
+// installed without re-running their build.
+const COPY_SKIP_DIRS = new Set(['node_modules', '.git', '.cache', '.next'])
+async function copyLocalSource(sourceDir: string, destDir: string): Promise<void> {
+  await cp(sourceDir, destDir, {
+    recursive: true,
+    errorOnExist: true,
+    force: false,
+    filter: (src) => {
+      const segments = src.split(/[\\/]/)
+      const last = segments[segments.length - 1]
+      return !COPY_SKIP_DIRS.has(last)
+    }
+  })
+}
 
-  await runCommand('npm', ['install', '--no-audit', '--no-fund', '--silent'], dir)
-  await runCommand('npm', ['run', 'build', '--silent'], dir)
-
-  // Surface dist artifacts at the install root so the harness can load them
+// Promote build artifacts from dist/ to the install root, where the renderer
+// loader (extension:loadRenderer) and main-module loader expect them.
+async function surfaceDistArtifacts(dir: string): Promise<void> {
   const distDir = join(dir, 'dist')
+  if (!existsSync(distDir)) return
   for (const fname of ['main.js', 'renderer.js', 'renderer.css']) {
     const distFile = join(distDir, fname)
     if (existsSync(distFile)) await copyFile(distFile, join(dir, fname))
   }
+}
+
+async function buildExtension(dir: string): Promise<void> {
+  const pkgPath = join(dir, 'package.json')
+  let hasBuildScript = false
+  if (existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as { scripts?: Record<string, string> }
+      hasBuildScript = !!pkg.scripts?.build
+    } catch { /* invalid package.json — skip build */ }
+  }
+
+  if (hasBuildScript) {
+    await runCommand('npm', ['install', '--no-audit', '--no-fund', '--silent'], dir)
+    await runCommand('npm', ['run', 'build', '--silent'], dir)
+  }
+
+  // Always surface — prebuilt extensions ship dist/ in the source folder and
+  // need it promoted even when no build runs.
+  await surfaceDistArtifacts(dir)
+}
+
+// True when the install dir has at least one loadable code artifact at its root.
+function hasInstalledBundle(dir: string): boolean {
+  return existsSync(join(dir, 'main.js')) || existsSync(join(dir, 'renderer.js'))
 }
 
 // Tracks cleanup functions for loaded extension main modules, keyed by "<rootPath>/<id>"
@@ -217,6 +253,63 @@ export function registerExtensionHandlers(): void {
       }
       await rename(tmpDir, destDir)
       return { ok: true, manifest }
+    } catch (err) {
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+      return { ok: false, error: (err as Error).message }
+    }
+  })
+
+  ipcMain.handle(IPC.EXTENSION_INSTALL_FROM_DISK, async (_event, rootPath: string, sourcePath: string) => {
+    if (!rootPath) return { ok: false, error: 'No project open' }
+    const trimmed = String(sourcePath ?? '').trim()
+    if (!trimmed) return { ok: false, error: 'Source folder is required' }
+
+    const absSource = resolvePath(trimmed)
+    let st: Awaited<ReturnType<typeof stat>>
+    try {
+      st = await stat(absSource)
+    } catch {
+      return { ok: false, error: `Folder does not exist: ${absSource}` }
+    }
+    if (!st.isDirectory()) return { ok: false, error: 'Source path is not a directory' }
+
+    await ensureExtensionsDir(rootPath)
+    const extensionsDir = getExtensionsDir(rootPath)
+
+    // Prevent self-overwrite: if the user picked a folder inside the destination,
+    // the rename step would try to move a directory onto itself.
+    const absExtensionsDir = resolvePath(extensionsDir)
+    if (absSource === absExtensionsDir || absSource.startsWith(absExtensionsDir + (process.platform === 'win32' ? '\\' : '/'))) {
+      return { ok: false, error: 'Cannot install from a folder inside the extensions directory' }
+    }
+
+    const manifestSource = await readManifest(absSource)
+    if (!manifestSource) {
+      return { ok: false, error: 'Folder is missing rose-extension.json' }
+    }
+
+    const tmpDir = join(extensionsDir, `_install_${Date.now()}`)
+    try {
+      await copyLocalSource(absSource, tmpDir)
+
+      // Re-validate the manifest from the copy to avoid TOCTOU surprises
+      const manifest = await readManifest(tmpDir)
+      if (!manifest) throw new Error('Copied source is missing rose-extension.json')
+
+      await buildExtension(tmpDir)
+
+      const destDir = join(extensionsDir, manifest.id)
+      if (existsSync(destDir)) {
+        unloadExtensionMainModule(rootPath, manifest.id)
+        await rm(destDir, { recursive: true, force: true })
+      }
+      await rename(tmpDir, destDir)
+
+      const warning = hasInstalledBundle(destDir)
+        ? undefined
+        : 'Installed, but no main.js or renderer.js was found. Run the extension\'s build (e.g. npm run build) and reinstall.'
+
+      return { ok: true, manifest, warning }
     } catch (err) {
       await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
       return { ok: false, error: (err as Error).message }
