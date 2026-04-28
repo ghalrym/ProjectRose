@@ -9,7 +9,6 @@
     "RoseExtensions/rose-email",
     "RoseExtensions/rose-git",
     "RoseExtensions/rose-docker",
-    "RoseExtensions/rose-listen",
     "ProjectRose"
   ]
 }

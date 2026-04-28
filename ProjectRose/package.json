@@ -100,7 +100,6 @@
     "@projectrose/rose-docker": "*",
     "@projectrose/rose-email": "*",
     "@projectrose/rose-git": "*",
-    "@projectrose/rose-listen": "*",
     "@resvg/resvg-js": "^2.6.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/mailparser": "^3.4.6",

@@ -50,8 +50,7 @@ const NAV_ID_MIGRATIONS: Record<string, string> = {
   discord: 'rose-discord',
   email: 'rose-email',
   git: 'rose-git',
-  docker: 'rose-docker',
-  activeListening: 'rose-listen'
+  docker: 'rose-docker'
 }
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [

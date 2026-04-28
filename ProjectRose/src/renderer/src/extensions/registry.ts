@@ -25,7 +25,6 @@ const VIEW_ID_MIGRATIONS: Record<string, string> = {
   email: 'rose-email',
   git: 'rose-git',
   docker: 'rose-docker',
-  activeListening: 'rose-listen',
   heartbeat: 'rose-heartbeat'
 }
 
