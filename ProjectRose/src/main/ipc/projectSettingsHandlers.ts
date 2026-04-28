@@ -12,6 +12,7 @@ const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { disabledTools: [] }
 
 export const CORE_TOOL_NAMES = new Set([
   'read_file', 'write_file', 'edit_file', 'list_directory', 'grep', 'run_command', 'ask_user',
+  'create_subagents', 'explore',
 ])
 
 const CORE_TOOL_META = [
@@ -22,6 +23,8 @@ const CORE_TOOL_META = [
   { name: 'grep', displayName: 'Grep', description: 'Search file contents by regex pattern', type: 'core' as const },
   { name: 'run_command', displayName: 'Run Command', description: 'Execute shell commands in the project', type: 'core' as const },
   { name: 'ask_user', displayName: 'Ask User', description: 'Pause generation to ask the user a clarifying question', type: 'core' as const },
+  { name: 'create_subagents', displayName: 'Subagents', description: 'Spawn one or more subagents to run focused tasks in parallel', type: 'core' as const },
+  { name: 'explore', displayName: 'Explore', description: 'Decompose a topic into parallel read-only sub-queries and return a combined report', type: 'core' as const },
 ]
 
 export async function readProjectSettings(rootPath: string): Promise<ProjectSettings> {
