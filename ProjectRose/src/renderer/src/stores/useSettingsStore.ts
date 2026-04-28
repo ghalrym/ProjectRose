@@ -4,6 +4,7 @@ import { useProjectStore } from './useProjectStore'
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
   { viewId: 'chat',     label: 'Agent',    visible: true },
+  { viewId: 'apps',     label: 'Apps',     visible: true },
   { viewId: 'editor',   label: 'Editor',   visible: true },
   { viewId: 'settings', label: 'Settings', visible: true },
 ]

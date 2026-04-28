@@ -21,7 +21,7 @@ export interface TerminalResizePayload {
   rows: number
 }
 
-export type BaseView = 'editor' | 'chat' | 'settings'
+export type BaseView = 'editor' | 'chat' | 'settings' | 'apps'
 
 // Accepts base views and extension IDs (e.g. 'rose-discord')
 export type ActiveView = BaseView | (string & Record<never, never>)

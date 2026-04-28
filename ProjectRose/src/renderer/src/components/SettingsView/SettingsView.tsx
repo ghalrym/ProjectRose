@@ -653,7 +653,7 @@ export function SettingsView(): JSX.Element {
           <div className={styles.navList}>
             {navItems
               .map((item, index) => ({ item, index }))
-              .filter(({ item }) => item.viewId !== 'settings')
+              .filter(({ item }) => item.viewId !== 'settings' && item.viewId !== 'apps')
               .map(({ item, index }) => (
                 <div
                   key={item.viewId}
@@ -681,6 +681,13 @@ export function SettingsView(): JSX.Element {
               <div className={styles.navItem}>
                 <span className={styles.navDragHandle} style={{ opacity: 0.2, cursor: 'default' }}>⠿</span>
                 <span className={styles.navItemLabel}>Settings</span>
+                <span className={styles.navItemLocked}>always visible</span>
+              </div>
+            )}
+            {navItems.find((item) => item.viewId === 'apps') && (
+              <div className={styles.navItem}>
+                <span className={styles.navDragHandle} style={{ opacity: 0.2, cursor: 'default' }}>⠿</span>
+                <span className={styles.navItemLabel}>Apps</span>
                 <span className={styles.navItemLocked}>always visible</span>
               </div>
             )}
