@@ -110,7 +110,6 @@ async function selectModel(userMessage: string, settings: AppSettings): Promise<
       displayName: 'ProjectRose Account',
       provider: 'projectrose',
       modelName: 'managed',
-      baseUrl: 'http://localhost:8000/api/openai',
       tags: ['account'],
     }
   }
@@ -119,7 +118,7 @@ async function selectModel(userMessage: string, settings: AppSettings): Promise<
   if (models.length === 1 || !router.enabled || !router.modelName) return defaultModel
 
   try {
-    const category = await routeRequest(userMessage, router)
+    const category = await routeRequest(userMessage, router, settings.ollamaBaseUrl)
     const matched = models.find((m) =>
       m.tags.some(
         (tag) =>
@@ -177,7 +176,7 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
       abortSignal: abortController.signal
     }
     const counter: SubagentCounter = { value: 0 }
-    const subagentTools = buildSubagentTools(agentCtx, selectedModel, settings.providerKeys, counter, systemPrompt)
+    const subagentTools = buildSubagentTools(agentCtx, selectedModel, settings.providerKeys, settings.ollamaBaseUrl, settings.openaiCompatBaseUrl, counter, systemPrompt)
     const skillTools = buildSkillTools(rootPath, sessionId, notifyRenderer)
     const getSystemPrompt = (): string => systemPrompt + getSessionSkillsPrompt(sessionId)
 
@@ -187,6 +186,8 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
       pythonTools: filteredPythonTools,
       extensionTools,
       providerKeys: settings.providerKeys,
+      ollamaBaseUrl: settings.ollamaBaseUrl,
+      openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
       projectRoot: rootPath,
       disabledCoreTools,
       abortSignal: abortController.signal,
@@ -211,7 +212,7 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
       resetModifiedFiles()
 
       // Rebuild subagent tools with the fallback model
-      const fallbackSubagentTools = buildSubagentTools(agentCtx, defaultModel, settings.providerKeys, counter, systemPrompt)
+      const fallbackSubagentTools = buildSubagentTools(agentCtx, defaultModel, settings.providerKeys, settings.ollamaBaseUrl, settings.openaiCompatBaseUrl, counter, systemPrompt)
       streamResult = await streamChat({ messages, model: defaultModel, ...streamParams, extraTools: { ...fallbackSubagentTools, ...skillTools } })
       activeModelDisplay = fallbackDisplay
       activeModel = defaultModel
@@ -259,6 +260,8 @@ export async function runAgentOnce(
     disabledCoreTools,
     model: selectedModel,
     providerKeys: settings.providerKeys,
+    ollamaBaseUrl: settings.ollamaBaseUrl,
+    openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
     projectRoot: rootPath
   })
 
@@ -270,5 +273,5 @@ export async function compressHistory(messages: Message[]): Promise<Message[]> {
   const settings = await readSettings()
   const defaultModel = settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
   if (!defaultModel) return messages
-  return compressMessages(messages, defaultModel, settings.providerKeys)
+  return compressMessages(messages, defaultModel, settings.providerKeys, settings.ollamaBaseUrl, settings.openaiCompatBaseUrl)
 }

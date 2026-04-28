@@ -59,10 +59,10 @@ interface ProviderMeta {
 }
 
 const PROVIDERS: ProviderMeta[] = [
-  { kind: 'anthropic', spec: '01', name: 'Anthropic',         latin: 'Rosa claudia'    },
-  { kind: 'openai',    spec: '02', name: 'OpenAI',            latin: 'Rosa generativa' },
-  { kind: 'bedrock',   spec: '03', name: 'Amazon Bedrock',    latin: 'Rosa nubila'     },
-  { kind: 'ollama',    spec: '04', name: 'Ollama',            latin: 'Rosa localis'    },
+  { kind: 'ollama',    spec: '01', name: 'Ollama',            latin: 'Rosa localis'    },
+  { kind: 'anthropic', spec: '02', name: 'Anthropic',         latin: 'Rosa claudia'    },
+  { kind: 'openai',    spec: '03', name: 'OpenAI',            latin: 'Rosa generativa' },
+  { kind: 'bedrock',   spec: '04', name: 'Amazon Bedrock',    latin: 'Rosa nubila'     },
   { kind: 'compat',    spec: '05', name: 'OpenAI-compatible', latin: 'Rosa heterodoxa' },
 ]
 
@@ -437,13 +437,8 @@ export function SettingsView(): JSX.Element {
 
   useEffect(() => {
     if (activePage !== 'chat') return
-    for (const m of models) {
-      if (m.provider === 'ollama' && m.baseUrl && !(m.id in ollamaModels)) {
-        fetchOllamaModels(m.id, m.baseUrl)
-      }
-    }
-    if (router.enabled && router.modelName && !('__router__' in ollamaModels)) {
-      fetchOllamaModels('__router__', router.baseUrl)
+    if (ollamaBaseUrl && !('__ollama_provider__' in ollamaModels)) {
+      fetchOllamaModels('__ollama_provider__', ollamaBaseUrl)
     }
     if (providerKeys.anthropic && anthropicModels.length === 0) fetchAnthropicModels(providerKeys.anthropic)
     if (providerKeys.openai && openaiModels.length === 0) fetchOpenAIModels(providerKeys.openai)
@@ -546,7 +541,6 @@ export function SettingsView(): JSX.Element {
         ok = res.ok
       }
       setTestedProviders((prev) => ({ ...prev, [kind]: ok ? 'connected' : 'error' }))
-      if (ok) setTimeout(() => setExpandedProvider(null), 350)
     } catch {
       setTestedProviders((prev) => ({ ...prev, [kind]: 'error' }))
     } finally {
@@ -558,9 +552,9 @@ export function SettingsView(): JSX.Element {
   // Model helpers
   // ─────────────────────────────────────────────────────────
 
-  function addModel(): void {
+  function addModel(provider: ModelConfig['provider']): void {
     const newModel: ModelConfig = {
-      id: crypto.randomUUID(), displayName: '', provider: 'anthropic', modelName: '', baseUrl: '', tags: [],
+      id: crypto.randomUUID(), displayName: '', provider, modelName: '', tags: [],
     }
     const updated = [...models, newModel]
     update({ models: updated, defaultModelId: updated.length === 1 ? newModel.id : defaultModelId })
@@ -576,7 +570,6 @@ export function SettingsView(): JSX.Element {
   }
 
   function renderModelSelectForRow(
-    key: string,
     provider: ModelConfig['provider'],
     value: string,
     onChange: (v: string) => void
@@ -596,7 +589,7 @@ export function SettingsView(): JSX.Element {
     if (provider === 'anthropic') options = anthropicModels.length > 0 ? anthropicModels : ANTHROPIC_FALLBACK
     else if (provider === 'openai') options = openaiModels.length > 0 ? openaiModels : OPENAI_FALLBACK
     else if (provider === 'bedrock') options = BEDROCK_FALLBACK
-    else options = ollamaModels[key] ?? []
+    else options = ollamaModels['__ollama_provider__'] ?? []
 
     return (
       <select
@@ -744,7 +737,7 @@ export function SettingsView(): JSX.Element {
   }
 
   // ─────────────────────────────────────────────────────────
-  // Render: Agent (PLATES I – IV)
+  // Render: Agent (PLATES I – III)
   // ─────────────────────────────────────────────────────────
 
   function renderAgent(): JSX.Element {
@@ -761,7 +754,7 @@ export function SettingsView(): JSX.Element {
             </div>
           </div>
           <div className={styles.pageHeaderRight}>
-            <div>PLATES · I — IV</div>
+            <div>PLATES · I — III</div>
             <div className={styles.colophonAccent}>Rosa configurata</div>
           </div>
         </div>
@@ -791,6 +784,8 @@ export function SettingsView(): JSX.Element {
             const isTesting = !!providerTesting[p.kind]
             const filledCount = Object.values(fields).filter((v) => v && v !== '').length
             const totalFields = fieldDefs.length
+            const modelProvider: ModelConfig['provider'] = p.kind === 'compat' ? 'openai-compatible' : (p.kind as ModelConfig['provider'])
+            const modelsForProvider = models.filter((m) => m.provider === modelProvider)
 
             return (
               <div key={p.kind} className={styles.providerCard}>
@@ -817,7 +812,7 @@ export function SettingsView(): JSX.Element {
                         <StatusBadge state={status} />
                         <span className={styles.providerFieldInfo}>
                           {status === 'connected' || status === 'unverified'
-                            ? `${filledCount}/${totalFields} field${totalFields === 1 ? '' : 's'}`
+                            ? `${filledCount}/${totalFields} field${totalFields === 1 ? '' : 's'} · ${modelsForProvider.length} model${modelsForProvider.length === 1 ? '' : 's'}`
                             : `${totalFields} field${totalFields === 1 ? '' : 's'} required`}
                         </span>
                       </div>
@@ -865,16 +860,93 @@ export function SettingsView(): JSX.Element {
                         </button>
                       </div>
                     </div>
+
+                    <div className={styles.providerModelsDivider}>MODELS</div>
+
+                    {modelsForProvider.length === 0 && (
+                      <div className={styles.providerModelsEmpty}>
+                        No models yet — add one below.
+                      </div>
+                    )}
+
+                    {modelsForProvider.map((m) => (
+                      <div key={m.id} className={styles.providerModelRow}>
+                        <input
+                          type="radio"
+                          name="defaultModel"
+                          checked={defaultModelId === m.id}
+                          onChange={() => update({ defaultModelId: m.id })}
+                          style={{ accentColor: 'var(--color-accent)', cursor: 'pointer', marginTop: 6 }}
+                        />
+
+                        <div className={styles.providerModelNameCell}>
+                          <input
+                            className={styles.modelDisplayInput}
+                            type="text"
+                            placeholder="Display name"
+                            value={m.displayName}
+                            onChange={(e) => patchModel(m.id, { displayName: e.target.value })}
+                          />
+                          {renderModelSelectForRow(m.provider, m.modelName, (v) => patchModel(m.id, { modelName: v }))}
+                        </div>
+
+                        <div className={styles.modelTagsCell}>
+                          {m.tags.map((t) => (
+                            <span key={t} className={styles.tagChip}>
+                              {t}
+                              <button
+                                type="button"
+                                className={styles.tagRemoveBtn}
+                                onClick={() => patchModel(m.id, { tags: m.tags.filter((x) => x !== t) })}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                          <input
+                            className={styles.tagAddInput}
+                            type="text"
+                            placeholder="+ tag"
+                            value={m.id in tagInputs ? tagInputs[m.id] : ''}
+                            onChange={(e) => setTagInputs((prev) => ({ ...prev, [m.id]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ',') {
+                                e.preventDefault()
+                                const val = (tagInputs[m.id] ?? '').trim()
+                                if (val) patchModel(m.id, { tags: [...m.tags, val] })
+                                setTagInputs((prev) => { const n = { ...prev }; delete n[m.id]; return n })
+                              }
+                            }}
+                            onBlur={() => {
+                              const val = (tagInputs[m.id] ?? '').trim()
+                              if (val) patchModel(m.id, { tags: [...m.tags, val] })
+                              setTagInputs((prev) => { const n = { ...prev }; delete n[m.id]; return n })
+                            }}
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          className={styles.modelRemoveBtn}
+                          onClick={() => removeModel(m.id)}
+                        >
+                          REMOVE
+                        </button>
+                      </div>
+                    ))}
+
+                    <button
+                      type="button"
+                      className={styles.providerAddModelBtn}
+                      onClick={() => addModel(modelProvider)}
+                    >
+                      + ADD MODEL
+                    </button>
                   </div>
                 )}
               </div>
             )
           })}
-
-          <div className={styles.addProviderHint}>
-            <span>+ ADD CUSTOM PROVIDER · OpenAI-compatible endpoint, MCP, etc.</span>
-            <span style={{ opacity: 0.5, fontSize: 9 }}>use the compat card above</span>
-          </div>
         </div>
 
         {/* ══ PLATE II · ROUTER ══ */}
@@ -889,7 +961,7 @@ export function SettingsView(): JSX.Element {
           <div className={styles.settingsBlock}>
             <HSettingRow
               label="Enable Router"
-              desc="Every prompt is first sent to a small local Ollama model that decides which cataloged model to dispatch to."
+              desc="Every prompt is first sent to a small local Ollama model that decides which cataloged model to dispatch to. Uses the Ollama provider's base URL."
             >
               <HToggle
                 on={router.enabled}
@@ -898,26 +970,18 @@ export function SettingsView(): JSX.Element {
             </HSettingRow>
             {router.enabled && (
               <div className={`${styles.drawerBody} ${styles.drawerIn}`}>
-                <FieldRow label="OLLAMA BASE URL" hint="local · no key">
-                  <KeyInput
-                    value={router.baseUrl}
-                    placeholder="http://localhost:11434"
-                    type="text"
-                    onChange={(v) => update({ router: { ...router, baseUrl: v } })}
-                  />
-                </FieldRow>
                 <FieldRow label="ROUTER MODEL" hint="lightweight · fast">
                   <select
                     className={styles.hSelect}
                     value={router.modelName}
                     onChange={(e) => update({ router: { ...router, modelName: e.target.value } })}
-                    onFocus={() => fetchOllamaModels('__router__', router.baseUrl)}
+                    onFocus={() => fetchOllamaModels('__ollama_provider__', ollamaBaseUrl)}
                   >
                     <option value="" disabled>Select a router model</option>
-                    {(ollamaModels['__router__'] ?? []).map((m) => (
+                    {(ollamaModels['__ollama_provider__'] ?? []).map((m) => (
                       <option key={m} value={m}>{m}</option>
                     ))}
-                    {router.modelName && !(ollamaModels['__router__'] ?? []).includes(router.modelName) && (
+                    {router.modelName && !(ollamaModels['__ollama_provider__'] ?? []).includes(router.modelName) && (
                       <option value={router.modelName}>{router.modelName}</option>
                     )}
                   </select>
@@ -927,136 +991,10 @@ export function SettingsView(): JSX.Element {
           </div>
         </div>
 
-        {/* ══ PLATE III · MODELS ══ */}
+        {/* ══ PLATE III · BEHAVIOR & TOOLS ══ */}
         <div className={styles.plateSection}>
           <SectionHeader
             n="III"
-            title="Models"
-            sub="Cataloged endpoints — the default is used when no use-case tag matches."
-          />
-          <div className={styles.sectionGapSm} />
-
-          <div className={styles.modelsTable}>
-            <div className={styles.modelsTableHeader}>
-              <span />
-              <span>DISPLAY NAME / MODEL</span>
-              <span>PROVIDER</span>
-              <span>USE-CASE TAGS</span>
-              <span />
-            </div>
-
-            {models.length === 0 && (
-              <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-                No models cataloged. Add one below.
-              </div>
-            )}
-
-            {models.map((m) => (
-              <div key={m.id} className={styles.modelRow}>
-                {/* default radio */}
-                <input
-                  type="radio"
-                  name="defaultModel"
-                  checked={defaultModelId === m.id}
-                  onChange={() => update({ defaultModelId: m.id })}
-                  style={{ accentColor: 'var(--color-accent)', cursor: 'pointer', marginTop: 6 }}
-                />
-
-                {/* display name + model name */}
-                <div className={styles.modelNameCell}>
-                  <input
-                    className={styles.modelDisplayInput}
-                    type="text"
-                    placeholder="Display name"
-                    value={m.displayName}
-                    onChange={(e) => patchModel(m.id, { displayName: e.target.value })}
-                  />
-                  {renderModelSelectForRow(m.id, m.provider, m.modelName, (v) => patchModel(m.id, { modelName: v }))}
-                  {(m.provider === 'ollama' || m.provider === 'openai-compatible') && (
-                    <input
-                      className={styles.modelBaseUrlInput}
-                      type="text"
-                      placeholder={m.provider === 'ollama' ? 'http://localhost:11434' : 'https://api.example.com/v1'}
-                      value={m.baseUrl}
-                      onChange={(e) => patchModel(m.id, { baseUrl: e.target.value })}
-                      onBlur={(e) => m.provider === 'ollama' && fetchOllamaModels(m.id, e.target.value)}
-                    />
-                  )}
-                </div>
-
-                {/* provider */}
-                <div className={styles.modelProviderCell}>
-                  <ProviderGlyph kind={m.provider === 'openai-compatible' ? 'compat' : m.provider} size={16} />
-                  <select
-                    className={styles.modelProviderSelect}
-                    value={m.provider}
-                    onChange={(e) => patchModel(m.id, { provider: e.target.value as ModelConfig['provider'], modelName: '' })}
-                  >
-                    <option value="anthropic">Anthropic</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="ollama">Ollama</option>
-                    <option value="openai-compatible">Compatible</option>
-                    <option value="bedrock">Bedrock</option>
-                  </select>
-                </div>
-
-                {/* tags */}
-                <div className={styles.modelTagsCell}>
-                  {m.tags.map((t) => (
-                    <span key={t} className={styles.tagChip}>
-                      {t}
-                      <button
-                        type="button"
-                        className={styles.tagRemoveBtn}
-                        onClick={() => patchModel(m.id, { tags: m.tags.filter((x) => x !== t) })}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    className={styles.tagAddInput}
-                    type="text"
-                    placeholder="+ tag"
-                    value={m.id in tagInputs ? tagInputs[m.id] : ''}
-                    onChange={(e) => setTagInputs((prev) => ({ ...prev, [m.id]: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ',') {
-                        e.preventDefault()
-                        const val = (tagInputs[m.id] ?? '').trim()
-                        if (val) patchModel(m.id, { tags: [...m.tags, val] })
-                        setTagInputs((prev) => { const n = { ...prev }; delete n[m.id]; return n })
-                      }
-                    }}
-                    onBlur={() => {
-                      const val = (tagInputs[m.id] ?? '').trim()
-                      if (val) patchModel(m.id, { tags: [...m.tags, val] })
-                      setTagInputs((prev) => { const n = { ...prev }; delete n[m.id]; return n })
-                    }}
-                  />
-                </div>
-
-                {/* remove */}
-                <button
-                  type="button"
-                  className={styles.modelRemoveBtn}
-                  onClick={() => removeModel(m.id)}
-                >
-                  REMOVE
-                </button>
-              </div>
-            ))}
-
-            <button type="button" className={styles.addModelRow} onClick={addModel}>
-              + ADD MODEL TO CATALOG
-            </button>
-          </div>
-        </div>
-
-        {/* ══ PLATE IV · BEHAVIOR & TOOLS ══ */}
-        <div className={styles.plateSection}>
-          <SectionHeader
-            n="IV"
             title="Behavior & Tools"
             sub="What the agent remembers and what it's allowed to do."
           />

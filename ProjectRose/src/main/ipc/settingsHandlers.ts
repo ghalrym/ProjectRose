@@ -11,14 +11,12 @@ export interface ModelConfig {
   displayName: string
   provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible' | 'bedrock' | 'projectrose'
   modelName: string
-  baseUrl: string
   tags: string[]
 }
 
 export interface RouterConfig {
   enabled: boolean
   modelName: string
-  baseUrl: string
 }
 
 export interface AppSettings {
@@ -72,7 +70,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   models: [],
   defaultModelId: '',
   providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' }, projectrose: null },
-  router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
+  router: { enabled: false, modelName: '' },
   hostMode: 'self',
   includeThinkingInContext: false,
   ollamaBaseUrl: 'http://localhost:11434',

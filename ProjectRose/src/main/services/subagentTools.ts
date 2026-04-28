@@ -38,6 +38,8 @@ export function buildSubagentTools(
   ctx: AgentContext,
   model: ModelConfig,
   providerKeys: ProviderKeys,
+  ollamaBaseUrl: string,
+  openaiCompatBaseUrl: string,
   counter: SubagentCounter,
   systemPrompt: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,6 +65,8 @@ export function buildSubagentTools(
         pythonTools: [],
         model,
         providerKeys,
+        ollamaBaseUrl,
+        openaiCompatBaseUrl,
         projectRoot: ctx.rootPath,
         notify: () => {},  // subagents do not stream tokens to renderer
         abortSignal: ctx.abortSignal,

@@ -37,14 +37,12 @@ export interface ModelConfig {
   displayName: string
   provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible' | 'bedrock' | 'projectrose'
   modelName: string
-  baseUrl: string
   tags: string[]
 }
 
 export interface RouterConfig {
   enabled: boolean
   modelName: string
-  baseUrl: string
 }
 
 export interface RecentProject {

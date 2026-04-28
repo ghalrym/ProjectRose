@@ -49,7 +49,12 @@ export type ProviderKeys = {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function resolveModel(model: ModelConfig, providerKeys: ProviderKeys): any {
+export function resolveModel(
+  model: ModelConfig,
+  providerKeys: ProviderKeys,
+  ollamaBaseUrl: string,
+  openaiCompatBaseUrl: string
+): any {
   switch (model.provider) {
     case 'openai': {
       const provider = createOpenAI({ apiKey: providerKeys.openai || undefined })
@@ -94,7 +99,7 @@ export function resolveModel(model: ModelConfig, providerKeys: ProviderKeys): an
         return globalThis.fetch(input, init)
       }
       const provider = createOllama({
-        baseURL: model.baseUrl || 'http://localhost:11434',
+        baseURL: ollamaBaseUrl || 'http://localhost:11434',
         fetch: patchedFetch
       })
       return provider(model.modelName || 'llama3', { think: true })
@@ -102,7 +107,7 @@ export function resolveModel(model: ModelConfig, providerKeys: ProviderKeys): an
     case 'openai-compatible': {
       const provider = createOpenAI({
         apiKey: 'not-needed',
-        baseURL: model.baseUrl
+        baseURL: openaiCompatBaseUrl
       })
       return wrapLanguageModel({
         model: provider.chat(model.modelName),
@@ -122,7 +127,7 @@ export function resolveModel(model: ModelConfig, providerKeys: ProviderKeys): an
       const token = providerKeys.projectrose?.accessToken ?? ''
       const provider = createOpenAI({
         apiKey: token,
-        baseURL: model.baseUrl || 'https://projectrose.ai/api/ai'
+        baseURL: 'http://localhost:8000/api/openai'
       })
       return provider(model.modelName || 'managed')
     }
@@ -134,8 +139,12 @@ export function resolveModel(model: ModelConfig, providerKeys: ProviderKeys): an
   }
 }
 
-export async function routeRequest(userMessage: string, router: RouterConfig): Promise<string> {
-  const provider = createOllama({ baseURL: router.baseUrl || 'http://localhost:11434' })
+export async function routeRequest(
+  userMessage: string,
+  router: RouterConfig,
+  ollamaBaseUrl: string
+): Promise<string> {
+  const provider = createOllama({ baseURL: ollamaBaseUrl || 'http://localhost:11434' })
   const model = provider(router.modelName)
   const { text } = await generateText({
     model,
@@ -305,6 +314,8 @@ export async function streamChat(params: {
   extensionTools?: ExtensionToolEntry[]
   model: ModelConfig
   providerKeys: ProviderKeys
+  ollamaBaseUrl: string
+  openaiCompatBaseUrl: string
   projectRoot: string
   disabledCoreTools?: string[]
   abortSignal?: AbortSignal
@@ -318,9 +329,9 @@ export async function streamChat(params: {
   // Called fresh before each step — allows dynamic system prompt updates (e.g. loaded skills).
   getSystemPrompt?: () => string
 }): Promise<StreamResult> {
-  const { messages, systemPrompt, pythonTools, extensionTools, model: modelConfig, providerKeys, projectRoot, disabledCoreTools, abortSignal } = params
+  const { messages, systemPrompt, pythonTools, extensionTools, model: modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl, projectRoot, disabledCoreTools, abortSignal } = params
   const emit: EmitFn = params.notify ?? notifyRenderer
-  const model = resolveModel(modelConfig, providerKeys)
+  const model = resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
   const tools = {
     ...buildCoreTools(projectRoot, emit),
     ...buildExtensionTools(extensionTools ?? [], projectRoot, emit),
@@ -412,7 +423,9 @@ export async function streamChat(params: {
 export async function compressMessages(
   messages: Message[],
   modelConfig: ModelConfig,
-  providerKeys: ProviderKeys
+  providerKeys: ProviderKeys,
+  ollamaBaseUrl: string,
+  openaiCompatBaseUrl: string
 ): Promise<Message[]> {
   if (messages.length <= 40) return messages
 
@@ -420,7 +433,7 @@ export async function compressMessages(
   const firstHalf = messages.slice(0, half)
   const secondHalf = messages.slice(half)
 
-  const model = resolveModel(modelConfig, providerKeys)
+  const model = resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
   const conversationText = firstHalf
     .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
     .join('\n\n')
