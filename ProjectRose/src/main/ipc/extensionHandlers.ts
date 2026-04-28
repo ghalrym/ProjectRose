@@ -7,7 +7,7 @@ import { spawn } from 'child_process'
 import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
 import { readSettings, writeSettings, registerSensitiveExtensionFields } from './settingsHandlers'
-import { heartbeatChat } from '../services/aiService'
+import { runAgentOnce } from '../services/aiService'
 import type { InstalledExtension, ExtensionManifest, ExtensionToolEntry } from '../../shared/extension-types'
 
 function getExtensionsDir(rootPath: string): string {
@@ -132,7 +132,7 @@ interface ExtensionMainContext {
   // Mark settings keys as sensitive so they're stored in userData/settings.json
   // instead of the project repo config (where they could be committed).
   registerSensitiveFields: (keys: string[]) => void
-  runBackgroundAgent: (prompt: string) => Promise<string>
+  runBackgroundAgent: (prompt: string, systemPrompt: string) => Promise<string>
 }
 
 function loadExtensionMainModule(rootPath: string, id: string): void {
@@ -176,8 +176,12 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
       registerSensitiveFields: (keys: string[]) => {
         registerSensitiveExtensionFields(keys)
       },
-      runBackgroundAgent: async (prompt: string) => {
-        const { content } = await heartbeatChat([{ role: 'user', content: prompt }], rootPath)
+      runBackgroundAgent: async (prompt: string, systemPrompt: string) => {
+        const { content } = await runAgentOnce(
+          [{ role: 'user', content: prompt }],
+          rootPath,
+          systemPrompt,
+        )
         return content
       }
     }

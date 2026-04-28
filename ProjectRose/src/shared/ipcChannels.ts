@@ -30,10 +30,6 @@ export const IPC = {
   ROSE_INIT_PROJECT: 'rose:initProject',
   ROSE_ENSURE_SCAFFOLD: 'rose:ensureScaffold',
 
-  HEARTBEAT_RUN: 'heartbeat:run',
-  HEARTBEAT_GET_LOGS: 'heartbeat:getLogs',
-  HEARTBEAT_LOG_CONTENT: 'heartbeat:logContent',
-
   SETTINGS_GET: 'settings:get',
   SETTINGS_SET: 'settings:set',
 

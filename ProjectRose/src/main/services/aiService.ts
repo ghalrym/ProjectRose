@@ -79,11 +79,6 @@ Never ask the user a question in your response text. If you need clarification o
 `
 }
 
-const HEARTBEAT_SYSTEM_PROMPT = `You are an autonomous agent processing a deferred work queue.
-Execute every item completely. Do not ask for confirmation — just do the work.
-Use available tools (read_file, write_file, run_command, list_directory) to accomplish each task.
-`
-
 // ── Error helpers ──
 
 function extractErrorMessage(err: unknown): string {
@@ -229,7 +224,16 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
   }
 }
 
-export async function heartbeatChat(messages: Message[], rootPath: string): Promise<ChatResponse> {
+// Run the agent loop once and return the final string. Caller supplies the
+// system prompt and messages; the host wires up settings, model selection,
+// and tools (core + enabled extension tools, filtered by the user's
+// disabledTools). Python project tools / subagent / skill tools are
+// intentionally excluded to keep one-shot runs bounded.
+export async function runAgentOnce(
+  messages: Message[],
+  rootPath: string,
+  systemPrompt: string,
+): Promise<ChatResponse> {
   setActiveProjectRoot(rootPath)
   resetModifiedFiles()
 
@@ -237,10 +241,22 @@ export async function heartbeatChat(messages: Message[], rootPath: string): Prom
   const userMessage = messages.at(-1)?.content ?? ''
   const selectedModel = await selectModel(userMessage, settings)
 
+  const projectSettings = await readProjectSettings(rootPath)
+  const { disabledTools } = projectSettings
+
+  const installed = await listInstalledExtensions(rootPath)
+  const enabledExtIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
+  const extensionTools = getRegisteredExtensionTools(rootPath, enabledExtIds)
+    .filter((t) => !disabledTools.includes(t.name))
+
+  const disabledCoreTools = disabledTools.filter((n) => CORE_TOOL_NAMES.has(n))
+
   const streamResult = await streamChat({
     messages,
-    systemPrompt: HEARTBEAT_SYSTEM_PROMPT,
+    systemPrompt,
     pythonTools: [],
+    extensionTools,
+    disabledCoreTools,
     model: selectedModel,
     providerKeys: settings.providerKeys,
     projectRoot: rootPath
