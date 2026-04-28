@@ -21,10 +21,13 @@ jobs:
         include:
           - os: windows-latest
             platform: win
+            files: ProjectRose/release/*Setup*.exe
           - os: macos-latest
             platform: mac
+            files: ProjectRose/release/*arm64.dmg
           - os: ubuntu-latest
             platform: linux
+            files: ProjectRose/release/*.AppImage
 
     runs-on: ${{ matrix.os }}
 
@@ -38,6 +41,39 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: package-lock.json
+
+      # Compute a unique version per build, used everywhere downstream:
+      #  - Tagged push (refs/tags/v*): use the tag name verbatim.
+      #  - Master push: <package-base>-build.<github.run_number>, always pre-release.
+      # The version is also injected into electron-builder via
+      # `-c.extraMetadata.version` so the installer/About dialog matches the
+      # GitHub release tag.
+      - name: Compute build version
+        id: ver
+        shell: bash
+        run: |
+          BASE=$(node -p "require('./ProjectRose/package.json').version")
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            REF="${{ github.ref_name }}"
+            VERSION="${REF#v}"
+            TAG="${REF}"
+            NAME="${REF}"
+            if [[ "$REF" == *alpha* || "$REF" == *beta* || "$REF" == *rc* ]]; then
+              PRERELEASE="true"
+            else
+              PRERELEASE="false"
+            fi
+          else
+            VERSION="${BASE}-build.${{ github.run_number }}"
+            TAG="v${VERSION}"
+            NAME="${TAG}"
+            PRERELEASE="true"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "Building $TAG (electron-builder version=$VERSION, prerelease=$PRERELEASE)"
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -62,56 +98,19 @@ jobs:
           cd ProjectRose/node_modules/node-pty
           node-gyp rebuild
 
-      - name: Build and package (Windows)
-        if: matrix.platform == 'win'
+      - name: Build and package
         working-directory: ProjectRose
-        run: npm run dist -- --win --publish never
+        shell: bash
+        run: npm run dist -- --${{ matrix.platform }} --publish never -c.extraMetadata.version=${{ steps.ver.outputs.version }}
 
-      - name: Build and package (macOS)
-        if: matrix.platform == 'mac'
-        working-directory: ProjectRose
-        run: npm run dist -- --mac --publish never
-
-      - name: Build and package (Linux)
-        if: matrix.platform == 'linux'
-        working-directory: ProjectRose
-        run: npm run dist -- --linux --publish never
-
-      - name: Upload release artifacts (Windows)
-        if: matrix.platform == 'win'
+      - name: Upload release artifacts
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
-          name: ${{ github.ref_type == 'tag' && github.ref_name || 'Nightly Build' }}
-          files: ProjectRose/release/*Setup*.exe
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.name }}
+          files: ${{ matrix.files }}
           draft: false
           generate_release_notes: ${{ github.ref_type == 'tag' }}
-          prerelease: ${{ github.ref_type != 'tag' || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload release artifacts (macOS)
-        if: matrix.platform == 'mac'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
-          name: ${{ github.ref_type == 'tag' && github.ref_name || 'Nightly Build' }}
-          files: ProjectRose/release/*arm64.dmg
-          draft: false
-          generate_release_notes: ${{ github.ref_type == 'tag' }}
-          prerelease: ${{ github.ref_type != 'tag' || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload release artifacts (Linux)
-        if: matrix.platform == 'linux'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
-          name: ${{ github.ref_type == 'tag' && github.ref_name || 'Nightly Build' }}
-          files: ProjectRose/release/*.AppImage
-          draft: false
-          generate_release_notes: ${{ github.ref_type == 'tag' }}
-          prerelease: ${{ github.ref_type != 'tag' || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          prerelease: ${{ steps.ver.outputs.prerelease == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
