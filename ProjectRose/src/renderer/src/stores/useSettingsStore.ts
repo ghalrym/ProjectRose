@@ -83,6 +83,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   },
 
   update: async (patch) => {
+    set(patch as Partial<SettingsState>)
     const rootPath = useProjectStore.getState().rootPath ?? undefined
     const s = await window.api.setSettings(patch, rootPath)
     const navItems = mergeNavItems(s.navItems as NavItem[] | undefined)
