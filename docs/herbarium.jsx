@@ -101,7 +101,7 @@ function Lockup({ size = 'lg', mono = false }) {
           <div style={{
             marginTop: 10, fontFamily: H.mono, fontSize: 10,
             color: H.inkSoft, letterSpacing: 2,
-          }}>HERBARIUM  ·  № 01  ·  v0.1.0</div>
+          }}>HERBARIUM  ·  № 01</div>
         )}
       </div>
     </div>

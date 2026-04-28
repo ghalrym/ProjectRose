@@ -125,7 +125,7 @@ function NavBar() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: H.olive }}/>
             <span style={{ fontFamily: H.mono, fontSize: 10, color: H.inkSoft, letterSpacing: 1.2 }}>
-              v0.1.0 · CATALOGED
+              CATALOGED
             </span>
           </div>
           <a
@@ -245,7 +245,7 @@ function Hero() {
                 color: H.paperLight, background: H.ink,
               }}>
                 <span style={{ fontSize: 9, color: H.ochreSoft, letterSpacing: 1.2 }}>№01</span>
-                <span>DOWNLOAD · v0.1.0</span>
+                <span>DOWNLOAD · LATEST RELEASE</span>
                 <span style={{ marginLeft: 4 }}>↓</span>
               </a>
               <a href="https://github.com/RoseAgent/ProjectRose" target="_blank" rel="noopener noreferrer" style={{
@@ -1226,7 +1226,7 @@ function InstallSection() {
                 fontFamily: H.mono, fontSize: 11, fontWeight: 500, letterSpacing: 1.2,
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
-                <span>↓ LATEST RELEASE · v0.1.0</span>
+                <span>↓ LATEST RELEASE</span>
                 <span>↗</span>
               </a>
               <a href="https://github.com/RoseAgent/ProjectRose#readme" target="_blank" rel="noopener noreferrer" style={{
@@ -1272,7 +1272,7 @@ function Colophon() {
                 </div>
                 <div style={{
                   fontFamily: H.mono, fontSize: 9, color: H.inkSoft, letterSpacing: 1.6, marginTop: 2,
-                }}>HERBARIUM · № 01 · v0.1.0</div>
+                }}>HERBARIUM · № 01</div>
               </div>
             </div>
             <p style={{
