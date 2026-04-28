@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { ExtensionsTab } from './ExtensionsTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
+import { useViewStore } from '../../stores/useViewStore'
 import { getAllExtensions, getExtensionByViewId, subscribeToExtensionsChange } from '../../extensions/registry'
 import { NavItem } from '../../../../shared/types'
 import type { ModelConfig, ToolMeta } from '@shared/types'
@@ -625,6 +626,15 @@ export function SettingsView(): JSX.Element {
       setActivePage('dashboard')
     }
   }, [sidebarItems.map((i) => i.id).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const settingsTarget = useViewStore((s) => s.settingsTarget)
+  const setSettingsTarget = useViewStore((s) => s.setSettingsTarget)
+  useEffect(() => {
+    if (settingsTarget && sidebarItems.some((i) => i.id === settingsTarget)) {
+      setActivePage(settingsTarget)
+      setSettingsTarget(null)
+    }
+  }, [settingsTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─────────────────────────────────────────────────────────
   // Status bar data

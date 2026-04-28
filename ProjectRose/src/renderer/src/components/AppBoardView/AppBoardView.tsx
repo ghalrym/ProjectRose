@@ -92,6 +92,7 @@ function buildAppItems(): AppItem[] {
     items.push({
       id: ext.manifest.id,
       name: ext.manifest.name,
+      latin: ext.manifest.latin,
       description: ext.manifest.description,
       searchTerms: [ext.manifest.id, ext.manifest.name, ext.manifest.description, ext.manifest.author].join(' '),
       iconNode: <ExtensionIcon ext={ext} />,

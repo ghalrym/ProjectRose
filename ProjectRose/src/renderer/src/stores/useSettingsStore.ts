@@ -60,7 +60,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   models: [],
   defaultModelId: '',
   providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' }, projectrose: null },
-  router: { enabled: false, modelName: '', baseUrl: 'http://localhost:11434' },
+  router: { enabled: false, modelName: '' },
   hostMode: 'self',
   includeThinkingInContext: false,
   ollamaBaseUrl: 'http://localhost:11434',

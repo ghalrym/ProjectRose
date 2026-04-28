@@ -4,6 +4,7 @@ export interface ExtensionManifest {
   version: string
   description: string
   author: string
+  latin?: string
   icon?: string
   navItem?: {
     label: string

@@ -4,6 +4,8 @@ import { useChatStore } from '../../stores/useChatStore'
 import type { ChatMessage, ToolMessage, AskUserMessage } from '../../stores/useChatStore'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import { useProjectStore } from '../../stores/useProjectStore'
+import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useViewStore } from '../../stores/useViewStore'
 import { ChatCell } from './ChatCell'
 import { ToolCallGroupCell } from './ToolCallGroupCell'
 import { AskUserCell } from './AskUserCell'
@@ -79,6 +81,32 @@ export function ChatPanel(): JSX.Element {
   const setMode = useActiveListeningStore((s) => s.setMode)
   const [copiedAll, setCopiedAll] = useState(false)
 
+  const settingsLoaded = useSettingsStore((s) => s.loaded)
+  const hostMode = useSettingsStore((s) => s.hostMode)
+  const modelCount = useSettingsStore((s) => s.models.length)
+  const providerKeys = useSettingsStore((s) => s.providerKeys)
+  const ollamaBaseUrl = useSettingsStore((s) => s.ollamaBaseUrl)
+  const openaiCompatBaseUrl = useSettingsStore((s) => s.openaiCompatBaseUrl)
+  const setActiveView = useViewStore((s) => s.setActiveView)
+  const setSettingsTarget = useViewStore((s) => s.setSettingsTarget)
+
+  const hasAnyProvider =
+    !!providerKeys.anthropic ||
+    !!providerKeys.openai ||
+    !!providerKeys.bedrock?.accessKeyId ||
+    !!ollamaBaseUrl ||
+    !!openaiCompatBaseUrl
+  const setupNeeded =
+    settingsLoaded &&
+    hostMode === 'self' &&
+    (!hasAnyProvider || modelCount === 0)
+  const setupKind: 'provider' | 'model' = !hasAnyProvider ? 'provider' : 'model'
+
+  const openAgentSettings = (): void => {
+    setSettingsTarget('chat')
+    setActiveView('settings')
+  }
+
   const handleCopyAll = async (): Promise<void> => {
     const text = formatChatForCopy(messages)
     if (!text) return
@@ -127,6 +155,23 @@ export function ChatPanel(): JSX.Element {
           {copiedAll ? 'COPIED' : 'COPY CHAT'}
         </button>
       </div>
+
+      {setupNeeded && (
+        <div className={styles.setupBanner}>
+          <span className={styles.setupBannerDot} />
+          <div className={styles.setupBannerText}>
+            <div className={styles.setupBannerTitle}>SETUP REQUIRED</div>
+            <div className={styles.setupBannerDesc}>
+              {setupKind === 'provider'
+                ? 'Add a provider (API key or local Ollama URL) and at least one model before chatting.'
+                : 'Add at least one model to your provider before chatting.'}
+            </div>
+            <button type="button" className={styles.setupBannerBtn} onClick={openAgentSettings}>
+              OPEN AGENT SETTINGS →
+            </button>
+          </div>
+        </div>
+      )}
 
       {mode === 'chat' ? (
         <div className={styles.messages}>

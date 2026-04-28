@@ -117,3 +117,65 @@
   font-style: italic;
   font-size: var(--font-size-sm);
 }
+
+.setupBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  margin: 10px 12px 0;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+}
+
+.setupBannerDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex-shrink: 0;
+  margin-top: 4px;
+  animation: livePulse 1.6s ease-in-out infinite;
+}
+
+.setupBannerText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.setupBannerTitle {
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  letter-spacing: 1.4px;
+  color: var(--color-accent);
+}
+
+.setupBannerDesc {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.setupBannerBtn {
+  align-self: flex-start;
+  margin-top: 4px;
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--color-accent);
+  background: none;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.setupBannerBtn:hover {
+  background: var(--color-accent);
+  color: var(--color-bg-primary);
+}
