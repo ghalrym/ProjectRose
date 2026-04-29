@@ -17,6 +17,7 @@ export interface ExtensionManifest {
     globalSettings?: boolean
     agentTools?: boolean
     tools?: Array<{ name: string; displayName: string; description: string }>
+    chatHooks?: boolean
   }
 }
 

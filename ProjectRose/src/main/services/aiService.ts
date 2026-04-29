@@ -1,10 +1,13 @@
 import { platform } from 'os'
 import { readFile } from 'fs/promises'
+import { randomUUID } from 'crypto'
 import { prPath } from '../lib/projectPaths'
 import { BrowserWindow } from 'electron'
 import { setActiveProjectRoot } from './toolHandlers'
 import { discoverPythonTools, getModifiedFiles, resetModifiedFiles } from './toolHandlers'
 import { streamChat, compressMessages, routeRequest, cancelAllAskUserQuestions } from './llmClient'
+import type { StreamResult } from './llmClient'
+import type { ModelMessage } from 'ai'
 import { readSettings } from '../ipc/settingsHandlers'
 import type { AppSettings, ModelConfig } from '../ipc/settingsHandlers'
 import { readProjectSettings, CORE_TOOL_NAMES } from '../ipc/projectSettingsHandlers'
@@ -12,7 +15,9 @@ import { listInstalledExtensions, getRegisteredExtensionTools } from '../ipc/ext
 import { buildRoseMd } from '../ipc/roseSetupHandlers'
 import { buildSubagentTools } from './subagentTools'
 import { buildSkillTools, getSessionSkillsPrompt } from './skillService'
+import { resetTurnBudgets } from './extensionHooks'
 import type { AgentContext, SubagentCounter } from './agentRunner'
+import type { InjectionRecord } from '../../shared/extensionHooks'
 import { IPC } from '../../shared/ipcChannels'
 import type { Message } from '../../shared/roseModelTypes'
 
@@ -142,6 +147,9 @@ export interface ChatResponse {
 export async function chat(messages: Message[], rootPath: string, sessionId: string): Promise<ChatResponse> {
   const abortController = new AbortController()
   activeAbortController = abortController
+  // New user message arrived — extension hooks get a fresh per-extension
+  // injection budget for this turn.
+  resetTurnBudgets()
 
   try {
     setActiveProjectRoot(rootPath)
@@ -176,11 +184,15 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
       abortSignal: abortController.signal
     }
     const counter: SubagentCounter = { value: 0 }
-    const subagentTools = buildSubagentTools(agentCtx, selectedModel, settings.providerKeys, settings.ollamaBaseUrl, settings.openaiCompatBaseUrl, counter, systemPrompt)
     const skillTools = buildSkillTools(rootPath, sessionId, notifyRenderer)
     const getSystemPrompt = (): string => systemPrompt + getSessionSkillsPrompt(sessionId)
 
-    const streamParams = {
+    const buildExtraTools = (m: ModelConfig): Record<string, unknown> => ({
+      ...buildSubagentTools(agentCtx, m, settings.providerKeys, settings.ollamaBaseUrl, settings.openaiCompatBaseUrl, counter, systemPrompt),
+      ...skillTools
+    })
+
+    const baseStreamParams = {
       systemPrompt,
       getSystemPrompt,
       pythonTools: filteredPythonTools,
@@ -191,35 +203,77 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
       projectRoot: rootPath,
       disabledCoreTools,
       abortSignal: abortController.signal,
-      notify: notifyRenderer,
-      extraTools: { ...subagentTools, ...skillTools }
+      notify: notifyRenderer
     }
 
-    let streamResult: Awaited<ReturnType<typeof streamChat>>
-    let activeModelDisplay = modelDisplay
     let activeModel = selectedModel
+    let activeModelDisplay = modelDisplay
+    let activeExtraTools = buildExtraTools(selectedModel)
+    let fallbackUsed = false
+    let lastStreamResult: StreamResult | undefined
+    let preBuiltCoreMessages: ModelMessage[] | undefined
 
-    try {
-      streamResult = await streamChat({ messages, model: selectedModel, ...streamParams })
-    } catch (err) {
-      if (abortController.signal.aborted) throw err
-      const isAlreadyDefault = !defaultModel || selectedModel.id === defaultModel.id
-      if (isAlreadyDefault) throw err
+    while (true) {
+      if (abortController.signal.aborted) break
 
-      const errorMessage = extractErrorMessage(err)
-      const fallbackDisplay = defaultModel.displayName || defaultModel.modelName
-      notifyRenderer(IPC.AI_STREAM_RESET, { errorMessage, fallbackModel: fallbackDisplay })
-      resetModifiedFiles()
+      const turnId = randomUUID()
+      const collected: InjectionRecord[] = []
 
-      // Rebuild subagent tools with the fallback model
-      const fallbackSubagentTools = buildSubagentTools(agentCtx, defaultModel, settings.providerKeys, settings.ollamaBaseUrl, settings.openaiCompatBaseUrl, counter, systemPrompt)
-      streamResult = await streamChat({ messages, model: defaultModel, ...streamParams, extraTools: { ...fallbackSubagentTools, ...skillTools } })
-      activeModelDisplay = fallbackDisplay
-      activeModel = defaultModel
+      const runOnce = async (m: ModelConfig, extras: Record<string, unknown>): Promise<StreamResult> =>
+        streamChat({
+          ...baseStreamParams,
+          messages,
+          preBuiltCoreMessages,
+          model: m,
+          extraTools: extras,
+          turnId,
+          collectInjections: (rec) => collected.push(rec)
+        })
+
+      try {
+        lastStreamResult = await runOnce(activeModel, activeExtraTools)
+      } catch (err) {
+        if (abortController.signal.aborted) throw err
+        const isAlreadyDefault = !defaultModel || activeModel.id === defaultModel.id
+        if (isAlreadyDefault || fallbackUsed) throw err
+
+        const errorMessage = extractErrorMessage(err)
+        const fallbackDisplay = defaultModel.displayName || defaultModel.modelName
+        notifyRenderer(IPC.AI_STREAM_RESET, { errorMessage, fallbackModel: fallbackDisplay })
+        resetModifiedFiles()
+
+        activeModel = defaultModel
+        activeModelDisplay = fallbackDisplay
+        activeExtraTools = buildExtraTools(defaultModel)
+        fallbackUsed = true
+
+        lastStreamResult = await runOnce(activeModel, activeExtraTools)
+      }
+
+      if (collected.length === 0) break
+      if (abortController.signal.aborted) break
+
+      // Each injection becomes a system message in the next iteration's
+      // history; the renderer is also notified so it can display the
+      // bordered "guided agent" cell for the user.
+      const nextHistory: ModelMessage[] = [...lastStreamResult.finalMessages]
+      for (const inj of collected) {
+        notifyRenderer(IPC.AI_INJECTED_MESSAGE, {
+          extensionId: inj.extensionId,
+          extensionName: inj.extensionName,
+          extensionIcon: inj.extensionIcon,
+          content: inj.content
+        })
+        nextHistory.push({
+          role: 'system',
+          content: `[Extension ${inj.extensionName}] ${inj.content}`
+        })
+      }
+      preBuiltCoreMessages = nextHistory
     }
 
-    void activeModel  // suppress unused-var lint
-    return { content: streamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay: activeModelDisplay }
+    if (!lastStreamResult) throw new Error('Chat aborted before any turn completed')
+    return { content: lastStreamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay: activeModelDisplay }
   } finally {
     activeAbortController = null
   }

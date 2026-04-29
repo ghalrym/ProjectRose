@@ -235,6 +235,12 @@ const api = {
   aiAskUserResponse: (questionId: string, answer: string): Promise<void> =>
     ipcRenderer.invoke(IPC.AI_ASK_USER_RESPONSE, { questionId, answer }),
 
+  onAiInjectedMessage: (callback: (data: { extensionId: string; extensionName: string; extensionIcon?: string; content: string }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { extensionId: string; extensionName: string; extensionIcon?: string; content: string }): void => callback(data)
+    ipcRenderer.on(IPC.AI_INJECTED_MESSAGE, handler)
+    return () => { ipcRenderer.removeListener(IPC.AI_INJECTED_MESSAGE, handler) }
+  },
+
   // Indexing / LSP startup
   indexProject: (rootPath: string): Promise<{ indexed: number; total: number; error?: string }> =>
     ipcRenderer.invoke(IPC.INDEXING_PROJECT, rootPath),

@@ -53,6 +53,7 @@ export const IPC = {
   AI_CANCEL: 'ai:cancel',
   AI_ASK_USER: 'ai:askUser',
   AI_ASK_USER_RESPONSE: 'ai:askUserResponse',
+  AI_INJECTED_MESSAGE: 'ai:injectedMessage',
 
   LSP_PY_TO_SERVER: 'lsp:py:toServer',
   LSP_PY_FROM_SERVER: 'lsp:py:fromServer',

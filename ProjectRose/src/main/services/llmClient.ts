@@ -19,6 +19,8 @@ import {
 import type { ExtensionToolEntry } from '../../shared/extension-types'
 import type { Message } from '../../shared/roseModelTypes'
 import type { ModelConfig, RouterConfig } from '../ipc/settingsHandlers'
+import type { InjectionRecord } from '../../shared/extensionHooks'
+import { fireThoughtHook, fireMessageHook, fireToolCallHook } from './extensionHooks'
 
 function notifyRenderer(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -159,36 +161,50 @@ export async function routeRequest(
 type ExecuteFn = (input: Record<string, unknown>, projectRoot: string) => Promise<string>
 type EmitFn = (channel: string, payload: unknown) => void
 
+interface HookCtx {
+  turnId: string
+  rootPath: string
+}
+
 function wrapExecute(
   name: string,
   fn: ExecuteFn,
   projectRoot: string,
-  emit: EmitFn
+  emit: EmitFn,
+  hookCtx?: HookCtx
 ): (input: Record<string, unknown>, options: ToolExecutionOptions) => Promise<string> {
   return async (input, options) => {
     const id = options.toolCallId
     emit(IPC.AI_TOOL_CALL_START, { id, name, params: input })
+    let result: string
+    let error = false
     try {
-      const result = await fn(input, projectRoot)
+      result = await fn(input, projectRoot)
       emit(IPC.AI_TOOL_CALL_END, { id, result, error: false })
-      return result
     } catch (err) {
-      const error = err instanceof Error ? err.message : String(err)
-      emit(IPC.AI_TOOL_CALL_END, { id, result: error, error: true })
-      return error
+      result = err instanceof Error ? err.message : String(err)
+      error = true
+      emit(IPC.AI_TOOL_CALL_END, { id, result, error: true })
     }
+    if (hookCtx) {
+      await fireToolCallHook(
+        { toolName: name, params: input, result, error, turnId: hookCtx.turnId },
+        hookCtx.rootPath
+      )
+    }
+    return result
   }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildCoreTools(projectRoot: string, emit: EmitFn): Record<string, any> {
+function buildCoreTools(projectRoot: string, emit: EmitFn, hookCtx?: HookCtx): Record<string, any> {
   return {
     read_file: tool({
       description: 'Read the contents of a file. Use project-relative paths.',
       inputSchema: z.object({
         path: z.string().describe('File path relative to the project root')
       }),
-      execute: wrapExecute('read_file', handleReadFile, projectRoot, emit)
+      execute: wrapExecute('read_file', handleReadFile, projectRoot, emit, hookCtx)
     }),
     write_file: tool({
       description: 'Write content to a file. Creates the file and any missing parent directories if they do not exist.',
@@ -196,7 +212,7 @@ function buildCoreTools(projectRoot: string, emit: EmitFn): Record<string, any> 
         path: z.string().describe('File path relative to the project root'),
         content: z.string().describe('The full file content to write')
       }),
-      execute: wrapExecute('write_file', handleWriteFile, projectRoot, emit)
+      execute: wrapExecute('write_file', handleWriteFile, projectRoot, emit, hookCtx)
     }),
     edit_file: tool({
       description: 'Replace a unique string in a file with new content. Fails if old_string is not found or appears more than once — add more surrounding context to disambiguate.',
@@ -205,14 +221,14 @@ function buildCoreTools(projectRoot: string, emit: EmitFn): Record<string, any> 
         old_string: z.string().describe('Exact string to find and replace. Must appear exactly once in the file.'),
         new_string: z.string().describe('String to replace old_string with')
       }),
-      execute: wrapExecute('edit_file', handleEditFile, projectRoot, emit)
+      execute: wrapExecute('edit_file', handleEditFile, projectRoot, emit, hookCtx)
     }),
     list_directory: tool({
       description: 'List files and subdirectories in a directory.',
       inputSchema: z.object({
         path: z.string().describe('Directory path relative to the project root. Use "." for the root.')
       }),
-      execute: wrapExecute('list_directory', handleListDirectory, projectRoot, emit)
+      execute: wrapExecute('list_directory', handleListDirectory, projectRoot, emit, hookCtx)
     }),
     grep: tool({
       description: 'Search file contents for a regex pattern. Returns matching lines as file:line: text. Searches the entire project by default; narrow with path or include.',
@@ -222,14 +238,14 @@ function buildCoreTools(projectRoot: string, emit: EmitFn): Record<string, any> 
         include: z.string().optional().describe('Comma-separated file extensions to include, e.g. ".ts,.tsx" or "*.py"'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive match (default: false)')
       }),
-      execute: wrapExecute('grep', handleGrep, projectRoot, emit)
+      execute: wrapExecute('grep', handleGrep, projectRoot, emit, hookCtx)
     }),
     run_command: tool({
       description: 'Run a shell command in the project directory. Use for installing packages, running tests, linting, etc. Returns stdout/stderr.',
       inputSchema: z.object({
         command: z.string().describe('The shell command to execute')
       }),
-      execute: wrapExecute('run_command', handleRunCommand, projectRoot, emit)
+      execute: wrapExecute('run_command', handleRunCommand, projectRoot, emit, hookCtx)
     }),
     ask_user: tool({
       description: 'Ask the user a clarifying question and wait for their response before continuing. Use when you need input or a decision from the user. Provide 2–6 multiple-choice options when relevant.',
@@ -249,7 +265,7 @@ function buildCoreTools(projectRoot: string, emit: EmitFn): Record<string, any> 
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildExtensionTools(entries: ExtensionToolEntry[], projectRoot: string, emit: EmitFn): Record<string, any> {
+function buildExtensionTools(entries: ExtensionToolEntry[], projectRoot: string, emit: EmitFn, hookCtx?: HookCtx): Record<string, any> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: Record<string, any> = {}
   for (const entry of entries) {
@@ -272,14 +288,14 @@ function buildExtensionTools(entries: ExtensionToolEntry[], projectRoot: string,
     result[entry.name] = tool({
       description: entry.description,
       inputSchema: z.object(shape),
-      execute: wrapExecute(entry.name, entry.execute, projectRoot, emit)
+      execute: wrapExecute(entry.name, entry.execute, projectRoot, emit, hookCtx)
     })
   }
   return result
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildPythonTools(pythonTools: PythonToolMeta[], projectRoot: string, emit: EmitFn): Record<string, any> {
+function buildPythonTools(pythonTools: PythonToolMeta[], projectRoot: string, emit: EmitFn, hookCtx?: HookCtx): Record<string, any> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: Record<string, any> = {}
   for (const pt of pythonTools) {
@@ -290,7 +306,7 @@ function buildPythonTools(pythonTools: PythonToolMeta[], projectRoot: string, em
     result[pt.name] = tool({
       description: pt.description,
       inputSchema: z.object(shape),
-      execute: wrapExecute(pt.name, (input, root) => pt.execute(input, root), projectRoot, emit)
+      execute: wrapExecute(pt.name, (input, root) => pt.execute(input, root), projectRoot, emit, hookCtx)
     })
   }
   return result
@@ -300,6 +316,10 @@ export interface StreamResult {
   content: string
   inputTokens: number
   outputTokens: number
+  // Full conversation including the assistant response(s) and any tool messages
+  // produced during this streamChat call. Used by aiService.chat to extend the
+  // history when an extension hook injects a follow-up message.
+  finalMessages: ModelMessage[]
 }
 
 function isXmlParseError(message: string): boolean {
@@ -328,22 +348,43 @@ export async function streamChat(params: {
   extraTools?: Record<string, any>
   // Called fresh before each step — allows dynamic system prompt updates (e.g. loaded skills).
   getSystemPrompt?: () => string
+  // When set, chat hooks fire at segment boundaries and after tool calls.
+  // Only the user-visible main chat passes this; subagents and one-shot
+  // background runs leave it undefined to keep hooks scoped to the main chat.
+  turnId?: string
+  collectInjections?: (rec: InjectionRecord) => void
+  // Escape hatch for the auto-injection loop: when set, skip the Message[] →
+  // ModelMessage[] conversion and use these directly. Lets the loop preserve
+  // full assistant tool-call structure across iterations (Message[] is lossy).
+  preBuiltCoreMessages?: ModelMessage[]
 }): Promise<StreamResult> {
   const { messages, systemPrompt, pythonTools, extensionTools, model: modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl, projectRoot, disabledCoreTools, abortSignal } = params
   const emit: EmitFn = params.notify ?? notifyRenderer
+  const hookCtx: HookCtx | undefined = params.turnId ? { turnId: params.turnId, rootPath: projectRoot } : undefined
   const model = resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
   const tools = {
-    ...buildCoreTools(projectRoot, emit),
-    ...buildExtensionTools(extensionTools ?? [], projectRoot, emit),
-    ...buildPythonTools(pythonTools, projectRoot, emit),
+    ...buildCoreTools(projectRoot, emit, hookCtx),
+    ...buildExtensionTools(extensionTools ?? [], projectRoot, emit, hookCtx),
+    ...buildPythonTools(pythonTools, projectRoot, emit, hookCtx),
     ...(params.extraTools ?? {})
   }
   for (const name of disabledCoreTools ?? []) delete tools[name]
 
-  let coreMessages: ModelMessage[] = messages.map((m) => ({
-    role: m.role as 'user' | 'assistant',
-    content: m.content
-  }))
+  let coreMessages: ModelMessage[] = params.preBuiltCoreMessages
+    ? [...params.preBuiltCoreMessages]
+    : messages.map((m) => {
+        if (m.role === 'system') return { role: 'system' as const, content: m.content }
+        if (m.role === 'assistant') return { role: 'assistant' as const, content: m.content }
+        return { role: 'user' as const, content: m.content }
+      })
+
+  const fireBoundary = async (kind: 'thought' | 'message', content: string): Promise<void> => {
+    if (!hookCtx || !params.collectInjections || content.length === 0) return
+    const rec = kind === 'thought'
+      ? await fireThoughtHook(content, hookCtx.turnId, hookCtx.rootPath)
+      : await fireMessageHook(content, hookCtx.turnId, hookCtx.rootPath)
+    if (rec) params.collectInjections(rec)
+  }
 
   let accumulatedText = ''
   let inputTokens = 0
@@ -366,18 +407,43 @@ export async function streamChat(params: {
       })
 
       let stepError: Error | null = null
+      // Per-step segment buffers. A "segment" is a contiguous run of text-delta
+      // or reasoning-delta chunks; the boundary is detected when the chunk type
+      // changes. At each boundary we fire on_thought / on_message hooks with
+      // the buffered content. Reset on every retry so a partial buffered
+      // segment from a failed attempt does not leak into the retry.
+      let textBuffer = ''
+      let thinkingBuffer = ''
 
       try {
         for await (const chunk of result.fullStream) {
+          // Boundary detection: flush buffers when transitioning to a different
+          // chunk type. Tool-call chunks, finish chunks, etc. all close out
+          // any in-flight text/thinking segments so hooks see contiguous content.
+          if (chunk.type !== 'text-delta' && textBuffer.length > 0) {
+            const flushed = textBuffer
+            textBuffer = ''
+            await fireBoundary('message', flushed)
+          }
+          if (chunk.type !== 'reasoning-delta' && thinkingBuffer.length > 0) {
+            const flushed = thinkingBuffer
+            thinkingBuffer = ''
+            await fireBoundary('thought', flushed)
+          }
+
           switch (chunk.type) {
             case 'text-delta':
               if (chunk.text) {
                 accumulatedText += chunk.text
+                textBuffer += chunk.text
                 emit(IPC.AI_TOKEN, { token: chunk.text })
               }
               break
             case 'reasoning-delta':
-              if (chunk.text) emit(IPC.AI_THINKING, { content: chunk.text })
+              if (chunk.text) {
+                thinkingBuffer += chunk.text
+                emit(IPC.AI_THINKING, { content: chunk.text })
+              }
               break
             case 'finish':
               if (chunk.totalUsage) {
@@ -398,6 +464,19 @@ export async function streamChat(params: {
           }
         }
 
+        // End-of-stream flush in case the stream ended on a text/reasoning
+        // delta without a separate boundary chunk.
+        if (textBuffer.length > 0) {
+          const flushed = textBuffer
+          textBuffer = ''
+          await fireBoundary('message', flushed)
+        }
+        if (thinkingBuffer.length > 0) {
+          const flushed = thinkingBuffer
+          thinkingBuffer = ''
+          await fireBoundary('thought', flushed)
+        }
+
         const steps = await result.steps
         const resp = await result.response
         const lastStep = steps.at(-1)
@@ -416,7 +495,7 @@ export async function streamChat(params: {
     if (!hadTools || finishReason === 'length' || finishReason === 'content-filter') break
   }
 
-  return { content: accumulatedText, inputTokens, outputTokens }
+  return { content: accumulatedText, inputTokens, outputTokens, finalMessages: coreMessages }
 }
 
 

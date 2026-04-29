@@ -8,6 +8,10 @@ import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
 import { readSettings, writeSettings, registerSensitiveExtensionFields } from './settingsHandlers'
 import { runAgentOnce } from '../services/aiService'
+import { registerHooks as registerExtensionHooks, unregisterHooks as unregisterExtensionHooks } from '../services/extensionHooks'
+import { create as createAgentSession, closeAllForOwner as closeAgentSessionsForOwner } from '../services/agentSession'
+import type { AgentSession } from '../services/agentSession'
+import type { ChatHook } from '../../shared/extensionHooks'
 import type { InstalledExtension, ExtensionManifest, ExtensionToolEntry } from '../../shared/extension-types'
 
 function getExtensionsDir(rootPath: string): string {
@@ -133,6 +137,13 @@ interface ExtensionMainContext {
   // instead of the project repo config (where they could be committed).
   registerSensitiveFields: (keys: string[]) => void
   runBackgroundAgent: (prompt: string, systemPrompt: string) => Promise<string>
+  // Register chat hooks. Hooks fire only for the user-visible main chat;
+  // they do NOT fire inside runBackgroundAgent or openAgentSession.send.
+  registerHooks: (hooks: ChatHook[]) => void
+  // Open a multi-turn agent session. Each session keeps its own message
+  // history; subsequent send() calls reuse it. Hooks do not fire during
+  // these calls.
+  openAgentSession: (opts: { systemPrompt: string }) => AgentSession
 }
 
 function loadExtensionMainModule(rootPath: string, id: string): void {
@@ -157,6 +168,10 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
     // eslint-disable-next-line no-new-func
     const wrapper = new Function('module', 'exports', 'require', '__dirname', '__filename', code)
     wrapper(mod, mod.exports, hostedRequire, dirname(mainPath), mainPath)
+
+    // Pull manifest fields needed for chat-hook attribution (extension chip
+     // in the renderer). Read here so we don't disk-hit on every hook fire.
+    const manifestForHooks = readManifestSync(join(getExtensionsDir(rootPath), id))
 
     const ctx: ExtensionMainContext = {
       rootPath,
@@ -183,7 +198,21 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
           systemPrompt,
         )
         return content
-      }
+      },
+      registerHooks: (hooks: ChatHook[]) => {
+        registerExtensionHooks(
+          key,
+          {
+            extensionId: id,
+            extensionName: manifestForHooks?.name ?? id,
+            extensionIcon: manifestForHooks?.icon,
+            rootPath
+          },
+          hooks
+        )
+      },
+      openAgentSession: ({ systemPrompt }: { systemPrompt: string }) =>
+        createAgentSession({ rootPath, systemPrompt, ownerKey: key })
     }
 
     const register = mod.exports['register'] as ((ctx: ExtensionMainContext) => (() => void) | void) | undefined
@@ -202,6 +231,17 @@ function unloadExtensionMainModule(rootPath: string, id: string): void {
     loadedMains.delete(key)
   }
   extensionToolsRegistry.delete(key)
+  unregisterExtensionHooks(key)
+  closeAgentSessionsForOwner(key)
+}
+
+function readManifestSync(extensionPath: string): ExtensionManifest | null {
+  try {
+    const raw = readFileSync(join(extensionPath, 'rose-extension.json'), 'utf-8')
+    return JSON.parse(raw) as ExtensionManifest
+  } catch {
+    return null
+  }
 }
 
 export async function listInstalledExtensions(rootPath: string): Promise<InstalledExtension[]> {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useChatStore } from '../../stores/useChatStore'
-import type { ChatMessage, ToolMessage, AskUserMessage } from '../../stores/useChatStore'
+import type { ChatMessage, ToolMessage, AskUserMessage, InjectedMessage } from '../../stores/useChatStore'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
@@ -9,6 +9,7 @@ import { useViewStore } from '../../stores/useViewStore'
 import { ChatCell } from './ChatCell'
 import { ToolCallGroupCell } from './ToolCallGroupCell'
 import { AskUserCell } from './AskUserCell'
+import { InjectedCell } from './InjectedCell'
 import { SystemPromptCell } from './SystemPromptCell'
 import { ChatInput } from './ChatInput'
 import { TranscriptView } from './TranscriptView'
@@ -45,6 +46,8 @@ function formatChatForCopy(messages: ChatMessage[]): string {
     } else if (msg.role === 'ask_user') {
       const ans = msg.answer ? `\nAnswer: ${msg.answer}` : ''
       parts.push(`[Ask]\n${msg.question}${ans}`)
+    } else if (msg.role === 'injected') {
+      parts.push(`[Injected by ${msg.extensionName}]\n${msg.content}`)
     }
   }
   return parts.join('\n\n')
@@ -185,6 +188,8 @@ export function ChatPanel(): JSX.Element {
                   ? <ToolCallGroupCell key={item.key} messages={item.messages} />
                   : item.message.role === 'ask_user'
                   ? <AskUserCell key={item.message.id} message={item.message as AskUserMessage} />
+                  : item.message.role === 'injected'
+                  ? <InjectedCell key={item.message.id} message={item.message as InjectedMessage} />
                   : <ChatCell key={item.message.id} message={item.message} />
               )}
               {isLoading && (

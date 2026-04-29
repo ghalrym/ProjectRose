@@ -16,3 +16,6 @@
 [submodule "RoseExtensions/rose-heartbeat"]
 	path = RoseExtensions/rose-heartbeat
 	url = https://github.com/RoseAgent/projectrose-heartbeat.git
+[submodule "RoseExtensions/rose-qwen-director"]
+	path = RoseExtensions/rose-qwen-director
+	url = https://github.com/RoseAgent/projectrose-qwen-director.git

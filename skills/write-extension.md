@@ -199,7 +199,29 @@ export interface ExtensionMainContext {
   updateSettings: (patch: Record<string, unknown>) => Promise<void>
   broadcast: (channel: string, data: unknown) => void
   registerTools: (tools: ExtensionToolEntry[]) => void
-  runBackgroundAgent: (prompt: string) => Promise<string>
+  runBackgroundAgent: (prompt: string, systemPrompt: string) => Promise<string>
+  registerHooks: (hooks: ChatHook[]) => void
+  openAgentSession: (opts: { systemPrompt: string }) => AgentSession
+}
+
+export type HookType = 'on_thought' | 'on_message' | 'on_tool_call'
+
+export type HookEvent =
+  | { type: 'on_thought'; content: string; turnId: string }
+  | { type: 'on_message'; content: string; turnId: string }
+  | { type: 'on_tool_call'; toolName: string; params: Record<string, unknown>; result: string; error: boolean; turnId: string }
+
+export interface ChatHook {
+  type: HookType
+  handler: (event: HookEvent) => Promise<{ inject?: string } | void> | { inject?: string } | void
+  // Defaults to false (one injection per user turn). Set true to allow up to
+  // 5 injections per user turn from this extension.
+  allowMultiple?: boolean
+}
+
+export interface AgentSession {
+  send: (text: string) => Promise<string>
+  close: () => void
 }
 ```
 
@@ -289,8 +311,70 @@ ctx.getSettings()                       // Promise<Record<string, unknown>>
 ctx.updateSettings(patch)               // Promise<void>
 ctx.broadcast(channel, data)            // send IPC event to all renderer windows
 ctx.registerTools(tools)                // register AI tools
-ctx.runBackgroundAgent(prompt)          // invoke the AI agent with a prompt
+ctx.runBackgroundAgent(prompt, sys)     // one-shot agent run with a system prompt
+ctx.registerHooks(hooks)                // observe + inject into the user's chat
+ctx.openAgentSession({ systemPrompt })  // multi-turn agent session, returns { send, close }
 ```
+
+### Chat hooks
+
+Hooks let an extension observe and steer the user's main chat. Three event types:
+
+- `on_thought` — fires once per completed thinking block. Hook may return `{ inject }`.
+- `on_message` — fires once per completed assistant text segment. Hook may return `{ inject }`.
+- `on_tool_call` — fires after every tool call (including `error: true`). Read-only; injection is ignored here.
+
+When a hook returns `{ inject: 'text' }`, that text is added to the chat as a "guided agent" cell and sent to the model as a `role: 'system'` message in the next turn — which the agent answers immediately, before returning control to the user. The model never receives the cell label; only the text after `[Extension <name>] `.
+
+**Important constraints:**
+
+- Hooks are **synchronous**: the chat stream pauses while every hook awaits. No timeout — a hung hook hangs the chat. Keep handlers fast.
+- Hooks fire in **registration order** (load order of extensions). The **first** hook to return `{ inject }` for a given segment wins; remaining hooks for that segment are skipped.
+- Default budget is **1 injection per extension per user turn**. Set `allowMultiple: true` on a hook to raise the per-extension cap to 5 per turn. Counts reset when the user sends a new message.
+- Hooks fire **only for the user-visible main chat**. They do NOT fire inside `ctx.runBackgroundAgent()` or `session.send()` — even when those calls are made from inside a hook handler. This guarantees no recursive hook loops.
+
+```ts
+import type { ExtensionMainContext, ChatHook } from './types'
+
+export function register(ctx: ExtensionMainContext): () => void {
+  const hooks: ChatHook[] = [
+    {
+      type: 'on_message',
+      handler: async (event) => {
+        if (event.type !== 'on_message') return
+        if (event.content.includes('TODO')) {
+          return { inject: 'You left a TODO — finish it before reporting done.' }
+        }
+      }
+    },
+    {
+      type: 'on_tool_call',
+      handler: (event) => {
+        if (event.type !== 'on_tool_call') return
+        if (event.toolName === 'run_command' && event.error) {
+          // log, no injection — on_tool_call cannot inject
+          console.warn('[my-ext] run_command failed:', event.result)
+        }
+      }
+    }
+  ]
+  ctx.registerHooks(hooks)
+  return () => { /* cleanup if needed */ }
+}
+```
+
+### Multi-turn agent sessions
+
+`ctx.openAgentSession({ systemPrompt })` returns a session with persistent message history. Each `session.send(text)` call appends to the conversation and returns the agent's reply. Use `session.close()` to drop history.
+
+```ts
+const session = ctx.openAgentSession({ systemPrompt: 'You are a haiku poet.' })
+const first  = await session.send('snow')
+const second = await session.send('again, but with the sea')
+session.close()
+```
+
+Sessions are isolated: hooks do not fire, and a session's messages do not appear in the user-visible chat. If the extension is disabled or unloaded, all of its open sessions are closed automatically.
 
 ---
 

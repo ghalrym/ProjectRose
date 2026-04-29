@@ -47,7 +47,15 @@ export interface AskUserMessage extends BaseMessage {
   answer: string | null
 }
 
-export type ChatMessage = UserMessage | AssistantMessage | ToolMessage | ThinkingMessage | AskUserMessage
+export interface InjectedMessage extends BaseMessage {
+  role: 'injected'
+  content: string
+  extensionId: string
+  extensionName: string
+  extensionIcon?: string
+}
+
+export type ChatMessage = UserMessage | AssistantMessage | ToolMessage | ThinkingMessage | AskUserMessage | InjectedMessage
 
 export interface SessionMeta {
   id: string
@@ -79,6 +87,7 @@ interface ChatState {
   appendToken: (data: { token: string }) => void
   appendAskUser: (data: { questionId: string; question: string; options: string[] }) => void
   answerAskUser: (questionId: string, answer: string) => Promise<void>
+  appendInjectedMessage: (data: { extensionId: string; extensionName: string; extensionIcon?: string; content: string }) => void
   cancelGeneration: () => Promise<void>
 
   loadSessions: (rootPath: string) => Promise<void>
@@ -236,6 +245,32 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     await window.api.aiAskUserResponse(questionId, answer)
   },
 
+  appendInjectedMessage: (data) => {
+    set((s) => {
+      // Seal any in-progress streaming segments so the new turn (which the
+      // injection will trigger in main process) starts fresh segments.
+      const messages = s.messages.map((m) => {
+        if (m.id === s.thinkingPlaceholderId && m.role === 'thinking') return { ...m, streaming: false }
+        if (m.id === s.assistantPlaceholderId && m.role === 'assistant') return { ...m, streaming: false }
+        return m
+      })
+      const msg: InjectedMessage = {
+        id: `msg-${++msgCounter}`,
+        role: 'injected',
+        timestamp: Date.now(),
+        content: data.content,
+        extensionId: data.extensionId,
+        extensionName: data.extensionName,
+        extensionIcon: data.extensionIcon
+      }
+      return {
+        messages: [...messages, msg],
+        thinkingPlaceholderId: null,
+        assistantPlaceholderId: null
+      }
+    })
+  },
+
   cancelGeneration: async () => {
     await window.api.aiCancelGeneration()
   },
@@ -279,7 +314,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     // Snapshot API messages before adding new messages to state
     const includeThinking = useSettingsStore.getState().includeThinkingInContext
     const settled = get().messages.filter((m) => !(m as AssistantMessage).streaming && !(m as ThinkingMessage).streaming)
-    let apiMessages: Array<{ role: 'user' | 'assistant'; content: string }>
+    let apiMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
     if (includeThinking) {
       apiMessages = []
       let pendingThinking = ''
@@ -295,12 +330,20 @@ export const useChatStore = create<ChatState>()((set, get) => ({
             : m.content
           pendingThinking = ''
           apiMessages.push({ role: 'assistant', content })
+        } else if (m.role === 'injected') {
+          pendingThinking = ''
+          apiMessages.push({ role: 'system', content: `[Extension ${(m as InjectedMessage).extensionName}] ${(m as InjectedMessage).content}` })
         }
       }
     } else {
       apiMessages = settled
-        .filter((m): m is UserMessage | AssistantMessage => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({ role: m.role, content: m.content }))
+        .filter((m): m is UserMessage | AssistantMessage | InjectedMessage => m.role === 'user' || m.role === 'assistant' || m.role === 'injected')
+        .map((m) => {
+          if (m.role === 'injected') {
+            return { role: 'system' as const, content: `[Extension ${m.extensionName}] ${m.content}` }
+          }
+          return { role: m.role, content: m.content }
+        })
     }
 
     const userMsg: UserMessage = {
@@ -345,6 +388,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     const cleanupToolEnd = window.api.onAiToolCallEnd((d) => get().resolveToolEnd(d))
     const cleanupThinking = window.api.onAiThinking((d) => get().appendThinking(d))
     const cleanupAskUser = window.api.onAiAskUser((d) => get().appendAskUser(d))
+    const cleanupInjected = window.api.onAiInjectedMessage((d) => get().appendInjectedMessage(d))
     const cleanupModelSelected = window.api.onAiModelSelected((d) => {
       const pid = get().assistantPlaceholderId
       if (pid) {
@@ -377,6 +421,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       cleanupToolEnd()
       cleanupThinking()
       cleanupAskUser()
+      cleanupInjected()
       cleanupModelSelected()
       cleanupStreamReset()
     }
