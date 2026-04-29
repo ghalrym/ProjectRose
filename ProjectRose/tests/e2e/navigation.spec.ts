@@ -13,9 +13,9 @@ test.describe('Navigation', () => {
   })
 
   test('ViewToggle shows all default nav buttons', async ({ win }) => {
-    await expect(win.locator('button', { hasText: 'AGENT' })).toBeVisible()
-    await expect(win.locator('button', { hasText: 'EDITOR' })).toBeVisible()
-    await expect(win.locator('button', { hasText: 'SETTINGS' })).toBeVisible()
+    await expect(win.getByRole('button', { name: /^№\d+\s+AGENT$/ })).toBeVisible()
+    await expect(win.getByRole('button', { name: /^№\d+\s+EDITOR$/ })).toBeVisible()
+    await expect(win.getByRole('button', { name: /^№\d+\s+SETTINGS$/ })).toBeVisible()
   })
 
   test('chat view is active by default', async ({ win }) => {
@@ -30,8 +30,8 @@ test.describe('Navigation', () => {
   })
 
   test('navigate to settings view', async ({ win }) => {
-    await win.locator('button', { hasText: 'SETTINGS' }).click()
-    await expect(win.getByText('Navigation Bar')).toBeVisible()
+    await win.getByRole('button', { name: /^№\d+\s+SETTINGS$/ }).click()
+    await expect(win.getByRole('complementary').getByText('Settings', { exact: false })).toBeVisible()
     await screenshot(win, 'settings--view')
   })
 

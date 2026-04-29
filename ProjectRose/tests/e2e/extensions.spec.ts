@@ -52,8 +52,10 @@ async function installViaUrlForm(
   win: import('playwright').Page,
   stage: () => void
 ): Promise<void> {
-  await win.locator('button', { hasText: 'SETTINGS' }).click()
-  await win.getByRole('button', { name: /Extensions/ }).click()
+  await win.getByRole('button', { name: /^№\d+\s+SETTINGS$/ }).click()
+  // Sidebar Extensions toggle expands the submenu; Manage opens the install panel
+  await win.getByRole('button', { name: /^№\d+\s+Extensions/ }).click()
+  await win.getByRole('button', { name: 'Manage', exact: true }).click()
   // Wait for ExtensionsTab's initial loadInstalled() to settle with empty result
   await win.waitForTimeout(500)
   stage()
@@ -67,8 +69,9 @@ test.describe('Extension System', () => {
     test('extensions tab shows install panel when project is open', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
-      await win.locator('button', { hasText: 'SETTINGS' }).click()
-      await win.getByRole('button', { name: /Extensions/ }).click()
+      await win.getByRole('button', { name: /^№\d+\s+SETTINGS$/ }).click()
+      await win.getByRole('button', { name: /^№\d+\s+Extensions/ }).click()
+      await win.getByRole('button', { name: 'Manage', exact: true }).click()
       await expect(win.getByText('INSTALL FROM GIT')).toBeVisible({ timeout: 5000 })
       await expect(win.getByPlaceholder(/github\.com/)).toBeVisible()
       await screenshot(win, 'extensions--empty')
@@ -108,8 +111,8 @@ test.describe('Extension System', () => {
 
       await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-settingstest', 'Settings Test'))
 
-      // Settings sidebar should now include the extension
-      await win.getByRole('button', { name: /^№\d+ SETTINGS$/ }).click()
+      // After install we're on the Extensions submenu's Manage page; the
+      // submenu auto-expands so the extension's settings entry is visible.
       await expect(win.getByRole('button', { name: /Settings Test/ })).toBeVisible({ timeout: 5000 })
       await screenshot(win, 'extensions--settings-sidebar')
     })
@@ -121,7 +124,6 @@ test.describe('Extension System', () => {
 
       await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-settingspanel', 'Panel Test'))
 
-      await win.locator('button', { hasText: 'SETTINGS' }).click()
       await win.getByRole('button', { name: /Panel Test/ }).click()
 
       // The extension's SettingsView should render
@@ -166,11 +168,15 @@ test.describe('Extension System', () => {
     test('core settings pages are always in sidebar regardless of extensions', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
-      await win.locator('button', { hasText: 'SETTINGS' }).click()
-      // Sidebar items now include a №XX prefix in their accessible name
-      await expect(win.getByRole('button', { name: /Dashboard/ })).toBeVisible({ timeout: 5000 })
-      await expect(win.getByRole('button', { name: /^№\d+\s+Agent$/ })).toBeVisible()
-      await expect(win.getByRole('button', { name: /Extensions/ })).toBeVisible()
+      await win.getByRole('button', { name: /^№\d+\s+SETTINGS$/ }).click()
+      const sidebar = win.getByRole('complementary')
+      // Sidebar items include a №XX prefix in their accessible name
+      await expect(sidebar.getByRole('button', { name: /^№\d+\s+General$/ })).toBeVisible({ timeout: 5000 })
+      await expect(sidebar.getByRole('button', { name: /^№\d+\s+Shortcuts$/ })).toBeVisible()
+      await expect(sidebar.getByRole('button', { name: /^№\d+\s+Providers$/ })).toBeVisible()
+      await expect(sidebar.getByRole('button', { name: /^№\d+\s+Tools$/ })).toBeVisible()
+      await expect(sidebar.getByRole('button', { name: /^№\d+\s+Skills$/ })).toBeVisible()
+      await expect(sidebar.getByRole('button', { name: /Extensions/ })).toBeVisible()
     })
   })
 })

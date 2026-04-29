@@ -52,8 +52,10 @@ exports.PageView = PageView;
 }
 
 async function installViaUrlForm(win: Page, stage: () => void): Promise<void> {
-  await win.locator('button', { hasText: 'SETTINGS' }).click()
-  await win.getByRole('button', { name: /Extensions/ }).click()
+  await win.getByRole('button', { name: /^№\d+\s+SETTINGS$/ }).click()
+  // Sidebar Extensions toggle expands the submenu; Manage opens the install panel
+  await win.getByRole('button', { name: /^№\d+\s+Extensions/ }).click()
+  await win.getByRole('button', { name: 'Manage', exact: true }).click()
   await win.waitForTimeout(500)
   stage()
   await win.getByPlaceholder(/github\.com/).fill('https://example.test/repo.git')
