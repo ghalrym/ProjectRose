@@ -92,9 +92,8 @@ async function getInstalledExtensionNavItems(rootPath: string): Promise<ExtNavIt
       try {
         const raw = await readFile(join(extensionsDir, entry, 'rose-extension.json'), 'utf-8')
         const manifest = JSON.parse(raw)
-        if (!manifest?.id) continue
-        const label: string = manifest?.navItem?.label ?? manifest?.name ?? manifest.id
-        items.push({ id: manifest.id as string, label })
+        if (!manifest?.id || !manifest?.navItem?.label) continue
+        items.push({ id: manifest.id as string, label: manifest.navItem.label as string })
       } catch { /* skip invalid entries */ }
     }
     return items
