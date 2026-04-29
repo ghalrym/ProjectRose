@@ -1,5 +1,5 @@
 // ProjectRose · Extensions catalog page
-// Lists all first-party extensions with links to their individual repos.
+// Lists all known extensions (those in the registry) with links to their individual repos.
 
 const { useState, useEffect } = React;
 
@@ -147,7 +147,7 @@ function NavBar() {
 }
 
 // ═════════════════════════════════════════════════════════════
-// CATALOG — every first-party extension, with its own repo link
+// CATALOG — every known extension (those in the registry), with its own repo link
 // ═════════════════════════════════════════════════════════════
 const EXTENSIONS = [
   {
@@ -248,8 +248,8 @@ function CatalogHero() {
           fontFamily: H.mono, fontSize: 14, lineHeight: 1.7, color: H.inkMid,
         }}>
           Extensions ship a set of tools — and, if they like, a UI panel — that the agent
-          can call directly. Each first-party extension is open source, MIT-licensed, and
-          maintained in its own repository. Browse the catalog below, or install from
+          can call directly. Every known extension below is open source, MIT-licensed,
+          and maintained in its own repository. Browse the catalog, or install from
           inside ProjectRose under <i style={{ color: H.ink }}>Settings → Extensions</i>.
         </p>
       </div>
@@ -266,7 +266,7 @@ function CatalogGrid() {
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <PlateLabel
           n="V"
-          title="FIRST-PARTY EXTENSIONS"
+          title="KNOWN EXTENSIONS"
           right="EACH WITH ITS OWN REPOSITORY"
         />
 

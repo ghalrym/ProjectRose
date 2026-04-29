@@ -755,7 +755,7 @@ function ExtensionsSection() {
           sub={<>
             Extensions are the agent&apos;s vocabulary of action. Each one ships a set
             of tools — and, if it likes, a UI panel — that the agent can call directly.
-            Six first-party extensions, each in its own repo.
+            Six known extensions, each in its own repo.
           </>}
         />
 

@@ -1,6 +1,6 @@
 # ProjectRose
 
-ProjectRose is an AI-native desktop IDE and **agent harness** — a platform where AI agents don't just answer questions but take real actions across your development environment. It pairs a full-featured code editor with a first-class agent runtime and an extensible plugin ecosystem, so agents can edit code, run commands, manage infrastructure, and communicate on your behalf.
+ProjectRose is an AI-native desktop IDE and **agent harness** — a platform where AI agents don't just answer questions but take real actions across your development environment. It pairs a full-featured code editor with a built-in agent runtime and an extensible plugin ecosystem, so agents can edit code, run commands, manage infrastructure, and communicate on your behalf.
 
 ![ProjectRose — editor, terminal, and AI agent panel](screenshots/editor--view.png)
 

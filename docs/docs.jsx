@@ -269,6 +269,198 @@ function DocsHero() {
 // ═════════════════════════════════════════════════════════════
 // ARCHITECTURE
 // ═════════════════════════════════════════════════════════════
+
+// SVG diagram of the two-process model. Scales with its container.
+function ProcessModelDiagram() {
+  const W = 600;
+  const H_ = 360;
+  const padX = 16;
+  const boxX = padX;
+  const boxW = W - padX * 2;
+
+  // top box (renderer)
+  const topY = 8;
+  const topH = 134;
+  // bottom box (main)
+  const botY = 218;
+  const botH = 134;
+  // bridge
+  const midY = topY + topH;            // 142
+  const midH = botY - midY;            // 76
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H_}`}
+      preserveAspectRatio="xMidYMid meet"
+      style={{ display: 'block', width: '100%', height: 'auto' }}
+      role="img"
+      aria-label="Process model: a Renderer (browser) box on top connected by a preload IPC bridge to a Main (Node.js) box on the bottom."
+    >
+      <defs>
+        <marker id="pm-arrow-down" viewBox="0 0 10 10" refX="5" refY="9"
+          markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 1 1 L 5 9 L 9 1 Z" fill={H.sepia}/>
+        </marker>
+        <marker id="pm-arrow-up" viewBox="0 0 10 10" refX="5" refY="1"
+          markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 1 9 L 5 1 L 9 9 Z" fill={H.olive}/>
+        </marker>
+      </defs>
+
+      {/* TOP BOX — RENDERER */}
+      <rect
+        x={boxX} y={topY} width={boxW} height={topH}
+        fill={H.paper} stroke={H.line} strokeWidth="1"
+      />
+      {/* corner-tape accent (top-left + top-right) */}
+      <rect x={boxX} y={topY} width="14" height="14" fill={H.sepia} opacity="0.10"/>
+      <rect x={boxX + boxW - 14} y={topY} width="14" height="14" fill={H.sepia} opacity="0.10"/>
+
+      {/* tab label */}
+      <rect x={boxX + 18} y={topY - 9} width="158" height="18" fill={H.sepia}/>
+      <text
+        x={boxX + 18 + 79} y={topY + 4}
+        textAnchor="middle"
+        fontFamily={H.mono} fontSize="10" letterSpacing="2"
+        fontWeight="600" fill={H.paperLight}
+      >RENDERER · BROWSER</text>
+
+      <text
+        x={boxX + 22} y={topY + 36}
+        fontFamily={H.mono} fontSize="13" fontWeight="600" fill={H.ink}
+      >Renderer process</text>
+      <text
+        x={boxX + boxW - 22} y={topY + 36}
+        textAnchor="end"
+        fontFamily={H.mono} fontSize="9" letterSpacing="1.4"
+        fontStyle="italic" fill={H.inkSoft}
+      >React · Zustand · Vite</text>
+
+      <line
+        x1={boxX + 22} y1={topY + 50}
+        x2={boxX + boxW - 22} y2={topY + 50}
+        stroke={H.lineSoft} strokeWidth="1"
+      />
+
+      <text
+        x={boxX + 22} y={topY + 76}
+        fontFamily={H.mono} fontSize="12" fill={H.ink}
+      >
+        <tspan fill={H.sepia} fontStyle="italic">·</tspan> Monaco editor
+        <tspan dx="14" fill={H.sepia} fontStyle="italic">·</tspan> Agent chat panel
+        <tspan dx="14" fill={H.sepia} fontStyle="italic">·</tspan> Extension UI views
+      </text>
+      <text
+        x={boxX + 22} y={topY + 100}
+        fontFamily={H.mono} fontSize="11" fill={H.inkMid}
+      >Talks to main via the preload bridge (IPC).</text>
+      <text
+        x={boxX + 22} y={topY + 120}
+        fontFamily={H.mono} fontSize="10" fill={H.inkSoft} fontStyle="italic"
+      >Agent loop lives here, using the Vercel AI SDK.</text>
+
+      {/* BRIDGE */}
+      {/* down arrow (renderer → main: tool call dispatch) */}
+      <line
+        x1={W * 0.35} y1={midY + 6}
+        x2={W * 0.35} y2={midY + midH - 6}
+        stroke={H.sepia} strokeWidth="1.6"
+        markerEnd="url(#pm-arrow-down)"
+      />
+      {/* up arrow (main → renderer: tool result + events) */}
+      <line
+        x1={W * 0.65} y1={midY + midH - 6}
+        x2={W * 0.65} y2={midY + 6}
+        stroke={H.olive} strokeWidth="1.6"
+        markerEnd="url(#pm-arrow-up)"
+      />
+
+      {/* bridge label box */}
+      <rect
+        x={W / 2 - 96} y={midY + midH / 2 - 14}
+        width="192" height="28"
+        fill={H.paperLight} stroke={H.line} strokeWidth="1"
+      />
+      <text
+        x={W / 2} y={midY + midH / 2 + 4}
+        textAnchor="middle"
+        fontFamily={H.mono} fontSize="10" letterSpacing="1.6"
+        fontWeight="600" fill={H.ink}
+      >preload bridge · IPC</text>
+
+      {/* arrow captions */}
+      <text
+        x={W * 0.35 - 10} y={midY + midH / 2 - 22}
+        textAnchor="end"
+        fontFamily={H.mono} fontSize="9" letterSpacing="0.8"
+        fill={H.sepia} fontStyle="italic"
+      >tool call ↓</text>
+      <text
+        x={W * 0.65 + 10} y={midY + midH / 2 + 32}
+        textAnchor="start"
+        fontFamily={H.mono} fontSize="9" letterSpacing="0.8"
+        fill={H.olive} fontStyle="italic"
+      >result · events ↑</text>
+
+      {/* BOTTOM BOX — MAIN */}
+      <rect
+        x={boxX} y={botY} width={boxW} height={botH}
+        fill={H.paper} stroke={H.line} strokeWidth="1"
+      />
+      {/* corner-tape accent (bottom-left + bottom-right) */}
+      <rect x={boxX} y={botY + botH - 14} width="14" height="14" fill={H.olive} opacity="0.12"/>
+      <rect x={boxX + boxW - 14} y={botY + botH - 14} width="14" height="14" fill={H.olive} opacity="0.12"/>
+
+      {/* tab label */}
+      <rect x={boxX + 18} y={botY - 9} width="158" height="18" fill={H.olive}/>
+      <text
+        x={boxX + 18 + 79} y={botY + 4}
+        textAnchor="middle"
+        fontFamily={H.mono} fontSize="10" letterSpacing="2"
+        fontWeight="600" fill={H.paperLight}
+      >MAIN · NODE.JS</text>
+
+      <text
+        x={boxX + 22} y={botY + 36}
+        fontFamily={H.mono} fontSize="13" fontWeight="600" fill={H.ink}
+      >Main process</text>
+      <text
+        x={boxX + boxW - 22} y={botY + 36}
+        textAnchor="end"
+        fontFamily={H.mono} fontSize="9" letterSpacing="1.4"
+        fontStyle="italic" fill={H.inkSoft}
+      >Node · Electron</text>
+
+      <line
+        x1={boxX + 22} y1={botY + 50}
+        x2={boxX + boxW - 22} y2={botY + 50}
+        stroke={H.lineSoft} strokeWidth="1"
+      />
+
+      <text
+        x={boxX + 22} y={botY + 76}
+        fontFamily={H.mono} fontSize="12" fill={H.ink}
+      >
+        <tspan fill={H.olive} fontStyle="italic">·</tspan> File I/O
+        <tspan dx="14" fill={H.olive} fontStyle="italic">·</tspan> Terminal (PTY)
+        <tspan dx="14" fill={H.olive} fontStyle="italic">·</tspan> Git
+        <tspan dx="14" fill={H.olive} fontStyle="italic">·</tspan> LSP
+      </text>
+      <text
+        x={boxX + 22} y={botY + 96}
+        fontFamily={H.mono} fontSize="12" fill={H.ink}
+      >
+        <tspan fill={H.olive} fontStyle="italic">·</tspan> LLM provider clients
+        <tspan dx="14" fill={H.olive} fontStyle="italic">·</tspan> Extension main-process bundles
+      </text>
+      <text
+        x={boxX + 22} y={botY + 118}
+        fontFamily={H.mono} fontSize="10" fill={H.inkSoft} fontStyle="italic"
+      >Extension tools execute here and return strings to the agent.</text>
+    </svg>
+  );
+}
+
 function ArchitectureSection() {
   return (
     <section id="architecture" style={{
@@ -300,25 +492,9 @@ function ArchitectureSection() {
               marginBottom: 18,
             }}>FIG. 01 · PROCESS MODEL</div>
 
-            {/* simple ascii-style boxes */}
-            <pre style={{
-              margin: 0, fontFamily: H.mono, fontSize: 12, color: H.ink, lineHeight: 1.7,
-              whiteSpace: 'pre-wrap',
-            }}>{`┌────────────────────────── RENDERER (browser) ──────────────────────────┐
-│                                                                        │
-│   Monaco editor   ·   Agent chat panel   ·   Extension UI views        │
-│                                                                        │
-│   React + Zustand · talks to main via preload IPC                      │
-└────────────────────────────────┬───────────────────────────────────────┘
-                                 │
-                          preload bridge (IPC)
-                                 │
-┌────────────────────────────────┴───────────────────────────────────────┐
-│                              MAIN (Node.js)                            │
-│                                                                        │
-│   File I/O · Terminal (PTY) · Git · LSP · LLM provider clients         │
-│   Extension main-process bundles (tools, services)                     │
-└────────────────────────────────────────────────────────────────────────┘`}</pre>
+            {/* process-model diagram */}
+            <ProcessModelDiagram />
+
 
             <div style={{
               marginTop: 22, paddingTop: 16, borderTop: `1px solid ${H.lineSoft}`,
@@ -396,7 +572,7 @@ function ReferenceSections() {
           }}>
             {[
               { k: 'File tree',     d: <>Browse the project root in the left rail. Right-click for new file, rename, reveal in OS, and Git actions.</> },
-              { k: 'Tabs',          d: <>Multi-file tabbed editing. Tabs persist across restarts per project under <Code>.projectrose/sessions.json</Code>.</> },
+              { k: 'Tabs',          d: <>Multi-file tabbed editing. Per-project state lives under <Code>.projectrose/</Code> alongside <Code>config.json</Code>.</> },
               { k: 'Quick open',    d: <><Code>Ctrl/⌘ + P</Code> opens a fuzzy file finder.</> },
               { k: 'Command palette', d: <><Code>Ctrl/⌘ + Shift + P</Code> exposes editor + extension commands.</> },
               { k: 'Terminal',      d: <>Full PTY. Multiple sessions per project. Open with <Code>Ctrl/⌘ + `</Code>.</> },
@@ -441,9 +617,11 @@ function ReferenceSections() {
                 fontFamily: H.mono, fontSize: 13, color: H.ink, fontWeight: 500, marginBottom: 8,
               }}>System prompt</div>
               <p style={{ fontFamily: H.mono, fontSize: 11, color: H.inkMid, lineHeight: 1.7, margin: 0 }}>
-                Edit per project under <i>Settings → Agent → System prompt</i>. Stored in{' '}
-                <Code>.projectrose/agent.json</Code>. Variables like <Code>{'{{projectRoot}}'}</Code> and{' '}
-                <Code>{'{{date}}'}</Code> are interpolated at send time.
+                The agent&apos;s identity and behavioral guidelines live in{' '}
+                <Code>.projectrose/ROSE.md</Code> — one Markdown file per project. Edit
+                it directly, or use the in-app setup wizard. Sections like{' '}
+                <i>Identity</i>, <i>People</i>, and <i>How to respond</i> are read into
+                the system prompt at send time.
               </p>
             </div>
             <div style={{
@@ -454,8 +632,10 @@ function ReferenceSections() {
                 fontFamily: H.mono, fontSize: 13, color: H.ink, fontWeight: 500, marginBottom: 8,
               }}>Sessions</div>
               <p style={{ fontFamily: H.mono, fontSize: 11, color: H.inkMid, lineHeight: 1.7, margin: 0 }}>
-                Every conversation is a session, stored as JSON. Switch tabs in the
-                chat header. Sessions can be exported as a transcript for review.
+                Every conversation is a session, persisted under{' '}
+                <Code>.projectrose/sessions/&lt;sessionId&gt;/main.json</Code> (with a
+                separate file per subagent). Switch sessions in the chat header;
+                transcripts can be exported for review.
               </p>
             </div>
             <div style={{
@@ -466,7 +646,7 @@ function ReferenceSections() {
                 fontFamily: H.mono, fontSize: 13, color: H.ink, fontWeight: 500, marginBottom: 8,
               }}>Tool calls</div>
               <p style={{ fontFamily: H.mono, fontSize: 11, color: H.inkMid, lineHeight: 1.7, margin: 0 }}>
-                Built-in tools cover file I/O, shell, and Git. Extensions add more.
+                Built-in tools cover file I/O and shell. Extensions add more.
                 Each tool call is logged inline in the transcript with input + result.
               </p>
             </div>
@@ -491,9 +671,11 @@ function ReferenceSections() {
           <PlateLabel
             n="IV"
             title="SETTINGS &amp; PROJECTS"
-            right="GLOBAL · PROJECT · EXTENSION"
+            right="WHAT LIVES IN .projectrose/"
             sub={<>
-              Three layers of settings, each scoped narrower than the last.
+              When you open a folder as a ProjectRose project, a hidden{' '}
+              <Code>.projectrose/</Code> directory is created in it. Everything
+              project-scoped lives there.
             </>}
           />
           <div style={{
@@ -501,19 +683,31 @@ function ReferenceSections() {
             padding: '20px 24px',
           }}>
             <div style={{
-              display: 'grid', gridTemplateColumns: '160px 1fr', gap: 14,
+              display: 'grid', gridTemplateColumns: '220px 1fr', gap: 14,
               fontFamily: H.mono, fontSize: 12,
             }}>
               {[
-                { k: 'Global',  v: <>Lives in your OS user data dir. Provider keys, default model, theme.</> },
-                { k: 'Project', v: <>Lives in <Code>.projectrose/settings.json</Code>. Per-project overrides, system prompt, enabled extensions.</> },
-                { k: 'Extension', v: <>Each extension owns its slice under <Code>settings.extensions[&apos;rose-&lt;name&gt;&apos;]</Code> in both files.</> },
+                { k: 'ROSE.md',                v: <>The agent&apos;s identity and behavior guidelines (system prompt). Plain Markdown — edit it directly.</> },
+                { k: 'config.json',            v: <>Main per-project config: models, providers, nav items, mic / speaker, extension settings under <Code>extensions</Code>.</> },
+                { k: 'project-settings.json',  v: <>Per-project overrides: <Code>disabledTools</Code>, <Code>maxTaskRetries</Code>, and similar runtime knobs.</> },
+                { k: 'sessions/',              v: <>One subdirectory per chat session, with <Code>main.json</Code> + any subagent transcripts.</> },
+                { k: 'extensions/',            v: <>Installed extensions, one folder per <Code>id</Code> (e.g. <Code>extensions/rose-discord/</Code>).</> },
+                { k: 'tools/ · indexing/ · …', v: <>Per-feature working directories — code index, custom tools, etc.</> },
               ].map((r) => (
                 <React.Fragment key={r.k}>
                   <span style={{ color: H.sepia, fontStyle: 'italic', letterSpacing: 0.4 }}>{r.k}</span>
                   <span style={{ color: H.inkMid, lineHeight: 1.7 }}>{r.v}</span>
                 </React.Fragment>
               ))}
+            </div>
+            <div style={{
+              marginTop: 18, paddingTop: 14, borderTop: `1px solid ${H.lineSoft}`,
+              fontFamily: H.mono, fontSize: 11, color: H.inkMid, lineHeight: 1.7,
+            }}>
+              Provider API keys and other secrets live in your OS user-data dir, not
+              in <Code>.projectrose/</Code>. The project folder is safe to commit;{' '}
+              <Code>.projectrose/sessions/</Code> and <Code>.projectrose/speech/</Code>{' '}
+              are typically <Code>.gitignore</Code>d.
             </div>
           </div>
         </div>
@@ -635,10 +829,16 @@ export function WeatherView() {
 npm install
 npm run build
 
-# Sideload locally:
-#   ProjectRose → Settings → Extensions → "Load from folder…"
-# Pick the directory containing rose-extension.json.
-# The extension shows up in the left rail immediately.`;
+# Sideload by dropping the built extension into your project's
+# .projectrose/extensions/<id>/ directory:
+mkdir -p .projectrose/extensions/rose-weather
+cp rose-extension.json .projectrose/extensions/rose-weather/
+cp -r dist/*           .projectrose/extensions/rose-weather/
+
+# Or, from inside the app:
+#   Settings → Extensions → Manage → paste a Git URL → INSTALL
+# ProjectRose clones the repo into .projectrose/extensions/<id>/
+# and registers its nav item on the next render.`;
 
   const steps = [
     {
@@ -785,7 +985,7 @@ npm run build
           sub={<>
             Six steps from empty folder to a working extension that adds a{' '}
             <Code>get_weather</Code> tool, a settings tab, and a sidebar panel.
-            The full source for every first-party extension lives at{' '}
+            The full source for every known extension lives at{' '}
             <a href="https://github.com/RoseAgent" target="_blank" rel="noopener noreferrer"
               style={{ color: H.sepia, textDecoration: 'none', borderBottom: `1px dotted ${H.sepia}` }}>
               github.com/RoseAgent
