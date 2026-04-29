@@ -101,9 +101,9 @@ function NavBar() {
             { n: '01', l: 'OVERVIEW',   href: '#overview' },
             { n: '02', l: 'EDITOR',     href: '#editor' },
             { n: '03', l: 'AGENT',      href: '#agent' },
-            { n: '04', l: 'HEARTBEAT',  href: '#heartbeat' },
-            { n: '05', l: 'EXTENSIONS', href: '#extensions' },
-            { n: '06', l: 'INSTALL',    href: '#install' },
+            { n: '04', l: 'EXTENSIONS', href: 'extensions.html' },
+            { n: '05', l: 'INSTALL',    href: '#install' },
+            { n: '06', l: 'DOCS',       href: 'docs.html' },
           ].map((i) => (
             <a key={i.n} href={i.href} style={{
               padding: '6px 10px', textDecoration: 'none',
@@ -666,8 +666,7 @@ function ChatMock() {
         <ToolCall name="shell.run" args="cargo test --quiet"  result="6 passed · 0 failed" status="ok" />
 
         <ChatBubble who="rose" time="10:43">
-          Done — tests pass. <span style={{ color: H.olive, fontWeight: 500 }}>Heartbeat</span> will commit
-          the change on its next run if you don&apos;t need to review first.
+          Done — tests pass. Staged the diff for your review; commit whenever you&apos;re ready.
         </ChatBubble>
       </div>
 
@@ -735,231 +734,13 @@ function ToolCall({ name, args, result, status }) {
 }
 
 // ═════════════════════════════════════════════════════════════
-// HEARTBEAT — periodic background process
-// ═════════════════════════════════════════════════════════════
-function HeartbeatSection() {
-  return (
-    <section id="heartbeat" style={{ background: H.paper, padding: '88px 40px' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
-        <PlateLabel
-          n="IV"
-          title="HEARTBEAT"
-          right="EVERY 5 MIN · BACKGROUND"
-          sub={<>
-            A background process runs automatically every few minutes — processing
-            deferred notes, executing scheduled tasks, and committing agent-authored
-            changes to git. Every run is logged like a <i style={{ color: H.sepia }}>field-note entry</i>.
-          </>}
-        />
-
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1.4fr 1fr',
-          gap: 36, alignItems: 'flex-start',
-        }}>
-          {/* LEFT — heartbeat log mock */}
-          <HeartbeatLog />
-
-          {/* RIGHT — what it does */}
-          <div>
-            <div style={{
-              background: H.paperLight, border: `1px solid ${H.line}`,
-              padding: '28px 30px', position: 'relative',
-            }}>
-              {/* pulsing dot */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18,
-              }}>
-                <span style={{
-                  width: 8, height: 8, borderRadius: '50%', background: H.sepia,
-                  animation: 'rosePulse 2s ease-in-out infinite',
-                }}/>
-                <span style={{
-                  fontFamily: H.mono, fontSize: 10, color: H.sepia, letterSpacing: 2, fontWeight: 600,
-                }}>BEAT · ALIVE</span>
-              </div>
-
-              <div style={{
-                fontFamily: H.mono, fontSize: 22, color: H.ink, fontWeight: 500,
-                lineHeight: 1.3, marginBottom: 14, letterSpacing: -0.2,
-              }}>
-                The IDE keeps moving when you&apos;re not looking.
-              </div>
-
-              <p style={{
-                fontFamily: H.mono, fontSize: 12, color: H.inkMid, lineHeight: 1.7,
-              }}>
-                Heartbeat picks up where you left off. Pin a note for the agent, walk away,
-                come back: it&apos;s been read, processed, and the change has been committed
-                to a feature branch with a descriptive message.
-              </p>
-
-              <div style={{
-                marginTop: 22, paddingTop: 16, borderTop: `1px solid ${H.lineSoft}`,
-                display: 'flex', flexDirection: 'column', gap: 10,
-              }}>
-                {[
-                  { l: 'Deferred notes',     d: 'queued tasks ↳ executed' },
-                  { l: 'Scheduled work',     d: 'cron-like agent jobs' },
-                  { l: 'Auto-commits',       d: 'descriptive messages, tagged' },
-                  { l: 'Inspector',          d: 'every run · forever' },
-                ].map((r) => (
-                  <div key={r.l} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-                    fontFamily: H.mono, fontSize: 12,
-                  }}>
-                    <span style={{ color: H.ink }}>{r.l}</span>
-                    <span style={{
-                      flex: 1, margin: '0 10px', borderBottom: `1px dotted ${H.lineStrong}`,
-                      transform: 'translateY(-3px)',
-                    }}/>
-                    <span style={{ color: H.inkSoft, fontStyle: 'italic' }}>{r.d}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* schedule strip */}
-            <div style={{
-              marginTop: 20, padding: '16px 20px',
-              background: H.ink, color: H.paperLight,
-              fontFamily: H.mono, fontSize: 11, letterSpacing: 0.2,
-              display: 'flex', alignItems: 'center', gap: 14,
-            }}>
-              <span style={{ color: H.ochreSoft, fontSize: 10, letterSpacing: 1.6 }}>NEXT BEAT</span>
-              <div style={{ flex: 1, display: 'flex', gap: 4 }}>
-                {Array.from({ length: 30 }).map((_, i) => (
-                  <span key={i} style={{
-                    flex: 1, height: 8, background: i < 22 ? H.sepia : 'rgba(241,235,223,0.18)',
-                  }}/>
-                ))}
-              </div>
-              <span style={{ fontStyle: 'italic', color: H.ochreSoft }}>in 1m 12s</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function HeartbeatLog() {
-  const runs = [
-    {
-      time: 'Apr 25, 10:42:05',  status: 'OK',
-      summary: 'Processed 2 deferred notes · 1 commit',
-      lines: [
-        { t: 'INFO',  c: H.olive, m: 'heartbeat run started' },
-        { t: 'NOTE',  c: H.sepia, m: 'pulled "rename indexer types" from queue' },
-        { t: 'TOOL',  c: H.ochre, m: 'fs.edit · src/indexer/types.rs · 6 lines' },
-        { t: 'TOOL',  c: H.ochre, m: 'shell.run · cargo check · 0 errors' },
-        { t: 'GIT',   c: H.olive, m: 'commit a7f1c4 · "rename indexer::Types → idx::Types"' },
-        { t: 'NOTE',  c: H.sepia, m: 'pulled "review test flake in chat.rs" from queue' },
-        { t: 'INFO',  c: H.inkSoft, m: 'opened review thread #18 · awaiting human' },
-        { t: 'OK',    c: H.olive, m: 'run complete · 47s' },
-      ],
-    },
-    {
-      time: 'Apr 25, 10:37:00',  status: 'OK',
-      summary: 'Nothing to process.',
-      lines: [],
-    },
-  ];
-
-  return (
-    <div style={{
-      background: H.paperLight, border: `1px solid ${H.line}`,
-      boxShadow: H.shadow, position: 'relative', overflow: 'hidden',
-    }}>
-      {/* header */}
-      <div style={{
-        padding: '14px 20px', borderBottom: `1px solid ${H.line}`,
-        display: 'flex', alignItems: 'center', gap: 14,
-        background: H.paperDark,
-      }}>
-        <span style={{
-          fontFamily: H.mono, fontSize: 9, color: H.inkSoft, letterSpacing: 1.6,
-        }}>FIELD LOG · HEARTBEAT</span>
-        <div style={{ flex: 1 }}/>
-        <button style={{
-          fontFamily: H.mono, fontSize: 9, fontWeight: 500, letterSpacing: 1.4,
-          padding: '5px 10px', background: H.sepia, color: H.paperLight,
-          border: 'none', cursor: 'pointer',
-        }}>RUN NOW</button>
-      </div>
-
-      {/* runs */}
-      <div style={{ display: 'flex' }}>
-        {/* sidebar of runs */}
-        <div style={{
-          width: 200, borderRight: `1px solid ${H.line}`,
-          padding: '12px 0', background: H.vellum,
-        }}>
-          {[
-            { t: 'Apr 25, 10:42 AM', active: true },
-            { t: 'Apr 25, 10:37 AM' },
-            { t: 'Apr 25, 10:32 AM' },
-            { t: 'Apr 25, 10:27 AM' },
-            { t: 'Apr 25, 10:22 AM' },
-            { t: 'Apr 25, 10:17 AM' },
-          ].map((r, i) => (
-            <div key={i} style={{
-              padding: '8px 16px',
-              fontFamily: H.mono, fontSize: 11,
-              color: r.active ? H.ink : H.inkMid,
-              background: r.active ? H.paperDeep : 'transparent',
-              borderLeft: r.active ? `2px solid ${H.sepia}` : '2px solid transparent',
-              marginLeft: r.active ? -2 : 0,
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <span style={{
-                width: 5, height: 5, borderRadius: '50%',
-                background: r.active ? H.sepia : H.olive,
-              }}/>
-              {r.t}
-            </div>
-          ))}
-        </div>
-
-        {/* run body */}
-        <div style={{ flex: 1, padding: '16px 24px', minHeight: 480 }}>
-          <div style={{
-            fontFamily: H.mono, fontSize: 11, color: H.inkSoft, letterSpacing: 0.4,
-            marginBottom: 4,
-          }}>
-            # Heartbeat — <span style={{ color: H.ink }}>{runs[0].time}</span>
-          </div>
-          <div style={{
-            fontFamily: H.mono, fontSize: 12, color: H.ink, fontStyle: 'italic',
-            marginBottom: 16, paddingBottom: 14, borderBottom: `1px solid ${H.lineSoft}`,
-          }}>{runs[0].summary}</div>
-
-          {runs[0].lines.map((l, i) => (
-            <div key={i} style={{
-              display: 'grid', gridTemplateColumns: '60px 1fr',
-              gap: 12, padding: '4px 0',
-              fontFamily: H.mono, fontSize: 11,
-            }}>
-              <span style={{
-                color: l.c, fontWeight: 600, letterSpacing: 1.2, fontSize: 9,
-              }}>{l.t}</span>
-              <span style={{ color: H.inkMid }}>{l.m}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═════════════════════════════════════════════════════════════
 // EXTENSIONS — open-source plugin ecosystem
 // ═════════════════════════════════════════════════════════════
 function ExtensionsSection() {
   const exts = [
-    { n: '01', name: 'rose-discord', d: 'Read/write Discord channels, DMs, threads — with a native panel inside the IDE.', tag: 'COMM',  installed: true },
-    { n: '02', name: 'rose-docker',  d: 'Inspect & control containers without leaving the editor — logs, files, exec.', tag: 'INFRA', installed: true },
-    { n: '03', name: 'rose-email',   d: 'Send mail, triage inbox, scan links against URLhaus from the agent.', tag: 'COMM',  installed: true },
+    { n: '01', name: 'rose-discord', d: 'Read/write Discord channels, DMs, threads — with a native panel inside the IDE.', tag: 'COMM',  repo: 'https://github.com/RoseAgent/projectrose-discord' },
+    { n: '02', name: 'rose-docker',  d: 'Inspect & control containers without leaving the editor — logs, files, exec.',   tag: 'INFRA', repo: 'https://github.com/RoseAgent/projectrose-docker' },
+    { n: '03', name: 'rose-git',     d: 'Git repository management with diff viewer and staging area.',                    tag: 'DEV',   repo: 'https://github.com/RoseAgent/projectrose-git' },
   ];
   return (
     <section id="extensions" style={{
@@ -968,12 +749,13 @@ function ExtensionsSection() {
     }}>
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <PlateLabel
-          n="V"
+          n="IV"
           title="EXTENSIONS"
           right="AN OPEN-SOURCE PLUGIN ECOSYSTEM"
           sub={<>
             Extensions are the agent&apos;s vocabulary of action. Each one ships a set
             of tools — and, if it likes, a UI panel — that the agent can call directly.
+            Six first-party extensions, each in its own repo.
           </>}
         />
 
@@ -1011,26 +793,43 @@ function ExtensionsSection() {
                 <span style={{ color: H.inkSoft, fontStyle: 'italic' }}>
                   rose-extension.json
                 </span>
-                {e.installed ? (
-                  <span style={{
-                    color: H.olive, fontWeight: 600, letterSpacing: 1.2,
-                    display: 'flex', gap: 6, alignItems: 'center',
-                  }}>
-                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: H.olive }}/>
-                    INSTALLED
-                  </span>
-                ) : (
-                  <span style={{ color: H.inkSoft, letterSpacing: 1.2 }}>+ INSTALL</span>
-                )}
+                <a
+                  href={e.repo}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{
+                    color: H.ink, textDecoration: 'none',
+                    fontWeight: 500, letterSpacing: 1.2,
+                    display: 'inline-flex', gap: 6, alignItems: 'center',
+                  }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+                  <span>REPO ↗</span>
+                </a>
               </div>
             </div>
           ))}
         </div>
 
+        {/* see-all CTA */}
+        <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
+          <a
+            href="extensions.html"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 10,
+              padding: '12px 18px', textDecoration: 'none',
+              fontFamily: H.mono, fontSize: 11, fontWeight: 500, letterSpacing: 1.4,
+              color: H.paperLight, background: H.ink,
+            }}
+          >
+            <span>VIEW ALL 6 EXTENSIONS</span>
+            <span>→</span>
+          </a>
+        </div>
+
         {/* providers row */}
         <div style={{ marginTop: 56 }}>
           <PlateLabel
-            n="VI"
+            n="V"
             title="SUPPORTED AI PROVIDERS"
             right="LOCAL OR CLOUD · YOUR CHOICE"
           />
@@ -1038,10 +837,10 @@ function ExtensionsSection() {
             display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16,
           }}>
             {[
+              { name: 'Ollama',        models: 'Any local model — Llama, Mistral, Gemma…', accent: true },
               { name: 'Anthropic',     models: 'Claude Opus · Sonnet · Haiku' },
               { name: 'OpenAI',        models: 'GPT-4o · GPT-4 · others' },
               { name: 'Amazon Bedrock',models: 'Claude · Llama · Titan · etc.' },
-              { name: 'Ollama',        models: 'Any local model — Llama, Mistral, Gemma…', accent: true },
             ].map((p) => (
               <div key={p.name} style={{
                 background: p.accent ? H.ink : H.paperLight,
@@ -1119,7 +918,7 @@ function InstallSection() {
     <section id="install" style={{ background: H.paper, padding: '88px 40px' }}>
       <div style={{ maxWidth: 1280, margin: '0 auto' }}>
         <PlateLabel
-          n="VII"
+          n="VI"
           title="CULTIVATION"
           right="GET PROJECTROSE RUNNING LOCALLY"
           sub={<>
@@ -1207,7 +1006,7 @@ function InstallSection() {
                 { k: 'RAM',        v: '8 GB minimum, 16 GB recommended' },
                 { k: 'NODE',       v: '20.x (only if building from source)' },
                 { k: 'OLLAMA',     v: 'optional · for fully local LLMs' },
-                { k: 'GIT',        v: 'required for the heartbeat auto-commit flow' },
+                { k: 'GIT',        v: 'required for repository operations' },
               ].map((r) => (
                 <div key={r.k} style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: 12 }}>
                   <span style={{ color: H.sepia, fontStyle: 'italic', letterSpacing: 0.5 }}>{r.k}</span>
@@ -1298,8 +1097,9 @@ function Colophon() {
               h: 'DOCS',
               links: [
                 { l: 'README',         href: 'https://github.com/RoseAgent/ProjectRose#readme' },
-                { l: 'Extensions API', href: 'https://github.com/RoseAgent/ProjectRose' },
-                { l: 'Heartbeat',      href: '#heartbeat' },
+                { l: 'Docs',           href: 'docs.html' },
+                { l: 'Extensions',     href: 'extensions.html' },
+                { l: 'Build an extension', href: 'docs.html#tutorial' },
                 { l: 'Providers',      href: '#extensions' },
               ],
             },
@@ -1357,7 +1157,6 @@ function Page() {
       <StatStrip />
       <EditorSection />
       <AgentSection />
-      <HeartbeatSection />
       <ExtensionsSection />
       <InstallSection />
       <Colophon />
