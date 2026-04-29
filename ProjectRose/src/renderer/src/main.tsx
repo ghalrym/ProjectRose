@@ -16,6 +16,7 @@ import * as useIndexingStore from './stores/useIndexingStore'
 import * as useProjectStore from './stores/useProjectStore'
 import * as useServiceStore from './stores/useServiceStore'
 import * as useSettingsStore from './stores/useSettingsStore'
+import * as useStatusStore from './stores/useStatusStore'
 import * as useTerminalStore from './stores/useTerminalStore'
 import * as useThemeStore from './stores/useThemeStore'
 import * as useViewStore from './stores/useViewStore'
@@ -39,6 +40,7 @@ window.__rose__ = {
   '@renderer/stores/useProjectStore': useProjectStore,
   '@renderer/stores/useServiceStore': useServiceStore,
   '@renderer/stores/useSettingsStore': useSettingsStore,
+  '@renderer/stores/useStatusStore': useStatusStore,
   '@renderer/stores/useTerminalStore': useTerminalStore,
   '@renderer/stores/useThemeStore': useThemeStore,
   '@renderer/stores/useViewStore': useViewStore,

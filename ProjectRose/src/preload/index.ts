@@ -254,6 +254,15 @@ const api = {
     }
   },
 
+  onStatusNotify: (callback: (payload: { text: string; tone?: 'info' | 'success' | 'error' | 'warning'; durationMs?: number }) => void): (() => void) => {
+    const handler = (_event: unknown, payload: { text: string; tone?: 'info' | 'success' | 'error' | 'warning'; durationMs?: number }): void =>
+      callback(payload)
+    ipcRenderer.on(IPC.STATUS_NOTIFY, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.STATUS_NOTIFY, handler)
+    }
+  },
+
   // LSP bridge
   lsp: {
     sendToServer: (server: 'py' | 'ts', msg: object): void => {

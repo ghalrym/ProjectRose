@@ -647,13 +647,7 @@ export function SettingsView(): JSX.Element {
     }
   }, [settingsTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─────────────────────────────────────────────────────────
-  // Status bar data
-  // ─────────────────────────────────────────────────────────
-
   const connectedCount = PROVIDERS.filter((p) => getProviderStatus(p.kind) === 'connected').length
-  const activeProviderName =
-    PROVIDERS.find((p) => getProviderStatus(p.kind) === 'connected')?.name ?? '—'
 
   // ─────────────────────────────────────────────────────────
   // Render: Shortcuts
@@ -1357,24 +1351,6 @@ export function SettingsView(): JSX.Element {
         </div>
       </div>
 
-      {/* Status bar */}
-      <div className={styles.statusBar}>
-        <span className={styles.statusSaved}>
-          <span className={styles.statusDotSaved} />
-          all changes saved
-        </span>
-        <span className={styles.statusSep}>│</span>
-        <span>
-          active provider: <span className={styles.statusProvider}>{activeProviderName}</span>
-        </span>
-        <span className={styles.statusSep}>│</span>
-        <span>{models.length} model{models.length === 1 ? '' : 's'} cataloged</span>
-        <div className={styles.statusBarRight}>
-          <span className={styles.statusSpecimen}>cataloged · Rosa configurata</span>
-          <span className={styles.statusSep}>│</span>
-          <span style={{ letterSpacing: '1.2px' }}>ROSE</span>
-        </div>
-      </div>
     </div>
   )
 }

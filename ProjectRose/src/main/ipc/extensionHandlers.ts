@@ -132,6 +132,8 @@ interface ExtensionMainContext {
   getSettings: () => Promise<Record<string, unknown>>
   updateSettings: (patch: Record<string, unknown>) => Promise<void>
   broadcast: (channel: string, data: unknown) => void
+  // Surface a transient message in the renderer's bottom status bar.
+  notifyStatus: (text: string, opts?: { tone?: 'info' | 'success' | 'error' | 'warning'; durationMs?: number }) => void
   registerTools: (tools: ExtensionToolEntry[]) => void
   // Mark settings keys as sensitive so they're stored in userData/settings.json
   // instead of the project repo config (where they could be committed).
@@ -183,6 +185,12 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
       broadcast: (channel: string, data: unknown) => {
         for (const win of BrowserWindow.getAllWindows()) {
           if (!win.isDestroyed()) win.webContents.send(channel, data)
+        }
+      },
+      notifyStatus: (text: string, opts?: { tone?: 'info' | 'success' | 'error' | 'warning'; durationMs?: number }) => {
+        const payload = { text, tone: opts?.tone, durationMs: opts?.durationMs }
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) win.webContents.send(IPC.STATUS_NOTIFY, payload)
         }
       },
       registerTools: (tools: ExtensionToolEntry[]) => {

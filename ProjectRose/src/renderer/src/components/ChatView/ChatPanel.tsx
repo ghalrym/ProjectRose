@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { useChatStore } from '../../stores/useChatStore'
 import type { ChatMessage, ToolMessage, AskUserMessage, InjectedMessage } from '../../stores/useChatStore'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useStatusStore } from '../../stores/useStatusStore'
 import { useViewStore } from '../../stores/useViewStore'
 import { ChatCell } from './ChatCell'
 import { ToolCallGroupCell } from './ToolCallGroupCell'
@@ -82,7 +83,6 @@ export function ChatPanel(): JSX.Element {
   const mode = useActiveListeningStore((s) => s.mode)
   const isActive = useActiveListeningStore((s) => s.isActive)
   const setMode = useActiveListeningStore((s) => s.setMode)
-  const [copiedAll, setCopiedAll] = useState(false)
 
   const settingsLoaded = useSettingsStore((s) => s.loaded)
   const hostMode = useSettingsStore((s) => s.hostMode)
@@ -115,10 +115,9 @@ export function ChatPanel(): JSX.Element {
     if (!text) return
     try {
       await navigator.clipboard.writeText(text)
-      setCopiedAll(true)
-      setTimeout(() => setCopiedAll(false), 1500)
+      useStatusStore.getState().notify('Copied conversation', { tone: 'success' })
     } catch {
-      // clipboard may be unavailable; silently ignore
+      useStatusStore.getState().notify('Clipboard unavailable', { tone: 'error' })
     }
   }
 
@@ -155,7 +154,7 @@ export function ChatPanel(): JSX.Element {
           title="Copy entire chat"
           type="button"
         >
-          {copiedAll ? 'COPIED' : 'COPY CHAT'}
+          COPY CHAT
         </button>
       </div>
 

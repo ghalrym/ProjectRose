@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { NavItem, ModelConfig, RouterConfig } from '@shared/types'
 import { useProjectStore } from './useProjectStore'
+import { useStatusStore } from './useStatusStore'
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
   { viewId: 'chat',     label: 'Agent',    visible: true },
@@ -48,6 +49,9 @@ function mergeNavItems(persisted: NavItem[] | undefined): NavItem[] {
 // Prevents a stale rootPath-less load from overwriting a newer rootPath-specific load.
 let loadGeneration = 0
 
+// Debounces "Settings saved" notifications across rapid update() bursts (e.g. typing in a text field).
+let saveNotifyTimer: ReturnType<typeof setTimeout> | null = null
+
 export const useSettingsStore = create<SettingsState>()((set) => ({
   heartbeatEnabled: true,
   heartbeatIntervalMinutes: 5,
@@ -88,5 +92,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     const s = await window.api.setSettings(patch, rootPath)
     const navItems = mergeNavItems(s.navItems as NavItem[] | undefined)
     set({ ...s, navItems })
+    if (saveNotifyTimer) clearTimeout(saveNotifyTimer)
+    saveNotifyTimer = setTimeout(() => {
+      useStatusStore.getState().notify('Settings saved', { tone: 'success' })
+      saveNotifyTimer = null
+    }, 500)
   }
 }))

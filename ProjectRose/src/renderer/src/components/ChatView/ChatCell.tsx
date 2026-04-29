@@ -1,5 +1,6 @@
 import { useState, type MouseEvent } from 'react'
 import type { UserMessage, AssistantMessage, ThinkingMessage } from '../../stores/useChatStore'
+import { useStatusStore } from '../../stores/useStatusStore'
 import clsx from 'clsx'
 import styles from './ChatCell.module.css'
 
@@ -9,16 +10,14 @@ interface ChatCellProps {
 
 export function ChatCell({ message }: ChatCellProps): JSX.Element {
   const [expanded, setExpanded] = useState(true)
-  const [copied, setCopied] = useState(false)
 
   const handleCopy = async (e: MouseEvent): Promise<void> => {
     e.stopPropagation()
     try {
       await navigator.clipboard.writeText(message.content)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      useStatusStore.getState().notify('Copied to clipboard', { tone: 'success' })
     } catch {
-      // clipboard may be unavailable; silently ignore
+      useStatusStore.getState().notify('Clipboard unavailable', { tone: 'error' })
     }
   }
 
@@ -47,7 +46,7 @@ export function ChatCell({ message }: ChatCellProps): JSX.Element {
               type="button"
               title="Copy thinking"
             >
-              {copied ? 'Copied' : 'Copy'}
+              Copy
             </button>
             <span className={styles.thinkingChevron}>{expanded ? '▲' : '▼'}</span>
           </span>
@@ -94,7 +93,7 @@ export function ChatCell({ message }: ChatCellProps): JSX.Element {
             type="button"
             title="Copy message"
           >
-            {copied ? 'Copied' : 'Copy'}
+            Copy
           </button>
           <span className={styles.thinkingChevron}>{expanded ? '▲' : '▼'}</span>
         </span>

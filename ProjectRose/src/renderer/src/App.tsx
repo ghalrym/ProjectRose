@@ -1,5 +1,4 @@
 import { useEffect, useCallback, useState } from 'react'
-import { Toaster, toast } from 'sonner'
 import { TopBar } from './components/TopBar/TopBar'
 import { FileActions } from './components/TopBar/FileActions'
 import { EditorView } from './components/EditorView/EditorView'
@@ -10,6 +9,7 @@ import { AccountView } from './components/AccountView/AccountView'
 import { AppBoardView } from './components/AppBoardView/AppBoardView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
+import { StatusBar } from './components/StatusBar/StatusBar'
 import { getExtensionByViewId, loadDynamicExtensions, subscribeToExtensionsChange } from './extensions/registry'
 import { useThemeStore } from './stores/useThemeStore'
 import { useViewStore } from './stores/useViewStore'
@@ -18,6 +18,7 @@ import { useProjectStore } from './stores/useProjectStore'
 import { useIndexingStore } from './stores/useIndexingStore'
 import { useSettingsStore } from './stores/useSettingsStore'
 import { useServiceStore } from './stores/useServiceStore'
+import { useStatusStore } from './stores/useStatusStore'
 import styles from './App.module.css'
 
 function App(): JSX.Element {
@@ -64,6 +65,14 @@ function App(): JSX.Element {
   useEffect(() => {
     const cleanup = window.api.onIndexingProgress((p) => {
       useIndexingStore.getState().setProgress(p)
+    })
+    return cleanup
+  }, [])
+
+  // Subscribe once to status notifications from the main process (e.g. extensions).
+  useEffect(() => {
+    const cleanup = window.api.onStatusNotify(({ text, tone, durationMs }) => {
+      useStatusStore.getState().notify(text, { tone, durationMs })
     })
     return cleanup
   }, [])
@@ -128,16 +137,15 @@ function App(): JSX.Element {
   if (!rootPath) {
     return (
       <div className={styles.app}>
-        <Toaster position="bottom-right" />
         <div className={styles.titleBar} />
         <WelcomeView onOpenFolder={handleOpenFolder} />
+        <StatusBar />
       </div>
     )
   }
 
   return (
     <div className={styles.app}>
-      <Toaster position="bottom-right" />
       <div className={styles.titleBar} />
       <TopBar />
       {needsSetup && (
@@ -170,6 +178,7 @@ function App(): JSX.Element {
         </div>
         {activeView !== 'chat' && <ChatPanel />}
       </main>
+      <StatusBar />
     </div>
   )
 }

@@ -1,0 +1,67 @@
+.statusBar {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  font-family: var(--font-family-ui);
+}
+
+.idle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.message {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  animation: fadeIn 120ms ease-out;
+}
+
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dotIdle {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.dot_info { background: var(--color-text-muted); }
+.dot_success { background: var(--color-saved); }
+.dot_warning { background: var(--color-unsaved); }
+.dot_error { background: var(--color-error); }
+
+.right {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  align-items: center;
+}
+
+.brand {
+  letter-spacing: 1.2px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

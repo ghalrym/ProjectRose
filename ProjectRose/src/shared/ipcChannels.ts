@@ -104,5 +104,8 @@ export const IPC = {
   ACTIVE_LISTENING_START_STREAM: 'activeSpeech:startStream',
   ACTIVE_LISTENING_AUDIO_CHUNK: 'activeSpeech:audioChunk',
   ACTIVE_LISTENING_STOP_STREAM: 'activeSpeech:stopStream',
-  ACTIVE_LISTENING_UTTERANCE: 'activeSpeech:utterance'
+  ACTIVE_LISTENING_UTTERANCE: 'activeSpeech:utterance',
+
+  // Status bar notifications (main → renderer)
+  STATUS_NOTIFY: 'status:notify'
 } as const
