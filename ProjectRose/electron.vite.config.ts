@@ -4,6 +4,8 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { createLogger } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const appVersion = JSON.parse(readFileSync(resolve('package.json'), 'utf-8')).version as string
+
 // Suppress the Monaco marked.js missing-sourcemap warning.
 // The warning fires on the server logger — intercepting here is the guaranteed fix.
 const rendererLogger = createLogger()
@@ -42,6 +44,9 @@ export default defineConfig({
   },
   renderer: {
     customLogger: rendererLogger,
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion)
+    },
     plugins: [
       react(),
       {

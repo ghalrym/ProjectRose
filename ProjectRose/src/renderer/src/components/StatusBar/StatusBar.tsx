@@ -16,6 +16,7 @@ export function StatusBar(): JSX.Element {
       </span>
       <div className={styles.right}>
         <span className={styles.brand}>ROSE</span>
+        <span className={styles.version}>v{__APP_VERSION__}</span>
       </div>
     </div>
   )

@@ -61,6 +61,11 @@
   letter-spacing: 1.2px;
 }
 
+.version {
+  color: var(--color-text-muted);
+  letter-spacing: 0.4px;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

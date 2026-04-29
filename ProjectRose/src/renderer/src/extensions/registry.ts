@@ -84,25 +84,26 @@ export async function loadDynamicExtensions(rootPath: string): Promise<void> {
   for (const ext of installed.filter((e) => e.enabled)) {
     try {
       const result = await window.api.extension.loadRendererCode(rootPath, ext.manifest.id)
-      if (!result.ok || !result.code) continue
+      if (result.ok && result.code) {
+        const mod: { exports: Record<string, unknown> } = { exports: {} }
+        const requireFn = (id: string): unknown => window.__rose__?.[id] ?? {}
 
-      const mod: { exports: Record<string, unknown> } = { exports: {} }
-      const requireFn = (id: string): unknown => window.__rose__?.[id] ?? {}
+        // Execute the CJS bundle produced by the packaging script
+        // eslint-disable-next-line no-new-func
+        new Function('module', 'exports', 'require', result.code)(mod, mod.exports, requireFn)
 
-      // Execute the CJS bundle produced by the packaging script
-      // eslint-disable-next-line no-new-func
-      new Function('module', 'exports', 'require', result.code)(mod, mod.exports, requireFn)
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const PageView = (mod.exports['PageView'] ?? mod.exports['default']) as ComponentType<any> | undefined
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const SettingsView = mod.exports['SettingsView'] as ComponentType<any> | undefined
-      if (typeof PageView === 'function' || typeof SettingsView === 'function') {
-        DYNAMIC_EXTENSIONS.push({ manifest: ext.manifest, PageView, SettingsView })
-        if (result.css) injectExtensionStyle(ext.manifest.id, result.css)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const PageView = (mod.exports['PageView'] ?? mod.exports['default']) as ComponentType<any> | undefined
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const SettingsView = mod.exports['SettingsView'] as ComponentType<any> | undefined
+        if (typeof PageView === 'function' || typeof SettingsView === 'function') {
+          DYNAMIC_EXTENSIONS.push({ manifest: ext.manifest, PageView, SettingsView })
+          if (result.css) injectExtensionStyle(ext.manifest.id, result.css)
+        }
       }
 
-      // Load the extension's main-process module (if it declares one)
+      // Load the extension's main-process module — independent of renderer code,
+      // since main-only extensions (e.g. chat-hook-only) ship no renderer.js.
       if (ext.manifest.provides.main) {
         await window.api.extension.loadMainModule(rootPath, ext.manifest.id).catch(() => {})
       }

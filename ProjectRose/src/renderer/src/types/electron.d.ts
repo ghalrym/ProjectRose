@@ -10,4 +10,6 @@ declare global {
     api: ElectronAPI
     __rose__: Record<string, unknown>
   }
+  // Injected at build time by electron-vite (see electron.vite.config.ts).
+  const __APP_VERSION__: string
 }
