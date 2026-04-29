@@ -565,7 +565,7 @@ function ReferenceSections() {
             n="II"
             title="THE EDITOR"
             right="MONACO · TERMINAL · LSP"
-            sub={<>What ships out of the box, and the keyboard shortcuts that matter.</>}
+            sub={<>What ships in the editor, and the keyboard shortcuts that matter.</>}
           />
           <div style={{
             display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16,

@@ -472,7 +472,7 @@ function EditorSection() {
             {[
               { n: 'A', t: 'Monaco editor', d: 'The VS Code engine — syntax highlighting, IntelliSense, quick-open file search.' },
               { n: 'B', t: 'Integrated terminal', d: 'Full PTY support; multiple sessions per project.' },
-              { n: 'C', t: 'Language servers', d: 'TypeScript and Python (Pyright) over LSP, out of the box.' },
+              { n: 'C', t: 'Language servers', d: 'TypeScript and Python (Pyright) over LSP, on by default.' },
               { n: 'D', t: 'Session persistence', d: 'Multi-file tabs that survive a restart, per project.' },
             ].map((f, i, arr) => (
               <div key={f.n} style={{
