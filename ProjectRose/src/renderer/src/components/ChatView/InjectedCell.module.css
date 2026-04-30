@@ -1,5 +1,5 @@
 .container {
-  margin: 4px 24px 16px;
+  margin-bottom: 16px;
   padding: 0;
   border-radius: var(--radius-md);
   background: var(--color-bg-secondary);
@@ -14,11 +14,22 @@
   gap: 8px;
   padding: 6px 12px;
   background: rgba(224, 92, 132, 0.08);
-  border-bottom: 1px solid var(--color-accent);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.header:hover {
+  background: rgba(224, 92, 132, 0.14);
+}
+
+.chevron {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: 10px;
 }
 
 .icon {
@@ -54,4 +65,5 @@
   word-break: break-word;
   color: var(--color-text-primary);
   font-family: var(--font-family-mono);
+  border-top: 1px solid var(--color-accent);
 }
