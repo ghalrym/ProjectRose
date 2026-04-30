@@ -22,6 +22,115 @@
   letter-spacing: 1.6px;
 }
 
+.sessionPicker {
+  position: relative;
+}
+
+.sessionPickerBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  transition: border-color 0.1s;
+}
+
+.sessionPickerBtn:hover {
+  border-color: var(--color-accent);
+}
+
+.sessionPickerCurrent {
+  letter-spacing: 0.4px;
+}
+
+.liveTag {
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: 2px;
+  padding: 0 4px;
+}
+
+.archiveTag {
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  padding: 0 4px;
+}
+
+.caret {
+  font-size: 9px;
+  color: var(--color-text-muted);
+}
+
+.sessionDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 25;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  min-width: 220px;
+  max-height: 280px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.sessionDropItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.sessionDropItem:hover {
+  background: var(--color-sidebar-item-hover);
+  color: var(--color-text-primary);
+}
+
+.sessionDropEmpty {
+  padding: 8px 10px;
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+.liveDotSm {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.utteranceCount {
+  margin-left: auto;
+  padding-left: 12px;
+  font-size: 9px;
+  color: var(--color-text-muted);
+  letter-spacing: 0.4px;
+}
+
 .retrainArea {
   display: flex;
   align-items: center;

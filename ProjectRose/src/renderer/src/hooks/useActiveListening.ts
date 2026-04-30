@@ -69,6 +69,8 @@ export function useActiveListening(): void {
         if (!mounted) return
         capturedSessionId = id
         store.setSessionId(id)
+        store.setViewingSession(id)
+        store.setUtterances([])
 
         await window.api.activeSpeech.startStream({ sessionId: id, projectPath: rootPath })
         if (!mounted) return
@@ -78,6 +80,10 @@ export function useActiveListening(): void {
 
         utteranceCleanup = window.api.activeSpeech.onUtterance((evt) => {
           if (!mounted || evt.sessionId !== id) return
+
+          // Suppress UI updates while user is browsing an archive; main still persists to DB.
+          const viewingId = useActiveListeningStore.getState().viewingSessionId
+          if (viewingId !== null && viewingId !== id) return
 
           const enrolledId = roseSpeechSpeakerIdRef.current
           const evtSpeakerId = (evt as { speaker_id?: number | null }).speaker_id ?? null

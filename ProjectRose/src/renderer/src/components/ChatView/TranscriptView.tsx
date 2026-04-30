@@ -10,6 +10,21 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+// SQLite datetime('now') is UTC without a tz suffix; append 'Z' so JS treats it as UTC.
+function parseDbTime(s: string): number {
+  return new Date(s.replace(' ', 'T') + 'Z').getTime()
+}
+
+function formatSessionLabel(s: { id: number; started_at: string; ended_at: string | null }): string {
+  const ts = parseDbTime(s.started_at)
+  const d = new Date(ts)
+  const today = new Date()
+  const sameDay = d.toDateString() === today.toDateString()
+  const date = sameDay ? 'today' : d.toISOString().slice(0, 10)
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return `#${String(s.id).padStart(3, '0')} · ${date} ${time}`
+}
+
 function speakerColor(name: string | null): string {
   if (!name) return 'var(--color-text-muted)'
   let hash = 0
@@ -119,23 +134,93 @@ function resolveDisplayName(
   return utterance.speakerName ?? 'Unknown'
 }
 
+type SessionRow = { id: number; project_id: string | null; started_at: string; ended_at: string | null; utterance_count: number }
+
 export function TranscriptView(): JSX.Element {
   const utterances = useActiveListeningStore((s) => s.utterances)
   const speakers = useActiveListeningStore((s) => s.speakers)
   const sessionId = useActiveListeningStore((s) => s.sessionId)
+  const viewingSessionId = useActiveListeningStore((s) => s.viewingSessionId)
+  const isActive = useActiveListeningStore((s) => s.isActive)
   const isDrafting = useActiveListeningStore((s) => s.isDrafting)
   const draftSecondsLeft = useActiveListeningStore((s) => s.draftSecondsLeft)
   const rootPath = useProjectStore((s) => s.rootPath)
   const userName = useSettingsStore((s) => s.userName)
   const roseSpeechSpeakerId = useSettingsStore((s) => s.roseSpeechSpeakerId)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const pickerRef = useRef<HTMLDivElement>(null)
 
   const [retraining, setRetraining] = useState(false)
   const [trainResult, setTrainResult] = useState<string | null>(null)
+  const [pastSessions, setPastSessions] = useState<SessionRow[]>([])
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [loadingPast, setLoadingPast] = useState(false)
+
+  const isViewingLive = viewingSessionId !== null && viewingSessionId === sessionId
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [utterances.length, isDrafting])
+
+  const refreshPastSessions = async (): Promise<void> => {
+    if (!rootPath) return
+    try {
+      const all = await window.api.activeSpeech.getSessions(rootPath)
+      setPastSessions(all)
+    } catch {
+      // silent
+    }
+  }
+
+  useEffect(() => {
+    refreshPastSessions()
+  }, [rootPath, isActive])
+
+  useEffect(() => {
+    if (!pickerOpen) return
+    const handler = (e: MouseEvent): void => {
+      if (!pickerRef.current?.contains(e.target as Node)) setPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [pickerOpen])
+
+  const loadPastSession = async (id: number): Promise<void> => {
+    if (!rootPath) return
+    setPickerOpen(false)
+    setLoadingPast(true)
+    try {
+      const [rows, allSpeakers] = await Promise.all([
+        window.api.activeSpeech.getUtterances({ sessionId: id, projectPath: rootPath }),
+        window.api.activeSpeech.getSpeakers(rootPath)
+      ])
+      const mapped: Utterance[] = rows.map((r) => ({
+        utteranceId: r.id,
+        speakerId: r.speaker_id,
+        speakerName: r.speaker_name,
+        text: r.text,
+        timestamp: parseDbTime(r.created_at)
+      }))
+      const store = useActiveListeningStore.getState()
+      store.setSpeakers(allSpeakers)
+      store.setUtterances(mapped)
+      store.setViewingSession(id)
+    } finally {
+      setLoadingPast(false)
+    }
+  }
+
+  const switchToLive = (): void => {
+    setPickerOpen(false)
+    if (sessionId === null) {
+      const store = useActiveListeningStore.getState()
+      store.setUtterances([])
+      store.setViewingSession(null)
+      return
+    }
+    // Reload from DB to catch utterances suppressed while user was viewing the archive.
+    loadPastSession(sessionId)
+  }
 
   const handleLabel = async (utteranceId: number, speakerId: number | null, speakerName: string): Promise<void> => {
     if (!rootPath) return
@@ -181,12 +266,64 @@ export function TranscriptView(): JSX.Element {
 
   const hasLabeledUtterances = utterances.some((u) => u.speakerName !== null)
 
+  const currentLabel =
+    viewingSessionId !== null
+      ? (() => {
+          const match = pastSessions.find((s) => s.id === viewingSessionId)
+          if (match) return formatSessionLabel(match)
+          return `#${String(viewingSessionId).padStart(3, '0')}`
+        })()
+      : '—'
+
   return (
     <div className={styles.transcript}>
       <div className={styles.header}>
-        <span className={styles.headerLabel}>
-          SESSION {sessionId !== null ? `#${String(sessionId).padStart(3, '0')}` : '—'}
-        </span>
+        <div className={styles.sessionPicker} ref={pickerRef}>
+          <button
+            className={styles.sessionPickerBtn}
+            onClick={() => setPickerOpen((v) => !v)}
+            type="button"
+          >
+            <span className={styles.headerLabel}>SESSION</span>
+            <span className={styles.sessionPickerCurrent}>{currentLabel}</span>
+            {isViewingLive && <span className={styles.liveTag}>LIVE</span>}
+            {!isViewingLive && viewingSessionId !== null && <span className={styles.archiveTag}>ARCHIVE</span>}
+            <span className={styles.caret}>▾</span>
+          </button>
+          {pickerOpen && (
+            <div className={styles.sessionDropdown}>
+              {sessionId !== null && (
+                <button
+                  className={styles.sessionDropItem}
+                  onClick={switchToLive}
+                  type="button"
+                >
+                  <span className={styles.liveDotSm} />
+                  LIVE · #{String(sessionId).padStart(3, '0')}
+                </button>
+              )}
+              {(() => {
+                const visiblePast = pastSessions.filter(
+                  (s) => s.id !== sessionId && s.utterance_count > 0
+                )
+                if (visiblePast.length === 0 && sessionId === null) {
+                  return <div className={styles.sessionDropEmpty}>No previous sessions</div>
+                }
+                return visiblePast.map((s) => (
+                  <button
+                    key={s.id}
+                    className={styles.sessionDropItem}
+                    onClick={() => loadPastSession(s.id)}
+                    type="button"
+                  >
+                    {formatSessionLabel(s)}
+                    <span className={styles.utteranceCount}>{s.utterance_count}</span>
+                  </button>
+                ))
+              })()}
+            </div>
+          )}
+        </div>
         <div className={styles.retrainArea}>
           {trainResult && <span className={styles.trainResult}>{trainResult}</span>}
           <button
@@ -201,8 +338,15 @@ export function TranscriptView(): JSX.Element {
       </div>
 
       <div className={styles.list}>
-        {utterances.length === 0 && (
-          <div className={styles.empty}>No utterances yet. Start speaking.</div>
+        {loadingPast && <div className={styles.empty}>Loading…</div>}
+        {!loadingPast && utterances.length === 0 && (
+          <div className={styles.empty}>
+            {viewingSessionId === null
+              ? 'No session selected. Start active listening or pick a past session.'
+              : isViewingLive
+              ? 'No utterances yet. Start speaking.'
+              : 'This session has no utterances.'}
+          </div>
         )}
         {utterances.map((u) => (
           <div key={u.utteranceId} className={styles.row}>
@@ -216,7 +360,7 @@ export function TranscriptView(): JSX.Element {
             <span className={styles.time}>{formatTime(u.timestamp)}</span>
           </div>
         ))}
-        {isDrafting && (
+        {isDrafting && isViewingLive && (
           <div className={styles.draftingChip}>
             <span className={styles.draftDot} />
             DRAFTING · auto-send in {draftSecondsLeft ?? 0}s

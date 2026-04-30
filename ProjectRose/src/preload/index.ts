@@ -148,9 +148,9 @@ const api = {
       ipcRenderer.invoke(IPC.ACTIVE_LISTENING_CREATE_SESSION, payload),
     endSession: (payload: { sessionId: number; projectPath: string }): Promise<{ ok: boolean }> =>
       ipcRenderer.invoke(IPC.ACTIVE_LISTENING_END_SESSION, payload),
-    getUtterances: (payload: { sessionId: number; projectPath: string }): Promise<Array<{ id: number; text: string; speaker_name: string | null; speaker_id: number | null }>> =>
+    getUtterances: (payload: { sessionId: number; projectPath: string }): Promise<Array<{ id: number; text: string; speaker_name: string | null; speaker_id: number | null; created_at: string }>> =>
       ipcRenderer.invoke(IPC.ACTIVE_LISTENING_GET_UTTERANCES, payload),
-    getSessions: (projectPath: string): Promise<Array<{ id: number; project_id: string | null; started_at: string; ended_at: string | null }>> =>
+    getSessions: (projectPath: string): Promise<Array<{ id: number; project_id: string | null; started_at: string; ended_at: string | null; utterance_count: number }>> =>
       ipcRenderer.invoke(IPC.ACTIVE_LISTENING_GET_SESSIONS, projectPath),
     startStream: (payload: { sessionId: number; projectPath: string }): Promise<void> =>
       ipcRenderer.invoke(IPC.ACTIVE_LISTENING_START_STREAM, payload),

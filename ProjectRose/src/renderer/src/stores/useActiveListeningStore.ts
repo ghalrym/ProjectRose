@@ -16,6 +16,7 @@ export interface Speaker {
 interface ActiveListeningState {
   isActive: boolean
   sessionId: number | null
+  viewingSessionId: number | null
   mode: 'chat' | 'transcript'
   utterances: Utterance[]
   speakers: Speaker[]
@@ -25,8 +26,10 @@ interface ActiveListeningState {
 
   setActive: (v: boolean) => void
   setSessionId: (id: number | null) => void
+  setViewingSession: (id: number | null) => void
   setMode: (m: 'chat' | 'transcript') => void
   addUtterance: (u: Utterance) => void
+  setUtterances: (us: Utterance[]) => void
   updateUtteranceSpeaker: (utteranceId: number, speakerName: string) => void
   setSpeakers: (s: Speaker[]) => void
   addSpeaker: (s: Speaker) => void
@@ -41,6 +44,7 @@ interface ActiveListeningState {
 export const useActiveListeningStore = create<ActiveListeningState>()((set) => ({
   isActive: false,
   sessionId: null,
+  viewingSessionId: null,
   mode: 'chat',
   utterances: [],
   speakers: [],
@@ -50,8 +54,10 @@ export const useActiveListeningStore = create<ActiveListeningState>()((set) => (
 
   setActive: (v) => set({ isActive: v }),
   setSessionId: (id) => set({ sessionId: id }),
+  setViewingSession: (id) => set({ viewingSessionId: id }),
   setMode: (m) => set({ mode: m }),
   addUtterance: (u) => set((s) => ({ utterances: [...s.utterances, u] })),
+  setUtterances: (us) => set({ utterances: us }),
   updateUtteranceSpeaker: (utteranceId, speakerName) =>
     set((s) => ({
       utterances: s.utterances.map((u) =>
@@ -65,5 +71,5 @@ export const useActiveListeningStore = create<ActiveListeningState>()((set) => (
   cancelDraft: () => set({ isDrafting: false, draftText: '', draftSecondsLeft: null }),
   completeDraft: () => set({ isDrafting: false, draftText: '', draftSecondsLeft: null }),
   setDraftSecondsLeft: (n) => set({ draftSecondsLeft: n }),
-  reset: () => set({ utterances: [], speakers: [], isDrafting: false, draftText: '', draftSecondsLeft: null, sessionId: null }),
+  reset: () => set({ utterances: [], speakers: [], isDrafting: false, draftText: '', draftSecondsLeft: null, sessionId: null, viewingSessionId: null }),
 }))

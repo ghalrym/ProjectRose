@@ -114,7 +114,12 @@ export function endSession(projectPath: string, sessionId: number): { ok: boolea
 
 export function getSessions(projectPath: string): unknown[] {
   return getDb(projectPath)
-    .prepare('SELECT * FROM sessions ORDER BY started_at DESC')
+    .prepare(
+      `SELECT s.id, s.project_id, s.started_at, s.ended_at,
+              (SELECT COUNT(*) FROM utterances u WHERE u.session_id = s.id) AS utterance_count
+       FROM sessions s
+       ORDER BY s.started_at DESC`
+    )
     .all()
 }
 
@@ -137,7 +142,7 @@ export function createUtterance(
 export function getUtterances(projectPath: string, sessionId: number): unknown[] {
   return getDb(projectPath)
     .prepare(
-      `SELECT u.id, u.text, u.speaker_id, s.name as speaker_name
+      `SELECT u.id, u.text, u.speaker_id, s.name as speaker_name, u.created_at
        FROM utterances u
        LEFT JOIN speakers s ON s.id = u.speaker_id
        WHERE u.session_id = ?
