@@ -4,6 +4,7 @@ import type {
   ThoughtHookEvent,
   MessageHookEvent,
   ToolCallHookEvent,
+  UserMessageHookEvent,
   InjectionRecord
 } from '../../shared/extensionHooks'
 import { MAX_INJECTIONS_PER_TURN_WHEN_ALLOW_MULTIPLE } from '../../shared/extensionHooks'
@@ -106,6 +107,24 @@ export async function fireMessageHook(
 ): Promise<InjectionRecord | null> {
   const event: MessageHookEvent = { type: 'on_message', content, turnId }
   return fireInjectingHooks('on_message', event, rootPath)
+}
+
+export async function fireUserMessageHook(
+  content: string,
+  rootPath: string
+): Promise<void> {
+  const event: UserMessageHookEvent = { type: 'on_user_message', content }
+  for (const [, reg] of registry) {
+    if (reg.rootPath !== rootPath) continue
+    for (const hook of reg.hooks) {
+      if (hook.type !== 'on_user_message') continue
+      try {
+        await hook.handler(event)
+      } catch (err) {
+        console.error(`[rose-ext] hook ${reg.extensionId} on_user_message threw:`, err)
+      }
+    }
+  }
 }
 
 export async function fireToolCallHook(

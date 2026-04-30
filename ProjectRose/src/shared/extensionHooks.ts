@@ -1,4 +1,4 @@
-export type HookType = 'on_thought' | 'on_message' | 'on_tool_call'
+export type HookType = 'on_thought' | 'on_message' | 'on_tool_call' | 'on_user_message'
 
 export interface ThoughtHookEvent {
   type: 'on_thought'
@@ -21,7 +21,15 @@ export interface ToolCallHookEvent {
   turnId: string
 }
 
-export type HookEvent = ThoughtHookEvent | MessageHookEvent | ToolCallHookEvent
+// Fires once per user-initiated turn, before any model output. Auto-injection
+// iterations do NOT re-fire this — only fresh user messages do. Notification
+// only; injections are not collected from this hook.
+export interface UserMessageHookEvent {
+  type: 'on_user_message'
+  content: string
+}
+
+export type HookEvent = ThoughtHookEvent | MessageHookEvent | ToolCallHookEvent | UserMessageHookEvent
 
 export interface HookResult {
   inject?: string

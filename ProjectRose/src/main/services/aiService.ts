@@ -15,7 +15,7 @@ import { listInstalledExtensions, getRegisteredExtensionTools } from '../ipc/ext
 import { buildRoseMd } from '../ipc/roseSetupHandlers'
 import { buildSubagentTools } from './subagentTools'
 import { buildSkillTools, getSessionSkillsPrompt } from './skillService'
-import { resetTurnBudgets } from './extensionHooks'
+import { resetTurnBudgets, fireUserMessageHook } from './extensionHooks'
 import type { AgentContext, SubagentCounter } from './agentRunner'
 import type { InjectionRecord } from '../../shared/extensionHooks'
 import { IPC } from '../../shared/ipcChannels'
@@ -157,6 +157,9 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
 
     const settings = await readSettings(rootPath)
     const userMessage = messages.at(-1)?.content ?? ''
+    // Fire once per user-initiated turn so extensions can reset per-turn state.
+    // Auto-injection iterations inside the runChat loop do not re-fire this.
+    await fireUserMessageHook(userMessage, rootPath)
     const selectedModel = await selectModel(userMessage, settings)
     const defaultModel = settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
     const modelDisplay = selectedModel.displayName || selectedModel.modelName
