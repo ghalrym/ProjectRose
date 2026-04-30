@@ -19,13 +19,8 @@ describe('prPath', () => {
     expect(result).toBe(join('/my/project', '.projectrose', 'memory', 'people'))
   })
 
-  it('handles a single extra segment', () => {
-    const result = prPath('/project', 'tools')
-    expect(result).toBe(join('/project', '.projectrose', 'tools'))
-  })
-
   it('constructs paths for all scaffold directories consistently', () => {
-    const dirs = ['memory/people', 'memory/places', 'memory/things', 'heartbeat/notes', 'heartbeat/tasks', 'heartbeat/logs', 'tools']
+    const dirs = ['memory/people', 'memory/places', 'memory/things', 'heartbeat/notes', 'heartbeat/tasks', 'heartbeat/logs']
     for (const dir of dirs) {
       const segments = dir.split('/')
       const result = prPath('/root', ...segments)

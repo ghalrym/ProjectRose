@@ -1119,31 +1119,30 @@ export function SettingsView(): JSX.Element {
             )}
           </div>
 
-          {/* Extension / project tools (below the grid, kept accessible) */}
-          {availableTools.filter((t) => t.type !== 'core').length > 0 && (
+          {/* Extension tools (below the grid, kept accessible) */}
+          {availableTools.filter((t) => t.type === 'extension').length > 0 && (
             <div style={{ marginTop: 18 }}>
-              {['python', 'extension'].map((toolType) => {
-                const tools = availableTools.filter((t) => t.type === toolType)
-                if (tools.length === 0) return null
-                const groups = tools.reduce<Record<string, ToolMeta[]>>((acc, t) => {
-                  const key = t.extensionName ?? t.extensionId ?? (toolType === 'python' ? 'Project Tools' : 'Extension')
-                  ;(acc[key] ??= []).push(t)
-                  return acc
-                }, {})
-                return Object.entries(groups).map(([groupName, groupTools]) => (
-                  <div key={groupName} className={styles.panelBlock} style={{ marginBottom: 12 }}>
-                    <div className={styles.panelHeader}>{groupName.toUpperCase()}</div>
-                    {groupTools.map((tool) => {
-                      const enabled = !disabledTools.includes(tool.name)
-                      return (
-                        <HSettingRow key={tool.name} label={tool.displayName} desc={tool.description}>
-                          <HToggle on={enabled} onChange={() => toggleTool(tool.name)} />
-                        </HSettingRow>
-                      )
-                    })}
-                  </div>
-                ))
-              })}
+              {Object.entries(
+                availableTools
+                  .filter((t) => t.type === 'extension')
+                  .reduce<Record<string, ToolMeta[]>>((acc, t) => {
+                    const key = t.extensionName ?? t.extensionId ?? 'Extension'
+                    ;(acc[key] ??= []).push(t)
+                    return acc
+                  }, {})
+              ).map(([groupName, groupTools]) => (
+                <div key={groupName} className={styles.panelBlock} style={{ marginBottom: 12 }}>
+                  <div className={styles.panelHeader}>{groupName.toUpperCase()}</div>
+                  {groupTools.map((tool) => {
+                    const enabled = !disabledTools.includes(tool.name)
+                    return (
+                      <HSettingRow key={tool.name} label={tool.displayName} desc={tool.description}>
+                        <HToggle on={enabled} onChange={() => toggleTool(tool.name)} />
+                      </HSettingRow>
+                    )
+                  })}
+                </div>
+              ))}
             </div>
           )}
         </div>

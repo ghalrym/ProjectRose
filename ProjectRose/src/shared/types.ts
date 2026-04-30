@@ -55,7 +55,7 @@ export interface ToolMeta {
   name: string
   displayName: string
   description: string
-  type: 'core' | 'python' | 'extension'
+  type: 'core' | 'extension'
   extensionId?: string
   extensionName?: string
 }

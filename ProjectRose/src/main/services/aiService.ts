@@ -3,8 +3,7 @@ import { readFile } from 'fs/promises'
 import { randomUUID } from 'crypto'
 import { prPath } from '../lib/projectPaths'
 import { BrowserWindow } from 'electron'
-import { setActiveProjectRoot } from './toolHandlers'
-import { discoverPythonTools, getModifiedFiles, resetModifiedFiles } from './toolHandlers'
+import { setActiveProjectRoot, getModifiedFiles, resetModifiedFiles } from './toolHandlers'
 import { streamChat, compressMessages, routeRequest, cancelAllAskUserQuestions } from './llmClient'
 import type { StreamResult } from './llmClient'
 import type { ModelMessage } from 'ai'
@@ -165,12 +164,10 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
     const modelDisplay = selectedModel.displayName || selectedModel.modelName
     notifyRenderer(IPC.AI_MODEL_SELECTED, { modelDisplay })
 
-    const pythonTools = await discoverPythonTools(rootPath)
     const systemPrompt = await buildAgentMd(rootPath)
 
     const projectSettings = await readProjectSettings(rootPath)
     const { disabledTools } = projectSettings
-    const filteredPythonTools = pythonTools.filter((t) => !disabledTools.includes(t.name))
     const disabledCoreTools = disabledTools.filter((n) => CORE_TOOL_NAMES.has(n))
 
     const installed = await listInstalledExtensions(rootPath)
@@ -198,7 +195,6 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
     const baseStreamParams = {
       systemPrompt,
       getSystemPrompt,
-      pythonTools: filteredPythonTools,
       extensionTools,
       providerKeys: settings.providerKeys,
       ollamaBaseUrl: settings.ollamaBaseUrl,
@@ -285,8 +281,8 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
 // Run the agent loop once and return the final string. Caller supplies the
 // system prompt and messages; the host wires up settings, model selection,
 // and tools (core + enabled extension tools, filtered by the user's
-// disabledTools). Python project tools / subagent / skill tools are
-// intentionally excluded to keep one-shot runs bounded.
+// disabledTools). Subagent and skill tools are intentionally excluded to
+// keep one-shot runs bounded.
 export async function runAgentOnce(
   messages: Message[],
   rootPath: string,
@@ -312,7 +308,6 @@ export async function runAgentOnce(
   const streamResult = await streamChat({
     messages,
     systemPrompt,
-    pythonTools: [],
     extensionTools,
     disabledCoreTools,
     model: selectedModel,

@@ -1,6 +1,5 @@
 import { readFile, writeFile, readdir, mkdir, stat } from 'fs/promises'
 import { join, basename, dirname } from 'path'
-import { prPath } from '../lib/projectPaths'
 import { execSync } from 'child_process'
 import { platform } from 'os'
 import { BrowserWindow } from 'electron'
@@ -162,49 +161,6 @@ export async function handleRunCommand(input: Record<string, unknown>, projectRo
   }
 }
 
-async function executePythonTool(toolName: string, input: Record<string, unknown>, projectRoot: string): Promise<string> {
-  const scriptName = toolName.replace(/^tool_/, '')
-  const scriptPath = join(projectRoot, 'tools', `${scriptName}.py`)
-  const isWindows = platform() === 'win32'
-  const python = isWindows ? 'python' : 'python3'
-  try {
-    return execSync(`"${python}" "${scriptPath}"`, {
-      cwd: projectRoot,
-      encoding: 'utf-8',
-      input: JSON.stringify(input),
-      timeout: 30000,
-      maxBuffer: 1024 * 1024
-    })
-  } catch (err: any) {
-    return `Tool ${scriptName} failed (exit ${err.status || 1}):\n${err.stderr || err.message}`
-  }
-}
-
-function parsePythonDocstring(source: string): { description: string; parameters: Record<string, { type: string; description: string }> } | null {
-  const match = source.match(/^"""([\s\S]*?)"""/)
-  if (!match) return null
-  const doc = match[1]
-  const descMatch = doc.match(/description:\s*(.+)/)
-  if (!descMatch) return null
-  const description = descMatch[1].trim()
-  const parameters: Record<string, { type: string; description: string }> = {}
-  const paramSection = doc.match(/parameters:([\s\S]*)/)
-  if (paramSection) {
-    for (const line of paramSection[1].split('\n')) {
-      const m = line.match(/^\s{2}(\w+):\s*(.+)/)
-      if (m) parameters[m[1]] = { type: 'string', description: m[2].trim() }
-    }
-  }
-  return { description, parameters }
-}
-
-export interface PythonToolMeta {
-  name: string
-  description: string
-  parameters: Record<string, { type: string; description: string }>
-  execute: (input: Record<string, unknown>, projectRoot: string) => Promise<string>
-}
-
 // ── Grep handler ──
 
 const GREP_IGNORED = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'out', '__pycache__', '.cache'])
@@ -274,31 +230,3 @@ export async function handleGrep(input: Record<string, unknown>, projectRoot: st
     : lines.join('\n')
 }
 
-export async function discoverPythonTools(rootPath: string): Promise<PythonToolMeta[]> {
-  const toolsDir = prPath(rootPath, 'tools')
-  let files: string[] = []
-  try {
-    files = (await readdir(toolsDir)).filter((f) => f.endsWith('.py'))
-  } catch {
-    return []
-  }
-  const tools: PythonToolMeta[] = []
-  for (const file of files) {
-    try {
-      const source = await readFile(join(toolsDir, file), 'utf-8')
-      const meta = parsePythonDocstring(source)
-      if (!meta) continue
-      const scriptName = basename(file, '.py')
-      const toolName = `tool_${scriptName}`
-      tools.push({
-        name: toolName,
-        description: meta.description,
-        parameters: meta.parameters,
-        execute: (input, root) => executePythonTool(toolName, input, root)
-      })
-    } catch {
-      // skip unreadable scripts
-    }
-  }
-  return tools
-}

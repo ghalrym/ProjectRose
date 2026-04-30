@@ -7,7 +7,6 @@ const SCAFFOLD_SUBDIRS = [
   join('.projectrose', 'memory', 'wing_people', 'room_general'),
   join('.projectrose', 'heartbeat', 'tasks'),
   join('.projectrose', 'heartbeat', 'logs'),
-  join('.projectrose', 'tools'),
 ]
 
 export function createSeedProject(): string {

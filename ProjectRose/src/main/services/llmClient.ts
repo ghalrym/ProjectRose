@@ -13,8 +13,7 @@ import {
   handleEditFile,
   handleListDirectory,
   handleGrep,
-  handleRunCommand,
-  type PythonToolMeta
+  handleRunCommand
 } from './toolHandlers'
 import type { ExtensionToolEntry } from '../../shared/extension-types'
 import type { Message } from '../../shared/roseModelTypes'
@@ -294,24 +293,6 @@ function buildExtensionTools(entries: ExtensionToolEntry[], projectRoot: string,
   return result
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildPythonTools(pythonTools: PythonToolMeta[], projectRoot: string, emit: EmitFn, hookCtx?: HookCtx): Record<string, any> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result: Record<string, any> = {}
-  for (const pt of pythonTools) {
-    const shape: Record<string, z.ZodTypeAny> = {}
-    for (const [key, { type, description }] of Object.entries(pt.parameters)) {
-      shape[key] = (type === 'number' ? z.number() : z.string()).describe(description)
-    }
-    result[pt.name] = tool({
-      description: pt.description,
-      inputSchema: z.object(shape),
-      execute: wrapExecute(pt.name, (input, root) => pt.execute(input, root), projectRoot, emit, hookCtx)
-    })
-  }
-  return result
-}
-
 export interface StreamResult {
   content: string
   inputTokens: number
@@ -330,7 +311,6 @@ function isXmlParseError(message: string): boolean {
 export async function streamChat(params: {
   messages: Message[]
   systemPrompt: string
-  pythonTools: PythonToolMeta[]
   extensionTools?: ExtensionToolEntry[]
   model: ModelConfig
   providerKeys: ProviderKeys
@@ -358,14 +338,13 @@ export async function streamChat(params: {
   // full assistant tool-call structure across iterations (Message[] is lossy).
   preBuiltCoreMessages?: ModelMessage[]
 }): Promise<StreamResult> {
-  const { messages, systemPrompt, pythonTools, extensionTools, model: modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl, projectRoot, disabledCoreTools, abortSignal } = params
+  const { messages, systemPrompt, extensionTools, model: modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl, projectRoot, disabledCoreTools, abortSignal } = params
   const emit: EmitFn = params.notify ?? notifyRenderer
   const hookCtx: HookCtx | undefined = params.turnId ? { turnId: params.turnId, rootPath: projectRoot } : undefined
   const model = resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
   const tools = {
     ...buildCoreTools(projectRoot, emit, hookCtx),
     ...buildExtensionTools(extensionTools ?? [], projectRoot, emit, hookCtx),
-    ...buildPythonTools(pythonTools, projectRoot, emit, hookCtx),
     ...(params.extraTools ?? {})
   }
   for (const name of disabledCoreTools ?? []) delete tools[name]

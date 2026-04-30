@@ -132,8 +132,7 @@ export function registerRoseSetupHandlers(): void {
       // Create scaffold directories
       const dirs = [
         prPath(rootPath, 'heartbeat', 'tasks'),
-        prPath(rootPath, 'heartbeat', 'logs'),
-        prPath(rootPath, 'tools')
+        prPath(rootPath, 'heartbeat', 'logs')
       ]
       for (const dir of dirs) {
         await mkdirSafe(dir)
@@ -154,8 +153,7 @@ export function registerRoseSetupHandlers(): void {
   ipcMain.handle(IPC.ROSE_ENSURE_SCAFFOLD, async (_event, rootPath: string) => {
     const dirs = [
       prPath(rootPath, 'heartbeat', 'tasks'),
-      prPath(rootPath, 'heartbeat', 'logs'),
-      prPath(rootPath, 'tools')
+      prPath(rootPath, 'heartbeat', 'logs')
     ]
     for (const dir of dirs) {
       await mkdirSafe(dir)

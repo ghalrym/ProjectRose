@@ -62,7 +62,6 @@ export function buildSubagentTools(
       const result = await streamChat({
         messages,
         systemPrompt: subSystemPrompt ?? systemPrompt,
-        pythonTools: [],
         model,
         providerKeys,
         ollamaBaseUrl,

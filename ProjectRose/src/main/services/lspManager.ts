@@ -1,6 +1,4 @@
 import { spawn, ChildProcess } from 'child_process'
-import { join } from 'path'
-import { mkdirSync } from 'fs'
 import { pathToFileURL } from 'url'
 import { BrowserWindow, ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
@@ -160,10 +158,6 @@ async function initializeServer(name: ServerName, server: LspServer, rootPath: s
 
 export async function startLsp(rootPath: string): Promise<{ py: boolean; ts: boolean }> {
   await stopLsp()
-
-  try {
-    mkdirSync(join(rootPath, '.projectrose', 'indexing'), { recursive: true })
-  } catch { /* ignore */ }
 
   const result = { py: false, ts: false }
 

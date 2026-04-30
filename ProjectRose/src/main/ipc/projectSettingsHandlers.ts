@@ -1,6 +1,5 @@
 import { readFile, writeFile } from 'fs/promises'
 import { ipcMain } from 'electron'
-import { discoverPythonTools } from '../services/toolHandlers'
 import { listInstalledExtensions } from './extensionHandlers'
 import { prPath } from '../lib/projectPaths'
 
@@ -49,14 +48,6 @@ export function registerProjectSettingsHandlers(): void {
   })
 
   ipcMain.handle('tools:list', async (_ev, rootPath: string) => {
-    const pythonTools = await discoverPythonTools(rootPath)
-    const pythonMeta = pythonTools.map((t) => ({
-      name: t.name,
-      displayName: t.name.replace(/^tool_/, '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-      description: t.description,
-      type: 'python' as const
-    }))
-
     const installed = await listInstalledExtensions(rootPath)
     const extensionMeta = installed
       .filter((ext) => ext.enabled && ext.manifest.provides.tools?.length)
@@ -71,6 +62,6 @@ export function registerProjectSettingsHandlers(): void {
         }))
       )
 
-    return [...CORE_TOOL_META, ...extensionMeta, ...pythonMeta]
+    return [...CORE_TOOL_META, ...extensionMeta]
   })
 }
