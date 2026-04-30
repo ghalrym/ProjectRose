@@ -10,6 +10,7 @@ import { AppBoardView } from './components/AppBoardView/AppBoardView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
 import { StatusBar } from './components/StatusBar/StatusBar'
+import { UpdaterModal } from './components/UpdaterModal'
 import { getExtensionByViewId, loadDynamicExtensions, subscribeToExtensionsChange } from './extensions/registry'
 import { useThemeStore } from './stores/useThemeStore'
 import { useViewStore } from './stores/useViewStore'
@@ -19,6 +20,7 @@ import { useIndexingStore } from './stores/useIndexingStore'
 import { useSettingsStore } from './stores/useSettingsStore'
 import { useServiceStore } from './stores/useServiceStore'
 import { useStatusStore } from './stores/useStatusStore'
+import { useUpdaterStore } from './stores/useUpdaterStore'
 import styles from './App.module.css'
 
 function App(): JSX.Element {
@@ -77,6 +79,18 @@ function App(): JSX.Element {
     return cleanup
   }, [])
 
+  // Subscribe once to auto-updater events from the main process.
+  useEffect(() => {
+    const store = useUpdaterStore.getState
+    const cleanups = [
+      window.api.updater.onAvailable((info) => store().setAvailable(info)),
+      window.api.updater.onProgress((info) => store().setProgress(info.percent)),
+      window.api.updater.onDownloaded((info) => store().setDownloaded(info)),
+      window.api.updater.onError((info) => store().setError(info.message))
+    ]
+    return () => cleanups.forEach((c) => c())
+  }, [])
+
   // Check for ROSE.md when a project is opened; trigger wizard if missing.
   // If already initialized, ensure scaffold directories exist (recreates any that were deleted).
   useEffect(() => {
@@ -133,6 +147,24 @@ function App(): JSX.Element {
     return () => window.removeEventListener('keydown', handler)
   }, [rootPath, toggleTerminal])
 
+  const updater = useUpdaterStore()
+
+  const handleRestart = useCallback(() => {
+    window.api.updater.installUpdate()
+  }, [])
+
+  const updaterModal = updater.modalVisible && updater.phase !== 'idle' ? (
+    <UpdaterModal
+      phase={updater.phase}
+      version={updater.version}
+      releaseNotes={updater.releaseNotes}
+      progressPercent={updater.progressPercent}
+      errorMessage={updater.errorMessage}
+      onClose={() => updater.hideModal()}
+      onRestart={handleRestart}
+    />
+  ) : null
+
   // Welcome screen when no project is open
   if (!rootPath) {
     return (
@@ -140,6 +172,7 @@ function App(): JSX.Element {
         <div className={styles.titleBar} />
         <WelcomeView onOpenFolder={handleOpenFolder} />
         <StatusBar />
+        {updaterModal}
       </div>
     )
   }
@@ -179,6 +212,7 @@ function App(): JSX.Element {
         {activeView !== 'chat' && <ChatPanel />}
       </main>
       <StatusBar />
+      {updaterModal}
     </div>
   )
 }

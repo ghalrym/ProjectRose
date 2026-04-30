@@ -109,5 +109,13 @@ export const IPC = {
   ACTIVE_LISTENING_UTTERANCE: 'activeSpeech:utterance',
 
   // Status bar notifications (main → renderer)
-  STATUS_NOTIFY: 'status:notify'
+  STATUS_NOTIFY: 'status:notify',
+
+  // Auto-updater
+  UPDATER_CHECK: 'updater:check',
+  UPDATER_INSTALL: 'updater:install',
+  UPDATER_AVAILABLE: 'updater:available',
+  UPDATER_PROGRESS: 'updater:progress',
+  UPDATER_DOWNLOADED: 'updater:downloaded',
+  UPDATER_ERROR: 'updater:error'
 } as const

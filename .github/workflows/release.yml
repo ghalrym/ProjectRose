@@ -21,13 +21,19 @@ jobs:
         include:
           - os: windows-latest
             platform: win
-            files: ProjectRose/release/*Setup*.exe
+            files: |
+              ProjectRose/release/*Setup*.exe
+              ProjectRose/release/*Setup*.exe.blockmap
+              ProjectRose/release/latest.yml
           - os: macos-latest
             platform: mac
             files: ProjectRose/release/*arm64.dmg
           - os: ubuntu-latest
             platform: linux
-            files: ProjectRose/release/*.AppImage
+            files: |
+              ProjectRose/release/*.AppImage
+              ProjectRose/release/*.AppImage.blockmap
+              ProjectRose/release/latest-linux.yml
 
     runs-on: ${{ matrix.os }}
 

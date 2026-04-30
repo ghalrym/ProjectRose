@@ -13,6 +13,7 @@ import { registerProjectSettingsHandlers } from './projectSettingsHandlers'
 import { registerExtensionHandlers } from './extensionHandlers'
 import { registerAuthHandlers } from './authHandlers'
 import { registerSkillHandlers } from './skillHandlers'
+import { registerUpdaterHandlers } from './updaterHandlers'
 export function registerAllHandlers(): void {
   registerFileHandlers()
   registerDialogHandlers()
@@ -29,4 +30,5 @@ export function registerAllHandlers(): void {
   registerExtensionHandlers()
   registerAuthHandlers()
   registerSkillHandlers()
+  registerUpdaterHandlers()
 }

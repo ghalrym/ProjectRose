@@ -70,3 +70,37 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+.updateBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: none;
+  border: 1px solid var(--color-accent);
+  border-radius: 9999px;
+  color: var(--color-accent);
+  font-family: var(--font-family-ui);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: opacity 0.1s;
+}
+
+.updateBadge:hover {
+  opacity: 0.85;
+}
+
+.updateDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex-shrink: 0;
+  animation: updatePulse 1.6s ease-in-out infinite;
+}
+
+@keyframes updatePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

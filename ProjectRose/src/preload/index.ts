@@ -349,6 +349,34 @@ const api = {
     }
   },
 
+  // Auto-updater
+  updater: {
+    checkForUpdates: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.UPDATER_CHECK),
+    installUpdate: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.UPDATER_INSTALL),
+    onAvailable: (callback: (info: { version: string; releaseNotes: string | null }) => void): (() => void) => {
+      const handler = (_e: unknown, info: { version: string; releaseNotes: string | null }): void => callback(info)
+      ipcRenderer.on(IPC.UPDATER_AVAILABLE, handler)
+      return () => { ipcRenderer.removeListener(IPC.UPDATER_AVAILABLE, handler) }
+    },
+    onProgress: (callback: (info: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void): (() => void) => {
+      const handler = (_e: unknown, info: { percent: number; bytesPerSecond: number; transferred: number; total: number }): void => callback(info)
+      ipcRenderer.on(IPC.UPDATER_PROGRESS, handler)
+      return () => { ipcRenderer.removeListener(IPC.UPDATER_PROGRESS, handler) }
+    },
+    onDownloaded: (callback: (info: { version: string; releaseNotes: string | null }) => void): (() => void) => {
+      const handler = (_e: unknown, info: { version: string; releaseNotes: string | null }): void => callback(info)
+      ipcRenderer.on(IPC.UPDATER_DOWNLOADED, handler)
+      return () => { ipcRenderer.removeListener(IPC.UPDATER_DOWNLOADED, handler) }
+    },
+    onError: (callback: (info: { message: string }) => void): (() => void) => {
+      const handler = (_e: unknown, info: { message: string }): void => callback(info)
+      ipcRenderer.on(IPC.UPDATER_ERROR, handler)
+      return () => { ipcRenderer.removeListener(IPC.UPDATER_ERROR, handler) }
+    }
+  },
+
   // Skills
   skills: {
     list: (rootPath: string): Promise<{ name: string; description: string }[]> =>

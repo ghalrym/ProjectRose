@@ -5,6 +5,7 @@ import { registerAllHandlers } from './ipc'
 import { buildAppMenu } from './menu'
 import { disposeAllTerminals } from './services/terminalService'
 import { stopLsp } from './services/lspManager'
+import { initAutoUpdater } from './services/updaterService'
 // Ensure single instance
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
@@ -26,6 +27,7 @@ app.whenReady().then(async () => {
   registerAllHandlers()
   buildAppMenu()
   createWindow()
+  initAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
