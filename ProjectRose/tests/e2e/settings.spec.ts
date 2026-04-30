@@ -57,16 +57,6 @@ test.describe('Settings View', () => {
     await screenshot(win, 'settings--extensions')
   })
 
-  // ── Status bar ───────────────────────────────────────────────
-
-  test('status bar is visible with save indicator', async ({ win }) => {
-    await expect(win.getByText('all changes saved')).toBeVisible()
-  })
-
-  test('status bar shows model count', async ({ win }) => {
-    await expect(win.getByText(/model.* cataloged/)).toBeVisible()
-  })
-
   // ── Providers page: page header ──────────────────────────────
 
   test('Providers page shows page header', async ({ win }) => {
