@@ -171,6 +171,9 @@ const api = {
   removeRecentProject: (projectPath: string): Promise<RecentProject[]> =>
     ipcRenderer.invoke(IPC.PROJECTS_REMOVE_RECENT, projectPath),
 
+  quitApp: (): Promise<void> =>
+    ipcRenderer.invoke(IPC.APP_QUIT),
+
   // AI
   aiChat: (messages: { role: string; content: string }[], rootPath: string, sessionId: string): Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }> =>
     ipcRenderer.invoke(IPC.AI_CHAT, { messages, rootPath, sessionId }),

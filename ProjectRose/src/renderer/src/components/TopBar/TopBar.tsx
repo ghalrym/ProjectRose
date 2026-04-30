@@ -1,5 +1,5 @@
 import { useProjectStore } from '../../stores/useProjectStore'
-import { RoseMark } from './RoseMark'
+import { BrandMenu } from './BrandMenu'
 import { ViewToggle } from './ViewToggle'
 import { ThemeToggle } from './ThemeToggle'
 import { Breadcrumbs } from '../Breadcrumbs/Breadcrumbs'
@@ -15,16 +15,7 @@ export function TopBar(): JSX.Element {
     <div className={styles.topBar}>
       <div className={styles.hairline} />
 
-      {/* brand lockup */}
-      <div className={styles.brand}>
-        <RoseMark size={24} />
-        <div className={styles.wordmark}>
-          <div className={styles.wordmarkName}>
-            Project<span className={styles.wordmarkRose}>Rose</span>
-          </div>
-          <div className={styles.wordmarkSub}>№ 01 · {projectName}</div>
-        </div>
-      </div>
+      <BrandMenu projectName={projectName} />
 
       <div className={styles.divider} />
 

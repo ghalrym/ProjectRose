@@ -26,6 +26,8 @@ export const IPC = {
   PROJECTS_REMOVE_RECENT: 'projects:removeRecent',
   PROJECTS_GET_DEFAULT_PATH: 'projects:getDefaultPath',
 
+  APP_QUIT: 'app:quit',
+
   ROSE_CHECK_MD: 'rose:checkMd',
   ROSE_INIT_PROJECT: 'rose:initProject',
   ROSE_ENSURE_SCAFFOLD: 'rose:ensureScaffold',

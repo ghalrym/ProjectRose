@@ -23,4 +23,8 @@ export function registerProjectHandlers(): void {
   ipcMain.handle(IPC.PROJECTS_GET_DEFAULT_PATH, () => {
     return join(app.getPath('home'), '.rose')
   })
+
+  ipcMain.handle(IPC.APP_QUIT, () => {
+    app.quit()
+  })
 }
