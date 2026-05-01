@@ -19,3 +19,6 @@
 [submodule "RoseExtensions/rose-qwen-director"]
 	path = RoseExtensions/rose-qwen-director
 	url = https://github.com/RoseAgent/projectrose-qwen-director.git
+[submodule "RoseExtensions/rose-vllm-tts"]
+	path = RoseExtensions/rose-vllm-tts
+	url = https://github.com/RoseAgent/projectrose-vllm-tts.git

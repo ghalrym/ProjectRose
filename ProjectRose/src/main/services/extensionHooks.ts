@@ -5,6 +5,7 @@ import type {
   MessageHookEvent,
   ToolCallHookEvent,
   UserMessageHookEvent,
+  TokenHookEvent,
   InjectionRecord
 } from '../../shared/extensionHooks'
 import { MAX_INJECTIONS_PER_TURN_WHEN_ALLOW_MULTIPLE } from '../../shared/extensionHooks'
@@ -122,6 +123,25 @@ export async function fireUserMessageHook(
         await hook.handler(event)
       } catch (err) {
         console.error(`[rose-ext] hook ${reg.extensionId} on_user_message threw:`, err)
+      }
+    }
+  }
+}
+
+export async function fireTokenHook(
+  token: string,
+  turnId: string,
+  rootPath: string
+): Promise<void> {
+  const event: TokenHookEvent = { type: 'on_token', token, turnId }
+  for (const [, reg] of registry) {
+    if (reg.rootPath !== rootPath) continue
+    for (const hook of reg.hooks) {
+      if (hook.type !== 'on_token') continue
+      try {
+        await hook.handler(event)
+      } catch (err) {
+        console.error(`[rose-ext] hook ${reg.extensionId} on_token threw:`, err)
       }
     }
   }

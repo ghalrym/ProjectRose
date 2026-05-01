@@ -19,7 +19,7 @@ import type { ExtensionToolEntry } from '../../shared/extension-types'
 import type { Message } from '../../shared/roseModelTypes'
 import type { ModelConfig, RouterConfig } from '../ipc/settingsHandlers'
 import type { InjectionRecord } from '../../shared/extensionHooks'
-import { fireThoughtHook, fireMessageHook, fireToolCallHook } from './extensionHooks'
+import { fireThoughtHook, fireMessageHook, fireTokenHook, fireToolCallHook } from './extensionHooks'
 
 function notifyRenderer(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -416,6 +416,9 @@ export async function streamChat(params: {
                 accumulatedText += chunk.text
                 textBuffer += chunk.text
                 emit(IPC.AI_TOKEN, { token: chunk.text })
+                // Notify on_token hooks. Voided so a slow handler never stalls
+                // streaming — handlers must self-throttle if they need to.
+                if (hookCtx) void fireTokenHook(chunk.text, hookCtx.turnId, hookCtx.rootPath)
               }
               break
             case 'reasoning-delta':

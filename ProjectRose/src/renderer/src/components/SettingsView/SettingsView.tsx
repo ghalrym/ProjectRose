@@ -3,7 +3,6 @@ import { ExtensionsTab } from './ExtensionsTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useViewStore } from '../../stores/useViewStore'
-import { acceptTtsAudio, unacceptTtsAudio } from '../../stores/useChatStore'
 import { getAllExtensions, getExtensionByViewId, subscribeToExtensionsChange } from '../../extensions/registry'
 import { NavItem } from '../../../../shared/types'
 import type { ModelConfig, ToolMeta } from '@shared/types'
@@ -261,7 +260,6 @@ export function SettingsView(): JSX.Element {
     navItems, models, defaultModelId, providerKeys, router,
     includeThinkingInContext,
     ollamaBaseUrl, openaiCompatBaseUrl, openaiCompatApiKey,
-    tts,
     update,
   } = useSettingsStore()
 
@@ -296,14 +294,6 @@ export function SettingsView(): JSX.Element {
   // ── behavior (local — store additions possible later) ──
   const [autoSummarize, setAutoSummarize] = useState(true)
   const [streamToolResults, setStreamToolResults] = useState(false)
-
-  // ── voice / TTS test ──
-  const [ttsTestState, setTtsTestState] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle')
-  const [ttsTestMessage, setTtsTestMessage] = useState('')
-  const [ttsTestPhrase, setTtsTestPhrase] = useState('This is a test of the voice output.')
-  const [voiceList, setVoiceList] = useState<string[]>([])
-  const [voicesState, setVoicesState] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [voicesError, setVoicesError] = useState('')
 
   // ── extensions ──
   const [, setExtVersion] = useState(0)
@@ -345,29 +335,6 @@ export function SettingsView(): JSX.Element {
 
   useEffect(() => { reloadTools() }, [reloadTools])
   useEffect(() => subscribeToExtensionsChange(reloadTools), [reloadTools])
-
-  // Auto-fetch voices the first time the Voice page is opened with a base URL set.
-  useEffect(() => {
-    if (activePage !== 'voice') return
-    if (!tts.baseUrl) return
-    if (voiceList.length > 0 || voicesState !== 'idle') return
-    setVoicesState('loading')
-    setVoicesError('')
-    window.api.tts.listVoices(tts as unknown as Record<string, unknown>)
-      .then((res) => {
-        if (res.ok) {
-          setVoiceList([...(res.voices ?? []), ...(res.uploadedVoices ?? [])])
-          setVoicesState('idle')
-        } else {
-          setVoicesError(res.error ?? 'Unknown error')
-          setVoicesState('error')
-        }
-      })
-      .catch((err) => {
-        setVoicesError(err instanceof Error ? err.message : String(err))
-        setVoicesState('error')
-      })
-  }, [activePage, tts.baseUrl]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleTool = useCallback(async (name: string) => {
     if (!rootPath) return
@@ -653,7 +620,6 @@ export function SettingsView(): JSX.Element {
     { id: 'providers', label: 'Providers', n: '03' },
     { id: 'tools',     label: 'Tools',     n: '04' },
     { id: 'skills',    label: 'Skills',    n: '05' },
-    { id: 'voice',     label: 'Voice',     n: '06' },
   ]
 
   const extensionChildIds = ['extensions', ...extensionSettingsItems.map((e) => e.id)]
@@ -790,251 +756,6 @@ export function SettingsView(): JSX.Element {
               {audioDevices.map((d) => (
                 <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
               ))}
-            </select>
-          </div>
-        </section>
-      </>
-    )
-  }
-
-  // ─────────────────────────────────────────────────────────
-  // Render: Voice (TTS via vLLM Qwen-Omni)
-  // ─────────────────────────────────────────────────────────
-
-  function renderVoice(): JSX.Element {
-    const setTts = (patch: Partial<typeof tts>): void => { update({ tts: { ...tts, ...patch } }) }
-
-    const canTest = !!tts.baseUrl && !!tts.model && !!tts.voice && !!ttsTestPhrase.trim() && ttsTestState !== 'testing'
-
-    const runTest = async (): Promise<void> => {
-      setTtsTestState('testing')
-      setTtsTestMessage(`Speaking "${tts.voice}" at ${tts.sampleRate} Hz (${tts.format})…`)
-      const reqId = `test-${crypto.randomUUID()}`
-      acceptTtsAudio(reqId)
-      console.log('[tts test click]', { textLength: ttsTestPhrase.length, textPreview: ttsTestPhrase.slice(0, 200), voice: tts.voice, model: tts.model })
-      try {
-        const res = await window.api.tts.test(reqId, ttsTestPhrase, tts as unknown as Record<string, unknown>)
-        if (res.ok) {
-          const seconds = tts.format === 'pcm' ? ((res.bytes ?? 0) / (tts.sampleRate * 2)).toFixed(2) : null
-          setTtsTestState('ok')
-          setTtsTestMessage(
-            `Voice "${tts.voice}" @ ${tts.sampleRate} Hz · ${res.chunks ?? 0} chunk${res.chunks === 1 ? '' : 's'} · ${res.bytes ?? 0} bytes` +
-            (seconds ? ` (${seconds}s of audio)` : '')
-          )
-        } else {
-          setTtsTestState('error')
-          setTtsTestMessage(res.error ?? 'Unknown error')
-        }
-      } catch (err) {
-        setTtsTestState('error')
-        setTtsTestMessage(err instanceof Error ? err.message : String(err))
-      } finally {
-        // Allow trailing chunks to finish playing before tearing down acceptance.
-        setTimeout(() => unacceptTtsAudio(reqId), 5000)
-      }
-    }
-
-    const fetchVoices = async (): Promise<void> => {
-      setVoicesState('loading')
-      setVoicesError('')
-      try {
-        const res = await window.api.tts.listVoices(tts as unknown as Record<string, unknown>)
-        if (res.ok) {
-          const all = [...(res.voices ?? []), ...(res.uploadedVoices ?? [])]
-          setVoiceList(all)
-          setVoicesState('idle')
-        } else {
-          setVoicesError(res.error ?? 'Unknown error')
-          setVoicesState('error')
-          setVoiceList([])
-        }
-      } catch (err) {
-        setVoicesError(err instanceof Error ? err.message : String(err))
-        setVoicesState('error')
-        setVoiceList([])
-      }
-    }
-
-    const testColor =
-      ttsTestState === 'ok' ? 'var(--color-saved)'
-      : ttsTestState === 'error' ? 'var(--color-error)'
-      : ttsTestState === 'testing' ? 'var(--color-unsaved)'
-      : 'var(--color-text-muted)'
-
-    return (
-      <>
-        <section className={styles.section}>
-          <div className={styles.sectionTitle}>Text-to-speech</div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Read replies aloud</div>
-              <div className={styles.settingDesc}>Stream the assistant's chat reply to a vLLM-Omni server and play the audio as it arrives.</div>
-            </div>
-            <HToggle on={tts.enabled} onChange={(v) => setTts({ enabled: v })} />
-          </div>
-        </section>
-
-        <section className={styles.section} style={{ paddingTop: 16 }}>
-          <div className={styles.sectionTitle}>vLLM-Omni endpoint</div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Base URL</div>
-              <div className={styles.settingDesc}>Root URL of your vLLM server. The /v1/chat/completions path is appended.</div>
-            </div>
-            <input
-              className={styles.input}
-              type="text"
-              value={tts.baseUrl}
-              placeholder="http://rose-main.com:8091"
-              onChange={(e) => setTts({ baseUrl: e.target.value })}
-            />
-          </div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>API key</div>
-              <div className={styles.settingDesc}>Optional. Sent as a Bearer token if set.</div>
-            </div>
-            <KeyInput
-              value={tts.apiKey}
-              placeholder="leave blank if none"
-              onChange={(v) => setTts({ apiKey: v })}
-            />
-          </div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Model</div>
-              <div className={styles.settingDesc}>Model name as registered with vLLM, e.g. Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice.</div>
-            </div>
-            <input
-              className={styles.input}
-              type="text"
-              value={tts.model}
-              placeholder="Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
-              onChange={(e) => setTts({ model: e.target.value })}
-            />
-          </div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Voice</div>
-              <div className={styles.settingDesc}>
-                {voiceList.length > 0
-                  ? `${voiceList.length} voice${voiceList.length === 1 ? '' : 's'} available from /v1/audio/voices.`
-                  : 'Click "Fetch voices" to populate from the server. You can also type a voice ID manually.'}
-              </div>
-              {voicesState === 'error' && (
-                <div style={{ marginTop: 6, fontSize: 12, color: 'var(--color-error)' }}>{voicesError}</div>
-              )}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-              {voiceList.length > 0 ? (
-                <select
-                  className={styles.select}
-                  value={tts.voice}
-                  onChange={(e) => setTts({ voice: e.target.value })}
-                >
-                  <option value="">Select a voice…</option>
-                  {voiceList.map((v) => <option key={v} value={v}>{v}</option>)}
-                  {tts.voice && !voiceList.includes(tts.voice) && (
-                    <option value={tts.voice}>{tts.voice} (custom)</option>
-                  )}
-                </select>
-              ) : (
-                <input
-                  className={styles.input}
-                  type="text"
-                  value={tts.voice}
-                  placeholder="e.g. aiden"
-                  onChange={(e) => setTts({ voice: e.target.value })}
-                />
-              )}
-              <button
-                type="button"
-                className={styles.ghostBtn}
-                disabled={!tts.baseUrl || voicesState === 'loading'}
-                onClick={fetchVoices}
-              >
-                {voicesState === 'loading' ? 'FETCHING…' : 'FETCH VOICES'}
-              </button>
-            </div>
-          </div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Audio format</div>
-              <div className={styles.settingDesc}>PCM streams chunk-by-chunk for lowest latency. WAV/MP3 buffer the full response before playing.</div>
-            </div>
-            <select
-              className={styles.select}
-              value={tts.format}
-              onChange={(e) => setTts({ format: e.target.value as 'pcm' | 'wav' | 'mp3' })}
-            >
-              <option value="pcm">PCM (raw, streaming)</option>
-              <option value="wav">WAV</option>
-              <option value="mp3">MP3</option>
-            </select>
-          </div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Sample rate (Hz)</div>
-              <div className={styles.settingDesc}>Required for PCM playback. Must match the rate the server actually emits — verify by reading the rate field of a WAV response. Qwen3-TTS-12Hz-1.7B emits 24000 Hz despite its model name.</div>
-            </div>
-            <input
-              className={styles.input}
-              type="number"
-              min={8000}
-              max={48000}
-              step={1000}
-              value={tts.sampleRate}
-              onChange={(e) => setTts({ sampleRate: Number(e.target.value) || 24000 })}
-            />
-          </div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>Test phrase</div>
-              <div className={styles.settingDesc}>
-                Synthesizes this text with the chosen voice ({tts.voice || 'none selected'}) and plays it back.
-              </div>
-              {ttsTestMessage && (
-                <div style={{ marginTop: 6, fontSize: 12, color: testColor }}>
-                  {ttsTestMessage}
-                </div>
-              )}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-              <textarea
-                className={styles.input}
-                rows={2}
-                value={ttsTestPhrase}
-                placeholder="Type something to speak..."
-                onChange={(e) => setTtsTestPhrase(e.target.value)}
-                style={{ minWidth: 280, resize: 'vertical' }}
-              />
-              <button
-                type="button"
-                className={styles.primaryBtn}
-                disabled={!canTest}
-                onClick={runTest}
-              >
-                {ttsTestState === 'testing' ? 'TESTING…' : ttsTestState === 'ok' ? '↻ TEST AGAIN' : 'TEST'}
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.section} style={{ paddingTop: 16 }}>
-          <div className={styles.sectionTitle}>Behavior</div>
-          <div className={styles.settingRow}>
-            <div className={styles.settingInfo}>
-              <div className={styles.settingLabel}>When to speak</div>
-              <div className={styles.settingDesc}>Controls how the assistant's text segments around tool calls are read aloud.</div>
-            </div>
-            <select
-              className={styles.select}
-              value={tts.segmentMode}
-              onChange={(e) => setTts({ segmentMode: e.target.value as 'every' | 'finalOnly' | 'skipWithTools' })}
-            >
-              <option value="every">Speak every segment as it streams</option>
-              <option value="finalOnly">Speak only the final segment of the turn</option>
-              <option value="skipWithTools">Skip TTS once a tool runs</option>
             </select>
           </div>
         </section>
@@ -1525,7 +1246,6 @@ export function SettingsView(): JSX.Element {
       case 'providers':  return renderProviders()
       case 'tools':      return renderTools()
       case 'skills':     return renderSkills()
-      case 'voice':      return renderVoice()
       case 'extensions': return renderExtensions()
       default: {
         const ext = getExtensionByViewId(activePage)

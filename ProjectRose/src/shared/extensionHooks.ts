@@ -1,4 +1,4 @@
-export type HookType = 'on_thought' | 'on_message' | 'on_tool_call' | 'on_user_message'
+export type HookType = 'on_thought' | 'on_message' | 'on_tool_call' | 'on_user_message' | 'on_token'
 
 export interface ThoughtHookEvent {
   type: 'on_thought'
@@ -9,6 +9,15 @@ export interface ThoughtHookEvent {
 export interface MessageHookEvent {
   type: 'on_message'
   content: string
+  turnId: string
+}
+
+// Fires for each text-delta chunk emitted by the model. Notification-only —
+// no injection. Handlers should return quickly; the firing site does not await
+// them, so a slow handler will not stall token streaming.
+export interface TokenHookEvent {
+  type: 'on_token'
+  token: string
   turnId: string
 }
 
@@ -29,7 +38,7 @@ export interface UserMessageHookEvent {
   content: string
 }
 
-export type HookEvent = ThoughtHookEvent | MessageHookEvent | ToolCallHookEvent | UserMessageHookEvent
+export type HookEvent = ThoughtHookEvent | MessageHookEvent | ToolCallHookEvent | UserMessageHookEvent | TokenHookEvent
 
 export interface HookResult {
   inject?: string

@@ -244,30 +244,6 @@ const api = {
     return () => { ipcRenderer.removeListener(IPC.AI_INJECTED_MESSAGE, handler) }
   },
 
-  // Text-to-speech (vLLM Qwen-Omni)
-  tts: {
-    speak: (reqId: string, text: string): Promise<{ ok: boolean; error?: string; aborted?: boolean }> =>
-      ipcRenderer.invoke(IPC.TTS_SPEAK, reqId, text),
-    cancel: (reqId?: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.TTS_CANCEL, reqId),
-    test: (reqId: string, text: string, override?: Record<string, unknown>): Promise<{ ok: boolean; error?: string; chunks?: number; bytes?: number }> =>
-      ipcRenderer.invoke(IPC.TTS_TEST, reqId, text, override),
-    listVoices: (override?: Record<string, unknown>): Promise<{ ok: boolean; error?: string; voices?: string[]; uploadedVoices?: string[] }> =>
-      ipcRenderer.invoke(IPC.TTS_LIST_VOICES, override)
-  },
-
-  onTtsAudioChunk: (callback: (data: { reqId: string; audio: ArrayBuffer; format: 'pcm' | 'wav' | 'mp3'; sampleRate: number }) => void): (() => void) => {
-    const handler = (_e: unknown, data: { reqId: string; audio: ArrayBuffer; format: 'pcm' | 'wav' | 'mp3'; sampleRate: number }): void => callback(data)
-    ipcRenderer.on(IPC.TTS_AUDIO_CHUNK, handler)
-    return () => { ipcRenderer.removeListener(IPC.TTS_AUDIO_CHUNK, handler) }
-  },
-
-  onTtsAudioEnd: (callback: (data: { reqId: string; ok: boolean; aborted?: boolean; error?: string }) => void): (() => void) => {
-    const handler = (_e: unknown, data: { reqId: string; ok: boolean; aborted?: boolean; error?: string }): void => callback(data)
-    ipcRenderer.on(IPC.TTS_AUDIO_END, handler)
-    return () => { ipcRenderer.removeListener(IPC.TTS_AUDIO_END, handler) }
-  },
-
   // Indexing / LSP startup
   indexProject: (rootPath: string): Promise<{ indexed: number; total: number; error?: string }> =>
     ipcRenderer.invoke(IPC.INDEXING_PROJECT, rootPath),

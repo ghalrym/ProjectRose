@@ -45,17 +45,6 @@ export interface RouterConfig {
   modelName: string
 }
 
-export interface TtsConfig {
-  enabled: boolean
-  baseUrl: string
-  apiKey: string
-  model: string
-  voice: string
-  format: 'pcm' | 'wav' | 'mp3'
-  sampleRate: number
-  segmentMode: 'every' | 'finalOnly' | 'skipWithTools'
-}
-
 export interface RecentProject {
   path: string
   name: string
