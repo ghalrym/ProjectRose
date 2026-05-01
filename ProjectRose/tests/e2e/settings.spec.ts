@@ -42,7 +42,7 @@ test.describe('Settings View', () => {
     const sidebar = win.getByRole('complementary')
     await expect(sidebar.getByText(/№01/)).toBeVisible()
     await expect(sidebar.getByText(/№02/)).toBeVisible()
-    await expect(sidebar.getByText(/№06/)).toBeVisible()
+    await expect(sidebar.getByText(/№05/)).toBeVisible()
   })
 
   test('Shortcuts page shows Navigation Bar section', async ({ win }) => {
