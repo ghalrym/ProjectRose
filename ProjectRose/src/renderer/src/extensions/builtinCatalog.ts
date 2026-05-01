@@ -48,5 +48,19 @@ export const BUILTIN_CATALOG: CatalogEntry[] = [
     description: 'Automatically processes deferred tasks and scheduled work on a configurable interval.',
     author: 'ProjectRose',
     repoUrl: 'https://github.com/RoseAgent/projectrose-heartbeat.git'
+  },
+  {
+    id: 'rose-qwen-director',
+    name: 'Qwen Director',
+    description: 'Tracks checklists in agent thinking and reminds the agent to finish all tasks before responding to the user.',
+    author: 'ProjectRose',
+    repoUrl: 'https://github.com/RoseAgent/projectrose-qwen-director.git'
+  },
+  {
+    id: 'rose-vllm-tts',
+    name: 'vLLM TTS',
+    description: 'Streaming text-to-speech via vLLM-Omni-compatible audio endpoints. Speaks the assistant\'s chat replies aloud.',
+    author: 'ProjectRose',
+    repoUrl: 'https://github.com/RoseAgent/projectrose-vllm-tts.git'
   }
 ]
