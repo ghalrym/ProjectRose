@@ -117,5 +117,13 @@ export const IPC = {
   UPDATER_AVAILABLE: 'updater:available',
   UPDATER_PROGRESS: 'updater:progress',
   UPDATER_DOWNLOADED: 'updater:downloaded',
-  UPDATER_ERROR: 'updater:error'
+  UPDATER_ERROR: 'updater:error',
+
+  // Text-to-speech (vLLM /v1/audio/speech)
+  TTS_SPEAK: 'tts:speak',
+  TTS_CANCEL: 'tts:cancel',
+  TTS_AUDIO_CHUNK: 'tts:audioChunk',
+  TTS_AUDIO_END: 'tts:audioEnd',
+  TTS_TEST: 'tts:test',
+  TTS_LIST_VOICES: 'tts:listVoices'
 } as const

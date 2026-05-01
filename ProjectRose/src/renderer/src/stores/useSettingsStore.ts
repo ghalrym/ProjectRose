@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { NavItem, ModelConfig, RouterConfig } from '@shared/types'
+import type { NavItem, ModelConfig, RouterConfig, TtsConfig } from '@shared/types'
 import { useProjectStore } from './useProjectStore'
 import { useStatusStore } from './useStatusStore'
 
@@ -28,6 +28,7 @@ interface SettingsState {
   ollamaBaseUrl: string
   openaiCompatBaseUrl: string
   openaiCompatApiKey: string
+  tts: TtsConfig
   extensions: Record<string, Record<string, unknown>>
   loaded: boolean
   load: () => Promise<void>
@@ -70,6 +71,16 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   ollamaBaseUrl: 'http://localhost:11434',
   openaiCompatBaseUrl: '',
   openaiCompatApiKey: '',
+  tts: {
+    enabled: false,
+    baseUrl: 'http://localhost:8091',
+    apiKey: '',
+    model: 'Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice',
+    voice: 'aiden',
+    format: 'pcm',
+    sampleRate: 24000,
+    segmentMode: 'every'
+  },
   extensions: {},
   loaded: false,
 

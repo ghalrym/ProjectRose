@@ -1,6 +1,80 @@
 import { create } from 'zustand'
 import { useProjectStore } from './useProjectStore'
 import { useSettingsStore } from './useSettingsStore'
+import { makeSentenceChunker, type SentenceChunker } from '../audio/sentenceChunker'
+import { enqueueAudio, cancelPlayback } from '../audio/ttsPlayer'
+
+interface TtsTurn {
+  reqId: string
+  chunker: SentenceChunker
+  mode: 'every' | 'finalOnly' | 'skipWithTools'
+  silenced: boolean
+}
+
+let ttsTurn: TtsTurn | null = null
+const acceptedReqIds = new Set<string>()
+let ttsListenersInstalled = false
+
+function ensureTtsListeners(): void {
+  if (ttsListenersInstalled) return
+  ttsListenersInstalled = true
+  window.api.onTtsAudioChunk((d) => {
+    if (!acceptedReqIds.has(d.reqId)) return
+    enqueueAudio(d.audio, d.format, d.sampleRate, d.reqId).catch(() => { /* drop bad chunk */ })
+  })
+  window.api.onTtsAudioEnd(() => { /* drains naturally */ })
+}
+
+export function acceptTtsAudio(reqId: string): void {
+  ensureTtsListeners()
+  acceptedReqIds.add(reqId)
+}
+
+export function unacceptTtsAudio(reqId: string): void {
+  acceptedReqIds.delete(reqId)
+}
+
+function startTtsTurn(): TtsTurn | null {
+  const cfg = useSettingsStore.getState().tts
+  if (!cfg.enabled || !cfg.baseUrl || !cfg.model) return null
+
+  // Cut off any prior turn's audio cleanly before starting a new one.
+  if (ttsTurn) {
+    window.api.tts.cancel(ttsTurn.reqId).catch(() => {})
+    acceptedReqIds.delete(ttsTurn.reqId)
+    cancelPlayback()
+  }
+
+  ensureTtsListeners()
+  const turn: TtsTurn = {
+    reqId: crypto.randomUUID(),
+    chunker: makeSentenceChunker(),
+    mode: cfg.segmentMode,
+    silenced: false
+  }
+  ttsTurn = turn
+  acceptedReqIds.add(turn.reqId)
+  return turn
+}
+
+function endTtsTurn(): void {
+  ttsTurn = null
+  // Keep the reqId in acceptedReqIds so trailing audio for a successful turn keeps playing.
+}
+
+function silenceTtsTurn(): void {
+  if (!ttsTurn) return
+  ttsTurn.silenced = true
+  ttsTurn.chunker.reset()
+  window.api.tts.cancel(ttsTurn.reqId).catch(() => {})
+  cancelPlayback()
+  acceptedReqIds.delete(ttsTurn.reqId)
+}
+
+function speakSentence(s: string): void {
+  if (!ttsTurn || ttsTurn.silenced) return
+  window.api.tts.speak(ttsTurn.reqId, s).catch(() => {})
+}
 
 let msgCounter = 0
 
@@ -171,9 +245,21 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         assistantPlaceholderId: id
       }
     })
+
+    if (ttsTurn && !ttsTurn.silenced && ttsTurn.mode !== 'finalOnly') {
+      for (const sentence of ttsTurn.chunker.push(data.token)) speakSentence(sentence)
+    }
   },
 
   appendToolStart: (data) => {
+    if (ttsTurn) {
+      if (ttsTurn.mode === 'skipWithTools') {
+        silenceTtsTurn()
+      } else if (ttsTurn.mode === 'every' && !ttsTurn.silenced) {
+        const remainder = ttsTurn.chunker.flush()
+        if (remainder) speakSentence(remainder)
+      }
+    }
     const toolMsg: ToolMessage = {
       id: `msg-${++msgCounter}`,
       role: 'tool',
@@ -272,6 +358,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   },
 
   cancelGeneration: async () => {
+    silenceTtsTurn()
+    endTtsTurn()
     await window.api.aiCancelGeneration()
   },
 
@@ -383,6 +471,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
     persistSession(rootPath, sessionId!, title, createdAt, get().messages)
 
+    startTtsTurn()
+
     const cleanupToken = window.api.onAiToken((d) => get().appendToken(d))
     const cleanupToolStart = window.api.onAiToolCallStart((d) => get().appendToolStart(d))
     const cleanupToolEnd = window.api.onAiToolCallEnd((d) => get().resolveToolEnd(d))
@@ -432,6 +522,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       cleanup()
 
       const placeholderId = get().assistantPlaceholderId
+      const finalAssistantContent = placeholderId
+        ? (get().messages.find((m) => m.id === placeholderId && m.role === 'assistant') as AssistantMessage | undefined)?.content ?? ''
+        : ''
+
       set((s) => ({
         messages: s.messages.map((m) => {
           if (m.id === placeholderId && m.role === 'assistant') {
@@ -448,6 +542,16 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         pendingModelDisplay: null
       }))
 
+      if (ttsTurn && !ttsTurn.silenced) {
+        if (ttsTurn.mode === 'finalOnly') {
+          if (finalAssistantContent.trim()) speakSentence(finalAssistantContent.trim())
+        } else {
+          const remainder = ttsTurn.chunker.flush()
+          if (remainder) speakSentence(remainder)
+        }
+      }
+      endTtsTurn()
+
       persistSession(rootPath, sessionId!, title, createdAt, get().messages)
       set((s) => ({
         sessions: s.sessions.map((sess) =>
@@ -460,6 +564,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       }
     } catch (err) {
       cleanup()
+      silenceTtsTurn()
+      endTtsTurn()
 
       const isAbort = err instanceof Error &&
         (err.name === 'AbortError' || err.message.toLowerCase().includes('abort'))

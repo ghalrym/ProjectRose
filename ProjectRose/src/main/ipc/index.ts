@@ -14,6 +14,7 @@ import { registerExtensionHandlers } from './extensionHandlers'
 import { registerAuthHandlers } from './authHandlers'
 import { registerSkillHandlers } from './skillHandlers'
 import { registerUpdaterHandlers } from './updaterHandlers'
+import { registerTtsHandlers } from './ttsHandlers'
 export function registerAllHandlers(): void {
   registerFileHandlers()
   registerDialogHandlers()
@@ -31,4 +32,5 @@ export function registerAllHandlers(): void {
   registerAuthHandlers()
   registerSkillHandlers()
   registerUpdaterHandlers()
+  registerTtsHandlers()
 }

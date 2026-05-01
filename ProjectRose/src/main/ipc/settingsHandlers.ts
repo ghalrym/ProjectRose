@@ -19,6 +19,17 @@ export interface RouterConfig {
   modelName: string
 }
 
+export interface TtsConfig {
+  enabled: boolean
+  baseUrl: string
+  apiKey: string
+  model: string
+  voice: string
+  format: 'pcm' | 'wav' | 'mp3'
+  sampleRate: number
+  segmentMode: 'every' | 'finalOnly' | 'skipWithTools'
+}
+
 export interface AppSettings {
   heartbeatEnabled: boolean
   heartbeatIntervalMinutes: number
@@ -37,6 +48,7 @@ export interface AppSettings {
   ollamaBaseUrl: string
   openaiCompatBaseUrl: string
   openaiCompatApiKey: string
+  tts: TtsConfig
   // Namespaced extension settings: { 'rose-discord': { global: {...}, project: {...} } }
   extensions: Record<string, Record<string, unknown>>
   // Allow extensions to write arbitrary keys without the host knowing about them.
@@ -76,6 +88,16 @@ const DEFAULT_SETTINGS: AppSettings = {
   ollamaBaseUrl: 'http://localhost:11434',
   openaiCompatBaseUrl: '',
   openaiCompatApiKey: '',
+  tts: {
+    enabled: false,
+    baseUrl: 'http://rose-main.com:8091',
+    apiKey: '',
+    model: 'Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice',
+    voice: 'aiden',
+    format: 'pcm',
+    sampleRate: 24000,
+    segmentMode: 'every'
+  },
   extensions: {}
 }
 
@@ -105,7 +127,7 @@ async function getInstalledExtensionNavItems(rootPath: string): Promise<ExtNavIt
 // Host-owned secret fields (stored in userData/settings.json, not the
 // project repo config). Extensions declare their own sensitive keys via
 // registerSensitiveExtensionFields() — the host doesn't enumerate them.
-const HOST_SENSITIVE_FIELDS = ['providerKeys'] as const
+const HOST_SENSITIVE_FIELDS = ['providerKeys', 'tts'] as const
 const extensionSensitiveFields: Set<string> = new Set()
 
 export function registerSensitiveExtensionFields(keys: string[]): void {
