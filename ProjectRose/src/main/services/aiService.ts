@@ -15,6 +15,7 @@ import { buildRoseMd } from '../ipc/roseSetupHandlers'
 import { buildSubagentTools } from './subagentTools'
 import { buildSkillTools, getSessionSkillsPrompt } from './skillService'
 import { resetTurnBudgets, fireUserMessageHook } from './extensionHooks'
+import { loadExtensionPrompts } from '../ipc/promptHandlers'
 import type { AgentContext, SubagentCounter } from './agentRunner'
 import type { InjectionRecord } from '../../shared/extensionHooks'
 import { IPC } from '../../shared/ipcChannels'
@@ -57,8 +58,22 @@ export async function buildAgentMd(rootPath: string): Promise<string> {
     )
   }
 
-  return `${rose}
+  let extensionPromptBlock = ''
+  try {
+    const sections = await loadExtensionPrompts(rootPath)
+    if (sections.length > 0) {
+      extensionPromptBlock =
+        '\n' +
+        sections
+          .map((s) => `## Extension: ${s.id}\n\n${s.content.trim()}\n`)
+          .join('\n')
+    }
+  } catch (err) {
+    console.error('[prompts] failed to load extension prompts:', err)
+  }
 
+  return `${rose}
+${extensionPromptBlock}
 ## Environment
 - Operating system: ${os}
 - Shell: ${shell} (run_command uses ${shell})

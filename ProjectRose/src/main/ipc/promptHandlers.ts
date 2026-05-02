@@ -1,0 +1,182 @@
+import { ipcMain } from 'electron'
+import { readFile, writeFile, mkdir, rm, access } from 'fs/promises'
+import { resolve, sep } from 'path'
+import { IPC } from '../../shared/ipcChannels'
+import { prPath } from '../lib/projectPaths'
+import { listInstalledExtensions } from './extensionHandlers'
+import { readProjectSettings } from './projectSettingsHandlers'
+
+function userPromptPath(rootPath: string, extId: string): string {
+  return prPath(rootPath, 'prompts', `${extId}.md`)
+}
+
+// Resolve a manifest-declared default prompt path to an absolute path inside
+// the extension's install dir. Returns null if the path escapes (treated as
+// "no default" rather than throwing into chat).
+function resolveBundledPromptPath(installPath: string, manifestPath: string): string | null {
+  const installRoot = resolve(installPath)
+  const candidate = resolve(installPath, manifestPath)
+  if (candidate !== installRoot && !candidate.startsWith(installRoot + sep)) {
+    console.warn(
+      `[prompts] extension at ${installPath} declared systemPrompt path "${manifestPath}" that escapes its install dir; ignoring.`
+    )
+    return null
+  }
+  return candidate
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export interface LoadedExtensionPrompt {
+  id: string
+  name: string
+  content: string
+}
+
+// Called by buildAgentMd at chat time. Reads installed+enabled extensions,
+// filters by disabledPrompts, and returns the resolved prompt content for
+// each (user override wins over bundled default). Per-extension failures are
+// swallowed — never break chat.
+export async function loadExtensionPrompts(rootPath: string): Promise<LoadedExtensionPrompt[]> {
+  const installed = await listInstalledExtensions(rootPath)
+  const { disabledPrompts } = await readProjectSettings(rootPath)
+  const out: LoadedExtensionPrompt[] = []
+
+  for (const inst of installed) {
+    if (!inst.enabled) continue
+    if (disabledPrompts.includes(inst.manifest.id)) continue
+
+    const userPath = userPromptPath(rootPath, inst.manifest.id)
+    let content: string | null = null
+    try {
+      content = await readFile(userPath, 'utf-8')
+    } catch {
+      const declared = inst.manifest.provides.systemPrompt
+      if (declared) {
+        const bundled = resolveBundledPromptPath(inst.installPath, declared)
+        if (bundled) {
+          try {
+            content = await readFile(bundled, 'utf-8')
+          } catch {
+            // Manifest declared a path but the file is missing — skip silently.
+          }
+        }
+      }
+    }
+
+    if (content !== null) {
+      out.push({ id: inst.manifest.id, name: inst.manifest.name, content })
+    }
+  }
+
+  return out
+}
+
+export interface ExtensionPromptListEntry {
+  id: string
+  name: string
+  extensionEnabled: boolean
+  hasDefault: boolean
+  hasUserFile: boolean
+}
+
+async function listExtensionPrompts(rootPath: string): Promise<ExtensionPromptListEntry[]> {
+  const installed = await listInstalledExtensions(rootPath)
+  const rows: ExtensionPromptListEntry[] = []
+  for (const inst of installed) {
+    const declared = inst.manifest.provides.systemPrompt
+    let hasDefault = false
+    if (declared) {
+      const bundled = resolveBundledPromptPath(inst.installPath, declared)
+      hasDefault = bundled !== null && (await fileExists(bundled))
+    }
+    const hasUserFile = await fileExists(userPromptPath(rootPath, inst.manifest.id))
+    rows.push({
+      id: inst.manifest.id,
+      name: inst.manifest.name,
+      extensionEnabled: inst.enabled,
+      hasDefault,
+      hasUserFile,
+    })
+  }
+  return rows
+}
+
+export interface ExtensionPromptRead {
+  content: string
+  source: 'user' | 'default' | 'none'
+}
+
+async function readExtensionPrompt(rootPath: string, extId: string): Promise<ExtensionPromptRead> {
+  const installed = await listInstalledExtensions(rootPath)
+  const inst = installed.find((e) => e.manifest.id === extId)
+  if (!inst) return { content: '', source: 'none' }
+
+  try {
+    const content = await readFile(userPromptPath(rootPath, extId), 'utf-8')
+    return { content, source: 'user' }
+  } catch {
+    // fall through to default
+  }
+
+  const declared = inst.manifest.provides.systemPrompt
+  if (declared) {
+    const bundled = resolveBundledPromptPath(inst.installPath, declared)
+    if (bundled) {
+      try {
+        const content = await readFile(bundled, 'utf-8')
+        return { content, source: 'default' }
+      } catch {
+        // missing file
+      }
+    }
+  }
+  return { content: '', source: 'none' }
+}
+
+async function assertKnownExtension(rootPath: string, extId: string): Promise<void> {
+  const installed = await listInstalledExtensions(rootPath)
+  if (!installed.some((e) => e.manifest.id === extId)) {
+    throw new Error(`unknown extension id: ${extId}`)
+  }
+}
+
+export function registerPromptHandlers(): void {
+  ipcMain.handle(IPC.PROMPTS_READ_ROSE, async (_ev, rootPath: string): Promise<string> => {
+    try {
+      return await readFile(prPath(rootPath, 'ROSE.md'), 'utf-8')
+    } catch {
+      return ''
+    }
+  })
+
+  ipcMain.handle(IPC.PROMPTS_WRITE_ROSE, async (_ev, rootPath: string, content: string): Promise<void> => {
+    await writeFile(prPath(rootPath, 'ROSE.md'), content, 'utf-8')
+  })
+
+  ipcMain.handle(IPC.PROMPTS_LIST_EXTENSION, async (_ev, rootPath: string): Promise<ExtensionPromptListEntry[]> => {
+    return listExtensionPrompts(rootPath)
+  })
+
+  ipcMain.handle(IPC.PROMPTS_READ_EXTENSION, async (_ev, rootPath: string, extId: string): Promise<ExtensionPromptRead> => {
+    return readExtensionPrompt(rootPath, extId)
+  })
+
+  ipcMain.handle(IPC.PROMPTS_WRITE_EXTENSION, async (_ev, rootPath: string, extId: string, content: string): Promise<void> => {
+    await assertKnownExtension(rootPath, extId)
+    await mkdir(prPath(rootPath, 'prompts'), { recursive: true })
+    await writeFile(userPromptPath(rootPath, extId), content, 'utf-8')
+  })
+
+  ipcMain.handle(IPC.PROMPTS_RESET_EXTENSION, async (_ev, rootPath: string, extId: string): Promise<void> => {
+    await assertKnownExtension(rootPath, extId)
+    await rm(userPromptPath(rootPath, extId), { force: true })
+  })
+}

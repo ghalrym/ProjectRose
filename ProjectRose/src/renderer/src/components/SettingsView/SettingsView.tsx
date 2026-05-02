@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { ExtensionsTab } from './ExtensionsTab'
+import { PromptsTab } from './PromptsTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useViewStore } from '../../stores/useViewStore'
@@ -620,6 +621,7 @@ export function SettingsView(): JSX.Element {
     { id: 'providers', label: 'Providers', n: '03' },
     { id: 'tools',     label: 'Tools',     n: '04' },
     { id: 'skills',    label: 'Skills',    n: '05' },
+    { id: 'prompts',   label: 'Prompts',   n: '06' },
   ]
 
   const extensionChildIds = ['extensions', ...extensionSettingsItems.map((e) => e.id)]
@@ -1246,6 +1248,7 @@ export function SettingsView(): JSX.Element {
       case 'providers':  return renderProviders()
       case 'tools':      return renderTools()
       case 'skills':     return renderSkills()
+      case 'prompts':    return <PromptsTab />
       case 'extensions': return renderExtensions()
       default: {
         const ext = getExtensionByViewId(activePage)

@@ -18,6 +18,11 @@ export interface ExtensionManifest {
     agentTools?: boolean
     tools?: Array<{ name: string; displayName: string; description: string }>
     chatHooks?: boolean
+    // Relative path inside the extension bundle pointing at a markdown file
+    // whose contents are appended to the system prompt as the extension's
+    // default. Resolved against the extension's installPath; must stay inside
+    // it. The user can override per-project via .projectrose/prompts/<id>.md.
+    systemPrompt?: string
   }
 }
 

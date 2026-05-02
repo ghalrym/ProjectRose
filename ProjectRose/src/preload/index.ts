@@ -324,10 +324,33 @@ const api = {
   },
 
   project: {
-    getSettings: (rootPath: string): Promise<{ disabledTools: string[] }> =>
+    getSettings: (rootPath: string): Promise<{ disabledTools: string[]; disabledPrompts: string[] }> =>
       ipcRenderer.invoke('project:getSettings', rootPath),
-    setSettings: (rootPath: string, patch: { disabledTools?: string[] }): Promise<{ disabledTools: string[] }> =>
+    setSettings: (
+      rootPath: string,
+      patch: { disabledTools?: string[]; disabledPrompts?: string[] }
+    ): Promise<{ disabledTools: string[]; disabledPrompts: string[] }> =>
       ipcRenderer.invoke('project:setSettings', rootPath, patch)
+  },
+
+  prompts: {
+    readRose: (rootPath: string): Promise<string> =>
+      ipcRenderer.invoke(IPC.PROMPTS_READ_ROSE, rootPath),
+    writeRose: (rootPath: string, content: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.PROMPTS_WRITE_ROSE, rootPath, content),
+    listExtension: (
+      rootPath: string
+    ): Promise<Array<{ id: string; name: string; extensionEnabled: boolean; hasDefault: boolean; hasUserFile: boolean }>> =>
+      ipcRenderer.invoke(IPC.PROMPTS_LIST_EXTENSION, rootPath),
+    readExtension: (
+      rootPath: string,
+      extId: string
+    ): Promise<{ content: string; source: 'user' | 'default' | 'none' }> =>
+      ipcRenderer.invoke(IPC.PROMPTS_READ_EXTENSION, rootPath, extId),
+    writeExtension: (rootPath: string, extId: string, content: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.PROMPTS_WRITE_EXTENSION, rootPath, extId, content),
+    resetExtension: (rootPath: string, extId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.PROMPTS_RESET_EXTENSION, rootPath, extId)
   },
 
   // Extensions

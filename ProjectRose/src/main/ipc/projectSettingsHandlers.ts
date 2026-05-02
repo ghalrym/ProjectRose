@@ -5,9 +5,10 @@ import { prPath } from '../lib/projectPaths'
 
 export interface ProjectSettings {
   disabledTools: string[]
+  disabledPrompts: string[]
 }
 
-const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { disabledTools: [] }
+const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { disabledTools: [], disabledPrompts: [] }
 
 export const CORE_TOOL_NAMES = new Set([
   'read_file', 'write_file', 'edit_file', 'list_directory', 'grep', 'run_command', 'ask_user',
