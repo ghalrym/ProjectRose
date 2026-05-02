@@ -22,3 +22,6 @@
 [submodule "RoseExtensions/rose-vllm-tts"]
 	path = RoseExtensions/rose-vllm-tts
 	url = https://github.com/RoseAgent/projectrose-vllm-tts.git
+[submodule "RoseExtensions/rose-coding-agents"]
+	path = RoseExtensions/rose-coding-agents
+	url = https://github.com/RoseAgent/roseproject-coding-agents.git

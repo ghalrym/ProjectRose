@@ -15,7 +15,7 @@ import {
   handleGrep,
   handleRunCommand
 } from './toolHandlers'
-import type { ExtensionToolEntry } from '../../shared/extension-types'
+import type { ExtensionToolEntry, ExtensionToolCtx } from '../../shared/extension-types'
 import type { Message } from '../../shared/roseModelTypes'
 import type { ModelConfig, RouterConfig } from '../ipc/settingsHandlers'
 import type { InjectionRecord } from '../../shared/extensionHooks'
@@ -157,7 +157,7 @@ export async function routeRequest(
   return text.trim().toLowerCase()
 }
 
-type ExecuteFn = (input: Record<string, unknown>, projectRoot: string) => Promise<string>
+type ExecuteFn = (input: Record<string, unknown>, projectRoot: string, toolCtx: ExtensionToolCtx) => Promise<string>
 type EmitFn = (channel: string, payload: unknown) => void
 
 interface HookCtx {
@@ -170,6 +170,7 @@ function wrapExecute(
   fn: ExecuteFn,
   projectRoot: string,
   emit: EmitFn,
+  toolCtx: ExtensionToolCtx,
   hookCtx?: HookCtx
 ): (input: Record<string, unknown>, options: ToolExecutionOptions) => Promise<string> {
   return async (input, options) => {
@@ -178,7 +179,7 @@ function wrapExecute(
     let result: string
     let error = false
     try {
-      result = await fn(input, projectRoot)
+      result = await fn(input, projectRoot, toolCtx)
       emit(IPC.AI_TOOL_CALL_END, { id, result, error: false })
     } catch (err) {
       result = err instanceof Error ? err.message : String(err)
@@ -196,14 +197,14 @@ function wrapExecute(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildCoreTools(projectRoot: string, emit: EmitFn, hookCtx?: HookCtx): Record<string, any> {
+function buildCoreTools(projectRoot: string, emit: EmitFn, toolCtx: ExtensionToolCtx, hookCtx?: HookCtx): Record<string, any> {
   return {
     read_file: tool({
       description: 'Read the contents of a file. Use project-relative paths.',
       inputSchema: z.object({
         path: z.string().describe('File path relative to the project root')
       }),
-      execute: wrapExecute('read_file', handleReadFile, projectRoot, emit, hookCtx)
+      execute: wrapExecute('read_file', handleReadFile, projectRoot, emit, toolCtx, hookCtx)
     }),
     write_file: tool({
       description: 'Write content to a file. Creates the file and any missing parent directories if they do not exist.',
@@ -211,7 +212,7 @@ function buildCoreTools(projectRoot: string, emit: EmitFn, hookCtx?: HookCtx): R
         path: z.string().describe('File path relative to the project root'),
         content: z.string().describe('The full file content to write')
       }),
-      execute: wrapExecute('write_file', handleWriteFile, projectRoot, emit, hookCtx)
+      execute: wrapExecute('write_file', handleWriteFile, projectRoot, emit, toolCtx, hookCtx)
     }),
     edit_file: tool({
       description: 'Replace a unique string in a file with new content. Fails if old_string is not found or appears more than once — add more surrounding context to disambiguate.',
@@ -220,14 +221,14 @@ function buildCoreTools(projectRoot: string, emit: EmitFn, hookCtx?: HookCtx): R
         old_string: z.string().describe('Exact string to find and replace. Must appear exactly once in the file.'),
         new_string: z.string().describe('String to replace old_string with')
       }),
-      execute: wrapExecute('edit_file', handleEditFile, projectRoot, emit, hookCtx)
+      execute: wrapExecute('edit_file', handleEditFile, projectRoot, emit, toolCtx, hookCtx)
     }),
     list_directory: tool({
       description: 'List files and subdirectories in a directory.',
       inputSchema: z.object({
         path: z.string().describe('Directory path relative to the project root. Use "." for the root.')
       }),
-      execute: wrapExecute('list_directory', handleListDirectory, projectRoot, emit, hookCtx)
+      execute: wrapExecute('list_directory', handleListDirectory, projectRoot, emit, toolCtx, hookCtx)
     }),
     grep: tool({
       description: 'Search file contents for a regex pattern. Returns matching lines as file:line: text. Searches the entire project by default; narrow with path or include.',
@@ -237,14 +238,14 @@ function buildCoreTools(projectRoot: string, emit: EmitFn, hookCtx?: HookCtx): R
         include: z.string().optional().describe('Comma-separated file extensions to include, e.g. ".ts,.tsx" or "*.py"'),
         case_sensitive: z.boolean().optional().describe('Case-sensitive match (default: false)')
       }),
-      execute: wrapExecute('grep', handleGrep, projectRoot, emit, hookCtx)
+      execute: wrapExecute('grep', handleGrep, projectRoot, emit, toolCtx, hookCtx)
     }),
     run_command: tool({
       description: 'Run a shell command in the project directory. Use for installing packages, running tests, linting, etc. Returns stdout/stderr.',
       inputSchema: z.object({
         command: z.string().describe('The shell command to execute')
       }),
-      execute: wrapExecute('run_command', handleRunCommand, projectRoot, emit, hookCtx)
+      execute: wrapExecute('run_command', handleRunCommand, projectRoot, emit, toolCtx, hookCtx)
     }),
     ask_user: tool({
       description: 'Ask the user a clarifying question and wait for their response before continuing. Use when you need input or a decision from the user. Provide 2–6 multiple-choice options when relevant.',
@@ -264,7 +265,7 @@ function buildCoreTools(projectRoot: string, emit: EmitFn, hookCtx?: HookCtx): R
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildExtensionTools(entries: ExtensionToolEntry[], projectRoot: string, emit: EmitFn, hookCtx?: HookCtx): Record<string, any> {
+function buildExtensionTools(entries: ExtensionToolEntry[], projectRoot: string, emit: EmitFn, toolCtx: ExtensionToolCtx, hookCtx?: HookCtx): Record<string, any> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: Record<string, any> = {}
   for (const entry of entries) {
@@ -287,7 +288,7 @@ function buildExtensionTools(entries: ExtensionToolEntry[], projectRoot: string,
     result[entry.name] = tool({
       description: entry.description,
       inputSchema: z.object(shape),
-      execute: wrapExecute(entry.name, entry.execute, projectRoot, emit, hookCtx)
+      execute: wrapExecute(entry.name, entry.execute, projectRoot, emit, toolCtx, hookCtx)
     })
   }
   return result
@@ -332,6 +333,9 @@ export async function streamChat(params: {
   // Only the user-visible main chat passes this; subagents and one-shot
   // background runs leave it undefined to keep hooks scoped to the main chat.
   turnId?: string
+  // Host chat session id forwarded to extension tool execute() as toolCtx.sessionId.
+  // Required so extensions can scope state (e.g. CLI session resume) per chat.
+  sessionId: string
   collectInjections?: (rec: InjectionRecord) => void
   // Escape hatch for the auto-injection loop: when set, skip the Message[] →
   // ModelMessage[] conversion and use these directly. Lets the loop preserve
@@ -341,10 +345,11 @@ export async function streamChat(params: {
   const { messages, systemPrompt, extensionTools, model: modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl, projectRoot, disabledCoreTools, abortSignal } = params
   const emit: EmitFn = params.notify ?? notifyRenderer
   const hookCtx: HookCtx | undefined = params.turnId ? { turnId: params.turnId, rootPath: projectRoot } : undefined
+  const toolCtx: ExtensionToolCtx = { sessionId: params.sessionId, turnId: params.turnId }
   const model = resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
   const tools = {
-    ...buildCoreTools(projectRoot, emit, hookCtx),
-    ...buildExtensionTools(extensionTools ?? [], projectRoot, emit, hookCtx),
+    ...buildCoreTools(projectRoot, emit, toolCtx, hookCtx),
+    ...buildExtensionTools(extensionTools ?? [], projectRoot, emit, toolCtx, hookCtx),
     ...(params.extraTools ?? {})
   }
   for (const name of disabledCoreTools ?? []) delete tools[name]

@@ -226,6 +226,7 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
           model: m,
           extraTools: extras,
           turnId,
+          sessionId,
           collectInjections: (rec) => collected.push(rec)
         })
 
@@ -314,7 +315,11 @@ export async function runAgentOnce(
     providerKeys: settings.providerKeys,
     ollamaBaseUrl: settings.ollamaBaseUrl,
     openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
-    projectRoot: rootPath
+    projectRoot: rootPath,
+    // One-shot background runs are not part of any user chat — give them
+    // their own ephemeral session so extension tools (e.g. coding-agent
+    // harnesses) treat each call as a fresh session.
+    sessionId: randomUUID()
   })
 
   const modelDisplay = selectedModel.displayName || selectedModel.modelName
