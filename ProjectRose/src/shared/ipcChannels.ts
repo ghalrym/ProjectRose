@@ -117,5 +117,12 @@ export const IPC = {
   UPDATER_AVAILABLE: 'updater:available',
   UPDATER_PROGRESS: 'updater:progress',
   UPDATER_DOWNLOADED: 'updater:downloaded',
-  UPDATER_ERROR: 'updater:error'
+  UPDATER_ERROR: 'updater:error',
+
+  // Tray (main → renderer)
+  TRAY_OPEN_CHAT: 'tray:openChat',
+  TRAY_TOGGLE_LISTENING: 'tray:toggleListening',
+  // Tray (renderer → main): renderer pushes the live `isActive` value so the
+  // tray menu and icon stay in sync without main needing to introspect store.
+  LISTENING_STATE_CHANGED: 'tray:listeningStateChanged'
 } as const

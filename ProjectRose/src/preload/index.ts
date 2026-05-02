@@ -257,6 +257,22 @@ const api = {
     }
   },
 
+  onTrayOpenChat: (callback: () => void): (() => void) => {
+    const handler = (): void => callback()
+    ipcRenderer.on(IPC.TRAY_OPEN_CHAT, handler)
+    return () => { ipcRenderer.removeListener(IPC.TRAY_OPEN_CHAT, handler) }
+  },
+
+  onTrayToggleListening: (callback: () => void): (() => void) => {
+    const handler = (): void => callback()
+    ipcRenderer.on(IPC.TRAY_TOGGLE_LISTENING, handler)
+    return () => { ipcRenderer.removeListener(IPC.TRAY_TOGGLE_LISTENING, handler) }
+  },
+
+  notifyListeningStateChanged: (active: boolean): void => {
+    ipcRenderer.send(IPC.LISTENING_STATE_CHANGED, { active })
+  },
+
   onStatusNotify: (callback: (payload: { text: string; tone?: 'info' | 'success' | 'error' | 'warning'; durationMs?: number }) => void): (() => void) => {
     const handler = (_event: unknown, payload: { text: string; tone?: 'info' | 'success' | 'error' | 'warning'; durationMs?: number }): void =>
       callback(payload)

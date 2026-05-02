@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { createWindow } from './window'
+import { createWindow, setQuitting } from './window'
+import { createTray, destroyTray } from './tray'
 import { registerAllHandlers } from './ipc'
 import { buildAppMenu } from './menu'
 import { disposeAllTerminals } from './services/terminalService'
@@ -13,7 +14,11 @@ if (!gotLock) {
 } else {
   app.on('second-instance', (_event, _commandLine) => {
     const [win] = BrowserWindow.getAllWindows()
-    if (win) { if (win.isMinimized()) win.restore(); win.focus() }
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      if (!win.isVisible()) win.show()
+      win.focus()
+    }
   })
 }
 
@@ -27,6 +32,7 @@ app.whenReady().then(async () => {
   registerAllHandlers()
   buildAppMenu()
   createWindow()
+  createTray()
   initAutoUpdater()
 
   app.on('activate', () => {
@@ -34,8 +40,19 @@ app.whenReady().then(async () => {
   })
 })
 
+// File → Quit / Cmd+Q / process signals all flow through `before-quit`. Mark
+// the app as quitting so the window-close handler stops intercepting and
+// lets the actual destroy go through.
+app.on('before-quit', () => {
+  setQuitting(true)
+})
+
+// The window's close handler hides instead of destroying when the tray is
+// alive, so 'window-all-closed' only fires on an explicit quit. Keep the
+// shutdown work here so the cleanup path runs once at the actual exit.
 app.on('window-all-closed', () => {
   disposeAllTerminals()
   stopLsp()
+  destroyTray()
   if (process.platform !== 'darwin') app.quit()
 })

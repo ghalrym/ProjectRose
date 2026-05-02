@@ -14,6 +14,7 @@ import { UpdaterModal } from './components/UpdaterModal'
 import { getExtensionByViewId, loadDynamicExtensions, subscribeToExtensionsChange } from './extensions/registry'
 import { useThemeStore } from './stores/useThemeStore'
 import { useViewStore } from './stores/useViewStore'
+import { useActiveListeningStore } from './stores/useActiveListeningStore'
 import { useFileStore } from './stores/useFileStore'
 import { useProjectStore } from './stores/useProjectStore'
 import { useIndexingStore } from './stores/useIndexingStore'
@@ -127,10 +128,26 @@ function App(): JSX.Element {
       window.api.onMenuNewFile(() => createNewFile()),
       window.api.onMenuOpenFile(() => handleOpenFile()),
       window.api.onMenuOpenFolder(() => handleOpenFolder()),
-      window.api.onMenuSave(() => saveActiveFile())
+      window.api.onMenuSave(() => saveActiveFile()),
+      window.api.onTrayOpenChat(() => useViewStore.getState().setActiveView('chat')),
+      window.api.onTrayToggleListening(() => {
+        const s = useActiveListeningStore.getState()
+        s.setActive(!s.isActive)
+      })
     ]
     return () => cleanups.forEach((c) => c())
   }, [createNewFile, handleOpenFile, handleOpenFolder, saveActiveFile])
+
+  // Push isActive changes to main so the tray icon/menu stay in sync. Also
+  // fire once on mount so a freshly-opened tray reflects the current value.
+  useEffect(() => {
+    window.api.notifyListeningStateChanged(useActiveListeningStore.getState().isActive)
+    return useActiveListeningStore.subscribe((state, prev) => {
+      if (state.isActive !== prev.isActive) {
+        window.api.notifyListeningStateChanged(state.isActive)
+      }
+    })
+  }, [])
 
   // Keyboard shortcut for terminal toggle
   useEffect(() => {

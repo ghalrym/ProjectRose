@@ -13,6 +13,19 @@ const THEME_COLORS = {
 
 let mainWindow: BrowserWindow | null = null
 
+// True only when the user has explicitly chosen to quit (e.g. via tray menu
+// "Quit" or File → Quit). The window-close handler reads this to decide
+// whether to actually destroy the window or just hide it to the tray.
+let isQuitting = false
+
+export function getMainWindow(): BrowserWindow | null {
+  return mainWindow
+}
+
+export function setQuitting(v: boolean): void {
+  isQuitting = v
+}
+
 export function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1200,
@@ -48,6 +61,16 @@ export function createWindow(): BrowserWindow {
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  // Intercept the close button: hide to tray instead of quitting. Only an
+  // explicit Quit (tray menu or File → Quit, both call setQuitting(true) /
+  // app.quit() which sets `before-quit`) actually destroys the window.
+  win.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault()
+      win.hide()
+    }
+  })
 
   win.on('closed', () => {
     mainWindow = null
