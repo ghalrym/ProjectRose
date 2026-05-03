@@ -121,7 +121,9 @@ export const IPC = {
 
   // Auto-updater
   UPDATER_CHECK: 'updater:check',
+  UPDATER_DOWNLOAD: 'updater:download',
   UPDATER_INSTALL: 'updater:install',
+  UPDATER_SKIP_VERSION: 'updater:skipVersion',
   UPDATER_AVAILABLE: 'updater:available',
   UPDATER_PROGRESS: 'updater:progress',
   UPDATER_DOWNLOADED: 'updater:downloaded',

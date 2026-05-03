@@ -10,7 +10,7 @@ import { AppBoardView } from './components/AppBoardView/AppBoardView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
 import { StatusBar } from './components/StatusBar/StatusBar'
-import { UpdaterModal } from './components/UpdaterModal'
+import { UpdateToast } from './components/UpdateToast'
 import { getExtensionByViewId, loadDynamicExtensions, subscribeToExtensionsChange } from './extensions/registry'
 import { useThemeStore } from './stores/useThemeStore'
 import { useViewStore } from './stores/useViewStore'
@@ -164,24 +164,6 @@ function App(): JSX.Element {
     return () => window.removeEventListener('keydown', handler)
   }, [rootPath, toggleTerminal])
 
-  const updater = useUpdaterStore()
-
-  const handleRestart = useCallback(() => {
-    window.api.updater.installUpdate()
-  }, [])
-
-  const updaterModal = updater.modalVisible && updater.phase !== 'idle' ? (
-    <UpdaterModal
-      phase={updater.phase}
-      version={updater.version}
-      releaseNotes={updater.releaseNotes}
-      progressPercent={updater.progressPercent}
-      errorMessage={updater.errorMessage}
-      onClose={() => updater.hideModal()}
-      onRestart={handleRestart}
-    />
-  ) : null
-
   // Welcome screen when no project is open
   if (!rootPath) {
     return (
@@ -189,7 +171,7 @@ function App(): JSX.Element {
         <div className={styles.titleBar} />
         <WelcomeView onOpenFolder={handleOpenFolder} />
         <StatusBar />
-        {updaterModal}
+        <UpdateToast />
       </div>
     )
   }
@@ -229,7 +211,7 @@ function App(): JSX.Element {
         {activeView !== 'chat' && <ChatPanel />}
       </main>
       <StatusBar />
-      {updaterModal}
+      <UpdateToast />
     </div>
   )
 }

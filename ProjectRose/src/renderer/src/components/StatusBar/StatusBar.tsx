@@ -7,7 +7,7 @@ export function StatusBar(): JSX.Element {
   const tone = useStatusStore((s) => s.tone)
   const updaterPhase = useUpdaterStore((s) => s.phase)
   const updaterVersion = useUpdaterStore((s) => s.version)
-  const showUpdaterModal = useUpdaterStore((s) => s.showModal)
+  const showToast = useUpdaterStore((s) => s.showToast)
 
   const isIdle = message === null
   const dotClass = `${styles.dot} ${styles[`dot_${tone}`]}`
@@ -24,7 +24,7 @@ export function StatusBar(): JSX.Element {
           <button
             type="button"
             className={styles.updateBadge}
-            onClick={showUpdaterModal}
+            onClick={showToast}
             title={`Restart to install v${updaterVersion ?? ''}`}
           >
             <span className={styles.updateDot} />

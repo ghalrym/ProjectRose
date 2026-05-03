@@ -392,8 +392,12 @@ const api = {
   updater: {
     checkForUpdates: (): Promise<void> =>
       ipcRenderer.invoke(IPC.UPDATER_CHECK),
+    downloadUpdate: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.UPDATER_DOWNLOAD),
     installUpdate: (): Promise<void> =>
       ipcRenderer.invoke(IPC.UPDATER_INSTALL),
+    skipVersion: (version: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.UPDATER_SKIP_VERSION, version),
     onAvailable: (callback: (info: { version: string; releaseNotes: string | null }) => void): (() => void) => {
       const handler = (_e: unknown, info: { version: string; releaseNotes: string | null }): void => callback(info)
       ipcRenderer.on(IPC.UPDATER_AVAILABLE, handler)
