@@ -67,6 +67,24 @@
   margin-left: auto;
 }
 
+.expandBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 3px 5px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+
+.expandBtn:hover {
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
+
 .copyChatBtn:hover:not(:disabled) {
   color: var(--color-text-secondary);
   border-color: var(--color-border);
