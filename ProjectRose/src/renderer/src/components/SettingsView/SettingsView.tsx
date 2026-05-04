@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { ExtensionsTab } from './ExtensionsTab'
 import { PromptsTab } from './PromptsTab'
+import { UpdatesTab } from './UpdatesTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useViewStore } from '../../stores/useViewStore'
@@ -622,7 +623,10 @@ export function SettingsView(): JSX.Element {
     { id: 'tools',     label: 'Tools',     n: '04' },
     { id: 'skills',    label: 'Skills',    n: '05' },
     { id: 'prompts',   label: 'Prompts',   n: '06' },
+    { id: 'updates',   label: 'Updates',   n: '08' },
   ]
+  const updatesItem = topLevelItems.find((i) => i.id === 'updates')!
+  const sidebarTopItems = topLevelItems.filter((i) => i.id !== 'updates')
 
   const extensionChildIds = ['extensions', ...extensionSettingsItems.map((e) => e.id)]
   const allPageIds = [...topLevelItems.map((i) => i.id), ...extensionChildIds]
@@ -1249,6 +1253,7 @@ export function SettingsView(): JSX.Element {
       case 'tools':      return renderTools()
       case 'skills':     return renderSkills()
       case 'prompts':    return <PromptsTab />
+      case 'updates':    return <UpdatesTab />
       case 'extensions': return renderExtensions()
       default: {
         const ext = getExtensionByViewId(activePage)
@@ -1280,7 +1285,7 @@ export function SettingsView(): JSX.Element {
         {/* Sidebar */}
         <aside className={styles.sidebar}>
           <div className={styles.sidebarLabel}>Settings · Drawer</div>
-          {topLevelItems.map((item) => {
+          {sidebarTopItems.map((item) => {
             const isActive = activePage === item.id
             return (
               <button
@@ -1338,6 +1343,23 @@ export function SettingsView(): JSX.Element {
               })}
             </>
           )}
+
+          {(() => {
+            const isActive = activePage === updatesItem.id
+            return (
+              <button
+                key={updatesItem.id}
+                type="button"
+                className={`${styles.sidebarItem} ${isActive ? styles.sidebarItemActive : ''}`}
+                onClick={() => setActivePage(updatesItem.id)}
+              >
+                <span className={`${styles.sidebarItemNum} ${isActive ? styles.sidebarItemActiveNum : ''}`}>
+                  №{updatesItem.n}
+                </span>
+                <span>{updatesItem.label}</span>
+              </button>
+            )
+          })()}
 
           <div className={styles.sidebarFooter}>
             <div>SPECIMEN · CONFIG</div>

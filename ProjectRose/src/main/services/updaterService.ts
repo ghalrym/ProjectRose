@@ -66,6 +66,10 @@ export function initAutoUpdater(): void {
     })
   })
 
+  autoUpdater.on('update-not-available', (info: UpdateInfo) => {
+    broadcast(IPC.UPDATER_NOT_AVAILABLE, { version: info.version })
+  })
+
   autoUpdater.on('download-progress', (info: ProgressInfo) => {
     broadcast(IPC.UPDATER_PROGRESS, {
       percent: info.percent,

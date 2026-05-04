@@ -125,6 +125,7 @@ export const IPC = {
   UPDATER_INSTALL: 'updater:install',
   UPDATER_SKIP_VERSION: 'updater:skipVersion',
   UPDATER_AVAILABLE: 'updater:available',
+  UPDATER_NOT_AVAILABLE: 'updater:notAvailable',
   UPDATER_PROGRESS: 'updater:progress',
   UPDATER_DOWNLOADED: 'updater:downloaded',
   UPDATER_ERROR: 'updater:error',

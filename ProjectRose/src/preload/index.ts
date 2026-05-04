@@ -403,6 +403,11 @@ const api = {
       ipcRenderer.on(IPC.UPDATER_AVAILABLE, handler)
       return () => { ipcRenderer.removeListener(IPC.UPDATER_AVAILABLE, handler) }
     },
+    onNotAvailable: (callback: (info: { version: string }) => void): (() => void) => {
+      const handler = (_e: unknown, info: { version: string }): void => callback(info)
+      ipcRenderer.on(IPC.UPDATER_NOT_AVAILABLE, handler)
+      return () => { ipcRenderer.removeListener(IPC.UPDATER_NOT_AVAILABLE, handler) }
+    },
     onProgress: (callback: (info: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void): (() => void) => {
       const handler = (_e: unknown, info: { percent: number; bytesPerSecond: number; transferred: number; total: number }): void => callback(info)
       ipcRenderer.on(IPC.UPDATER_PROGRESS, handler)

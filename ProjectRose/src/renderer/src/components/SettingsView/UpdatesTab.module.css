@@ -1,0 +1,140 @@
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 18px;
+}
+
+.versionMono {
+  font-family: var(--font-family-mono);
+  font-size: 18px;
+  color: var(--color-accent);
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.statusText {
+  flex: 1;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.4px;
+}
+
+.statusTextIdle {
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
+.statusBtns {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.devNote {
+  padding: 8px 18px 14px;
+  font-size: 10px;
+  font-style: italic;
+  color: var(--color-text-muted);
+  letter-spacing: 0.4px;
+}
+
+.progressBar {
+  height: 2px;
+  margin: 0 18px 16px;
+  background: var(--color-bg-secondary);
+  overflow: hidden;
+}
+
+.progressBarFill {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 200ms ease-out;
+}
+
+.errorRow {
+  padding: 0 18px 14px;
+  font-size: 11px;
+  color: var(--color-error, #ef4444);
+}
+
+.releaseRow {
+  padding: 16px 18px;
+  border-bottom: 1px dotted var(--color-bg-secondary);
+}
+
+.releaseRow:last-child {
+  border-bottom: none;
+}
+
+.releaseHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.releaseVersion {
+  font-family: var(--font-family-mono);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  font-weight: 500;
+  letter-spacing: 0.4px;
+}
+
+.releaseDate {
+  margin-left: auto;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--color-text-muted);
+}
+
+.releaseTitle {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  margin-bottom: 8px;
+  font-style: italic;
+}
+
+.releaseBullets {
+  margin: 0;
+  padding-left: 14px;
+  list-style: none;
+}
+
+.releaseBullets li {
+  position: relative;
+  padding: 2px 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+}
+
+.releaseBullets li::before {
+  content: '·';
+  position: absolute;
+  left: -10px;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.badge {
+  font-size: 8px;
+  letter-spacing: 1.4px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.badgeUnreleased {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
+}
+
+.badgeCurrent {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
