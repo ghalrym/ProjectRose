@@ -18,6 +18,7 @@ interface SettingsState {
   agentName: string
   roseSpeechSpeakerId: number | null
   activeListeningSetupComplete: boolean
+  activeListeningDraftSeconds: number
   navItems: NavItem[]
   models: ModelConfig[]
   defaultModelId: string
@@ -60,6 +61,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   agentName: 'Rose',
   roseSpeechSpeakerId: null,
   activeListeningSetupComplete: false,
+  activeListeningDraftSeconds: 8,
   navItems: DEFAULT_NAV_ITEMS,
   models: [],
   defaultModelId: '',

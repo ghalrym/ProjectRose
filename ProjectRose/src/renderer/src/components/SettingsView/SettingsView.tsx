@@ -258,7 +258,7 @@ function KeyInput({ value, placeholder, onChange, type = 'password' }: {
 
 export function SettingsView(): JSX.Element {
   const {
-    micDeviceId, userName, agentName,
+    micDeviceId, userName, agentName, activeListeningDraftSeconds,
     navItems, models, defaultModelId, providerKeys, router,
     includeThinkingInContext,
     ollamaBaseUrl, openaiCompatBaseUrl, openaiCompatApiKey,
@@ -763,6 +763,28 @@ export function SettingsView(): JSX.Element {
                 <option key={d.deviceId} value={d.deviceId}>{d.label}</option>
               ))}
             </select>
+          </div>
+          <div className={styles.settingRow}>
+            <div className={styles.settingInfo}>
+              <div className={styles.settingLabel}>Auto-send delay</div>
+              <div className={styles.settingDesc}>
+                Seconds of silence after the wake word before the draft is sent. Raise this if you tend to pause mid-sentence; lower it for snappier replies.
+              </div>
+            </div>
+            <input
+              className={styles.input}
+              type="number"
+              min={1}
+              max={60}
+              step={1}
+              value={activeListeningDraftSeconds}
+              onChange={(e) => {
+                const n = Number(e.target.value)
+                if (Number.isFinite(n) && n >= 1 && n <= 60) {
+                  update({ activeListeningDraftSeconds: Math.round(n) })
+                }
+              }}
+            />
           </div>
         </section>
       </>

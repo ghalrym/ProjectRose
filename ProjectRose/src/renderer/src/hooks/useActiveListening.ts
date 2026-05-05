@@ -13,16 +13,19 @@ export function useActiveListening(): void {
   const rootPath = useProjectStore((s) => s.rootPath)
   const agentName = useSettingsStore((s) => s.agentName)
   const roseSpeechSpeakerId = useSettingsStore((s) => s.roseSpeechSpeakerId)
+  const draftSeconds = useSettingsStore((s) => s.activeListeningDraftSeconds)
 
   // Keep mutable refs so utterance handler always has fresh values
   const isDraftingRef = useRef(isDrafting)
   const draftTextRef = useRef(draftText)
   const agentNameRef = useRef(agentName)
   const roseSpeechSpeakerIdRef = useRef(roseSpeechSpeakerId)
+  const draftSecondsRef = useRef(draftSeconds)
   isDraftingRef.current = isDrafting
   draftTextRef.current = draftText
   agentNameRef.current = agentName
   roseSpeechSpeakerIdRef.current = roseSpeechSpeakerId
+  draftSecondsRef.current = draftSeconds
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -45,7 +48,8 @@ export function useActiveListening(): void {
 
     const startTimer = (): void => {
       clearTimer()
-      let count = 8
+      const seconds = Math.max(1, Math.round(draftSecondsRef.current))
+      let count = seconds
       store.setDraftSecondsLeft(count)
       tickRef.current = setInterval(() => {
         count--
@@ -60,7 +64,7 @@ export function useActiveListening(): void {
           useChatStore.getState().sendMessage()
         }
         useActiveListeningStore.getState().completeDraft()
-      }, 8000)
+      }, seconds * 1000)
     }
 
     ;(async () => {

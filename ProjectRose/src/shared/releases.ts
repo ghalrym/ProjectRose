@@ -20,7 +20,8 @@ export const RELEASES: ReleaseEntry[] = [
       'Session id is passed to extensions so they can react to fresh user turns',
       'Coding harness extension added',
       'System tray supports closing the app',
-      'Chat panel is now expandable'
+      'Chat panel is now expandable',
+      'adjustable active listening timer'
     ]
   },
   {

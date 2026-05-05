@@ -27,6 +27,7 @@ export interface AppSettings {
   agentName: string
   roseSpeechSpeakerId: number | null
   activeListeningSetupComplete: boolean
+  activeListeningDraftSeconds: number
   navItems: NavItem[]
   models: ModelConfig[]
   defaultModelId: string
@@ -65,6 +66,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   agentName: '',
   roseSpeechSpeakerId: null,
   activeListeningSetupComplete: false,
+  activeListeningDraftSeconds: 8,
   navItems: DEFAULT_NAV_ITEMS,
   models: [],
   defaultModelId: '',
