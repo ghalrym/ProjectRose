@@ -42,6 +42,24 @@ export function cancelAllAskUserQuestions(): void {
   pendingAskUser.clear()
 }
 
+// Screenshot tool — pending captures keyed by toolCallId. The renderer
+// runs the actual MediaStream capture and posts the result back.
+export type ScreenshotResult =
+  | { ok: true; dataUrl: string; mode: 'screen' | 'webcam'; sourceLabel: string | null }
+  | { ok: false; reason: string }
+
+const pendingScreenshots = new Map<string, (result: ScreenshotResult) => void>()
+
+export function resolveScreenshotRequest(requestId: string, result: ScreenshotResult): void {
+  pendingScreenshots.get(requestId)?.(result)
+  pendingScreenshots.delete(requestId)
+}
+
+export function cancelAllScreenshotRequests(): void {
+  for (const resolve of pendingScreenshots.values()) resolve({ ok: false, reason: 'cancelled' })
+  pendingScreenshots.clear()
+}
+
 export type ProviderKeys = {
   anthropic: string
   openai: string
@@ -259,6 +277,48 @@ function buildCoreTools(projectRoot: string, emit: EmitFn, toolCtx: ExtensionToo
           pendingAskUser.set(id, resolve)
           emit(IPC.AI_ASK_USER, { questionId: id, question: input.question, options: input.options ?? [] })
         })
+      }
+    }),
+    screenshot: tool({
+      description: 'Capture a single frame from whatever the user is currently sharing (screen, window, or camera) and attach the image to your context. Only works when the user has share-screen or camera mode enabled in the chat composer; returns an error otherwise. Useful when you need to see the user\'s current screen state or look at them through their camera.',
+      inputSchema: z.object({}),
+      execute: async (_input, options): Promise<string> => {
+        const id = options.toolCallId
+        emit(IPC.AI_TOOL_CALL_START, { id, name: 'screenshot', params: {} })
+        const result = await new Promise<ScreenshotResult>((resolve) => {
+          pendingScreenshots.set(id, resolve)
+          emit(IPC.AI_CAPTURE_SCREENSHOT, { requestId: id })
+        })
+        if (!result.ok) {
+          emit(IPC.AI_TOOL_CALL_END, { id, result: result.reason, error: true })
+        } else {
+          const summary = `Captured ${result.mode} frame${result.sourceLabel ? ` (${result.sourceLabel})` : ''}`
+          emit(IPC.AI_TOOL_CALL_END, { id, result: summary, error: false })
+        }
+        return JSON.stringify(result)
+      },
+      toModelOutput: ({ output }) => {
+        let parsed: ScreenshotResult
+        try {
+          parsed = typeof output === 'string' ? JSON.parse(output) : (output as ScreenshotResult)
+        } catch {
+          return { type: 'error-text', value: 'Failed to parse screenshot result.' }
+        }
+        if (!parsed.ok) {
+          return { type: 'error-text', value: parsed.reason }
+        }
+        const commaIdx = parsed.dataUrl.indexOf(',')
+        const base64 = commaIdx >= 0 ? parsed.dataUrl.slice(commaIdx + 1) : parsed.dataUrl
+        return {
+          type: 'content',
+          value: [
+            {
+              type: 'text',
+              text: `Screenshot of ${parsed.mode}${parsed.sourceLabel ? ` (${parsed.sourceLabel})` : ''}.`
+            },
+            { type: 'media', data: base64, mediaType: 'image/jpeg' }
+          ]
+        }
       }
     }),
   }

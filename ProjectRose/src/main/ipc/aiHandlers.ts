@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
 import { chat, compressHistory, buildAgentMd, cancelActiveChat } from '../services/aiService'
-import { resolveAskUserQuestion } from '../services/llmClient'
+import { resolveAskUserQuestion, resolveScreenshotRequest, type ScreenshotResult } from '../services/llmClient'
 import type { Message } from '../../shared/roseModelTypes'
 
 export function registerAiHandlers(): void {
@@ -34,6 +34,13 @@ export function registerAiHandlers(): void {
     IPC.AI_ASK_USER_RESPONSE,
     (_event, payload: { questionId: string; answer: string }) => {
       resolveAskUserQuestion(payload.questionId, payload.answer)
+    }
+  )
+
+  ipcMain.handle(
+    IPC.AI_CAPTURE_SCREENSHOT_RESULT,
+    (_event, payload: { requestId: string; result: ScreenshotResult }) => {
+      resolveScreenshotRequest(payload.requestId, payload.result)
     }
   )
 }

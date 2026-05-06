@@ -22,6 +22,7 @@ import { useSettingsStore } from './stores/useSettingsStore'
 import { useServiceStore } from './stores/useServiceStore'
 import { useStatusStore } from './stores/useStatusStore'
 import { useUpdaterStore } from './stores/useUpdaterStore'
+import { useScreenWebcamShare } from './hooks/useScreenWebcamShare'
 import styles from './App.module.css'
 
 function App(): JSX.Element {
@@ -44,6 +45,35 @@ function App(): JSX.Element {
   useEffect(() => {
     setServiceStatus(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bridge: when the agent invokes the `screenshot` tool, capture a frame from
+  // the active share stream and send it back to main.
+  useEffect(() => {
+    return window.api.onAiCaptureScreenshot(async ({ requestId }) => {
+      const share = useScreenWebcamShare.getState()
+      if (share.mode === 'off') {
+        await window.api.aiCaptureScreenshotResult(requestId, {
+          ok: false,
+          reason: 'The user is not currently sharing a screen, window, or camera. Ask them to enable screen-share or camera in the chat composer first.'
+        })
+        return
+      }
+      const frame = await share.captureFrame()
+      if (!frame) {
+        await window.api.aiCaptureScreenshotResult(requestId, {
+          ok: false,
+          reason: 'Capture failed (stream not ready).'
+        })
+        return
+      }
+      await window.api.aiCaptureScreenshotResult(requestId, {
+        ok: true,
+        dataUrl: frame.dataUrl,
+        mode: frame.kind,
+        sourceLabel: share.sourceLabel
+      })
+    })
+  }, [])
 
   // Re-render when dynamic extensions finish loading
   useEffect(() => subscribeToExtensionsChange(() => setExtVersion((v) => v + 1)), [])

@@ -56,6 +56,8 @@ export const IPC = {
   AI_ASK_USER: 'ai:askUser',
   AI_ASK_USER_RESPONSE: 'ai:askUserResponse',
   AI_INJECTED_MESSAGE: 'ai:injectedMessage',
+  AI_CAPTURE_SCREENSHOT: 'ai:captureScreenshot',
+  AI_CAPTURE_SCREENSHOT_RESULT: 'ai:captureScreenshotResult',
 
   LSP_PY_TO_SERVER: 'lsp:py:toServer',
   LSP_PY_FROM_SERVER: 'lsp:py:fromServer',

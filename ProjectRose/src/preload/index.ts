@@ -245,6 +245,20 @@ const api = {
     return () => { ipcRenderer.removeListener(IPC.AI_INJECTED_MESSAGE, handler) }
   },
 
+  onAiCaptureScreenshot: (callback: (data: { requestId: string }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { requestId: string }): void => callback(data)
+    ipcRenderer.on(IPC.AI_CAPTURE_SCREENSHOT, handler)
+    return () => { ipcRenderer.removeListener(IPC.AI_CAPTURE_SCREENSHOT, handler) }
+  },
+
+  aiCaptureScreenshotResult: (
+    requestId: string,
+    result:
+      | { ok: true; dataUrl: string; mode: 'screen' | 'webcam'; sourceLabel: string | null }
+      | { ok: false; reason: string }
+  ): Promise<void> =>
+    ipcRenderer.invoke(IPC.AI_CAPTURE_SCREENSHOT_RESULT, { requestId, result }),
+
   // Indexing / LSP startup
   indexProject: (rootPath: string): Promise<{ indexed: number; total: number; error?: string }> =>
     ipcRenderer.invoke(IPC.INDEXING_PROJECT, rootPath),
