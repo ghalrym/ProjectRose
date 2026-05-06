@@ -25,3 +25,6 @@
 [submodule "RoseExtensions/rose-coding-agents"]
 	path = RoseExtensions/rose-coding-agents
 	url = https://github.com/RoseAgent/roseproject-coding-agents.git
+[submodule "RoseExtensions/rose-bond"]
+	path = RoseExtensions/rose-bond
+	url = https://github.com/RoseAgent/projectrose-bond.git
