@@ -3,6 +3,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createWindow, setQuitting } from './window'
 import { createTray, destroyTray } from './tray'
 import { registerAllHandlers } from './ipc'
+import { attachDisplayMediaHandler } from './ipc/screenHandlers'
 import { buildAppMenu } from './menu'
 import { disposeAllTerminals } from './services/terminalService'
 import { stopLsp } from './services/lspManager'
@@ -30,6 +31,7 @@ app.whenReady().then(async () => {
   })
 
   registerAllHandlers()
+  attachDisplayMediaHandler()
   buildAppMenu()
   createWindow()
   createTray()

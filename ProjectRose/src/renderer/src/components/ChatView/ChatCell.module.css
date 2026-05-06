@@ -160,6 +160,17 @@
   letter-spacing: 0;
 }
 
+.attachmentImg {
+  display: block;
+  max-width: 240px;
+  max-height: 180px;
+  margin-top: 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-chat-border);
+  cursor: zoom-in;
+  background: #000;
+}
+
 .streamCursor {
   display: inline-block;
   width: 2px;

@@ -1,6 +1,8 @@
 import { create } from 'zustand'
+import type { MessageAttachment } from '@shared/roseModelTypes'
 import { useProjectStore } from './useProjectStore'
 import { useSettingsStore } from './useSettingsStore'
+import { useScreenWebcamShare } from '../hooks/useScreenWebcamShare'
 
 let msgCounter = 0
 
@@ -12,6 +14,7 @@ interface BaseMessage {
 export interface UserMessage extends BaseMessage {
   role: 'user'
   content: string
+  attachments?: MessageAttachment[]
 }
 
 export interface AssistantMessage extends BaseMessage {
@@ -314,7 +317,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     // Snapshot API messages before adding new messages to state
     const includeThinking = useSettingsStore.getState().includeThinkingInContext
     const settled = get().messages.filter((m) => !(m as AssistantMessage).streaming && !(m as ThinkingMessage).streaming)
-    let apiMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+    type ApiMessage = { role: 'user' | 'assistant' | 'system'; content: string; attachments?: MessageAttachment[] }
+    let apiMessages: ApiMessage[]
     if (includeThinking) {
       apiMessages = []
       let pendingThinking = ''
@@ -323,7 +327,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           pendingThinking += (pendingThinking ? '\n\n' : '') + m.content
         } else if (m.role === 'user') {
           pendingThinking = ''
-          apiMessages.push({ role: 'user', content: m.content })
+          apiMessages.push({ role: 'user', content: m.content, attachments: (m as UserMessage).attachments })
         } else if (m.role === 'assistant') {
           const content = pendingThinking
             ? `<thinking>\n${pendingThinking}\n</thinking>\n\n${m.content}`
@@ -338,19 +342,25 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     } else {
       apiMessages = settled
         .filter((m): m is UserMessage | AssistantMessage | InjectedMessage => m.role === 'user' || m.role === 'assistant' || m.role === 'injected')
-        .map((m) => {
+        .map((m): ApiMessage => {
           if (m.role === 'injected') {
             return { role: 'system' as const, content: `[Extension ${m.extensionName}] ${m.content}` }
           }
-          return { role: m.role, content: m.content }
+          if (m.role === 'user') {
+            return { role: 'user', content: m.content, attachments: m.attachments }
+          }
+          return { role: 'assistant', content: m.content }
         })
     }
+
+    const frame = await useScreenWebcamShare.getState().captureFrame()
 
     const userMsg: UserMessage = {
       id: `msg-${++msgCounter}`,
       role: 'user',
       content: trimmed,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      ...(frame ? { attachments: [frame] } : {})
     }
 
     // Create session on first message
@@ -427,7 +437,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
 
     try {
-      const response = await window.api.aiChat([...apiMessages, { role: 'user', content: trimmed }], rootPath, sessionId!)
+      const response = await window.api.aiChat(
+        [...apiMessages, { role: 'user', content: trimmed, attachments: userMsg.attachments }],
+        rootPath,
+        sessionId!
+      )
 
       cleanup()
 

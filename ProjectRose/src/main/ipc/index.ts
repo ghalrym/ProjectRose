@@ -15,6 +15,7 @@ import { registerAuthHandlers } from './authHandlers'
 import { registerSkillHandlers } from './skillHandlers'
 import { registerUpdaterHandlers } from './updaterHandlers'
 import { registerPromptHandlers } from './promptHandlers'
+import { registerScreenHandlers } from './screenHandlers'
 export function registerAllHandlers(): void {
   registerFileHandlers()
   registerDialogHandlers()
@@ -33,4 +34,5 @@ export function registerAllHandlers(): void {
   registerSkillHandlers()
   registerUpdaterHandlers()
   registerPromptHandlers()
+  registerScreenHandlers()
 }

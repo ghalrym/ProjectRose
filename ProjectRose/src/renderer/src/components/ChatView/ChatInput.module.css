@@ -151,6 +151,35 @@
   background: var(--color-button-hover-bg);
 }
 
+.shareBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  color: var(--color-text-secondary);
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.shareBtn:hover:not(:disabled) {
+  background: var(--color-button-hover-bg);
+}
+
+.shareBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.shareActive {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.shareActive:hover:not(:disabled) {
+  background: var(--color-accent);
+  opacity: 0.9;
+}
+
 .micRecording {
   color: #ef4444;
   animation: micPulse 1s ease-in-out infinite;

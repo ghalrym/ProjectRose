@@ -309,6 +309,20 @@ function isXmlParseError(message: string): boolean {
   return lower.includes('xml syntax error') || lower.includes('expected element type')
 }
 
+function toModelMessage(m: Message): ModelMessage {
+  if (m.role === 'system') return { role: 'system', content: m.content }
+  if (m.role === 'assistant') return { role: 'assistant', content: m.content }
+  const atts = m.attachments ?? []
+  if (atts.length === 0) return { role: 'user', content: m.content }
+  return {
+    role: 'user',
+    content: [
+      { type: 'text', text: m.content },
+      ...atts.map((a) => ({ type: 'image' as const, image: a.dataUrl, mediaType: a.mimeType }))
+    ]
+  }
+}
+
 export async function streamChat(params: {
   messages: Message[]
   systemPrompt: string
@@ -356,11 +370,7 @@ export async function streamChat(params: {
 
   let coreMessages: ModelMessage[] = params.preBuiltCoreMessages
     ? [...params.preBuiltCoreMessages]
-    : messages.map((m) => {
-        if (m.role === 'system') return { role: 'system' as const, content: m.content }
-        if (m.role === 'assistant') return { role: 'assistant' as const, content: m.content }
-        return { role: 'user' as const, content: m.content }
-      })
+    : messages.map((m) => toModelMessage(m))
 
   const fireBoundary = async (kind: 'thought' | 'message', content: string): Promise<void> => {
     if (!hookCtx || !params.collectInjections || content.length === 0) return

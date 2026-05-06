@@ -116,6 +116,10 @@ export const IPC = {
   ACTIVE_LISTENING_STOP_STREAM: 'activeSpeech:stopStream',
   ACTIVE_LISTENING_UTTERANCE: 'activeSpeech:utterance',
 
+  // Screen / window capture for chat share-screen
+  SCREEN_GET_SOURCES: 'screen:getSources',
+  SCREEN_SET_ACTIVE_SOURCE: 'screen:setActiveSource',
+
   // Status bar notifications (main → renderer)
   STATUS_NOTIFY: 'status:notify',
 

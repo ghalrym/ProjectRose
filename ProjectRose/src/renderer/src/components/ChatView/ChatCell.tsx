@@ -107,6 +107,15 @@ export function ChatCell({ message }: ChatCellProps): JSX.Element {
           {isStreaming && (
             <span className={styles.streamCursor} aria-hidden="true" />
           )}
+          {isUser && (message as UserMessage).attachments?.map((a, i) => (
+            <img
+              key={i}
+              src={a.dataUrl}
+              className={styles.attachmentImg}
+              alt={a.kind === 'screen' ? 'Shared screen' : 'Camera frame'}
+              onClick={() => window.open(a.dataUrl, '_blank')}
+            />
+          ))}
         </div>
       )}
     </div>

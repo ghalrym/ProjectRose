@@ -9,6 +9,18 @@ export interface ReleaseEntry {
 
 export const RELEASES: ReleaseEntry[] = [
   {
+    version: '1.4.0',
+    tag: null,
+    date: null,
+    title: 'Share your screen or camera with the agent',
+    unreleased: true,
+    highlights: [
+      'Chat composer can share a screen, a window, or a camera feed with the agent',
+      'A fresh frame is attached automatically to each message you send while sharing is on',
+      'Live preview tile shows what the agent will see before you send'
+    ]
+  },
+  {
     version: '1.3.1',
     tag: null,
     date: null,

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipcChannels'
 import type { FileNode, RecentProject, ToolMeta } from '../shared/types'
+import type { Message } from '../shared/roseModelTypes'
 
 const api = {
   // Theme
@@ -175,10 +176,10 @@ const api = {
     ipcRenderer.invoke(IPC.APP_QUIT),
 
   // AI
-  aiChat: (messages: { role: string; content: string }[], rootPath: string, sessionId: string): Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }> =>
+  aiChat: (messages: Message[], rootPath: string, sessionId: string): Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }> =>
     ipcRenderer.invoke(IPC.AI_CHAT, { messages, rootPath, sessionId }),
 
-  aiCompress: (messages: { role: string; content: string }[]): Promise<{ role: string; content: string }[]> =>
+  aiCompress: (messages: Message[]): Promise<Message[]> =>
     ipcRenderer.invoke(IPC.AI_COMPRESS, messages),
 
   aiGetSystemPrompt: (rootPath: string): Promise<string> =>
@@ -423,6 +424,14 @@ const api = {
       ipcRenderer.on(IPC.UPDATER_ERROR, handler)
       return () => { ipcRenderer.removeListener(IPC.UPDATER_ERROR, handler) }
     }
+  },
+
+  // Screen / window capture (chat share-screen)
+  screen: {
+    getSources: (): Promise<{ id: string; name: string; displayId: string; thumbnailDataURL: string; appIconDataURL: string | null }[]> =>
+      ipcRenderer.invoke(IPC.SCREEN_GET_SOURCES),
+    setActiveSource: (sourceId: string | null): Promise<void> =>
+      ipcRenderer.invoke(IPC.SCREEN_SET_ACTIVE_SOURCE, sourceId)
   },
 
   // Skills

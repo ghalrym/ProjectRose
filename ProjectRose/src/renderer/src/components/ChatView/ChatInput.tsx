@@ -3,6 +3,9 @@ import { useChatStore } from '../../stores/useChatStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useServiceStore } from '../../stores/useServiceStore'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
+import { useScreenWebcamShare } from '../../hooks/useScreenWebcamShare'
+import { SharePreview } from './SharePreview'
+import { ScreenSourcePickerModal } from './ScreenSourcePickerModal'
 import clsx from 'clsx'
 import styles from './ChatInput.module.css'
 
@@ -18,10 +21,23 @@ export function ChatInput(): JSX.Element {
   const roseSpeechOnline = useServiceStore((s) => s.roseSpeech)
   const isDrafting = useActiveListeningStore((s) => s.isDrafting)
   const draftSecondsLeft = useActiveListeningStore((s) => s.draftSecondsLeft)
+  const shareMode = useScreenWebcamShare((s) => s.mode)
+  const startScreen = useScreenWebcamShare((s) => s.startScreen)
+  const startWebcam = useScreenWebcamShare((s) => s.startWebcam)
+  const stopShare = useScreenWebcamShare((s) => s.stop)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [micState, setMicState] = useState<MicState>('idle')
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
+
+  const handleScreenClick = (): void => {
+    if (shareMode === 'screen') stopShare()
+    else void startScreen()
+  }
+  const handleWebcamClick = (): void => {
+    if (shareMode === 'webcam') stopShare()
+    else void startWebcam()
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -90,6 +106,7 @@ export function ChatInput(): JSX.Element {
           </button>
         </div>
       )}
+      <SharePreview />
       <div className={styles.inputArea}>
         <textarea
           ref={textareaRef}
@@ -113,6 +130,26 @@ export function ChatInput(): JSX.Element {
               </button>
             )}
             <button
+              className={clsx(styles.shareBtn, {
+                [styles.shareActive]: shareMode === 'screen'
+              })}
+              onClick={handleScreenClick}
+              disabled={isLoading}
+              title={shareMode === 'screen' ? 'Stop sharing screen' : 'Share screen or window'}
+            >
+              🖥
+            </button>
+            <button
+              className={clsx(styles.shareBtn, {
+                [styles.shareActive]: shareMode === 'webcam'
+              })}
+              onClick={handleWebcamClick}
+              disabled={isLoading}
+              title={shareMode === 'webcam' ? 'Stop camera' : 'Share camera'}
+            >
+              📷
+            </button>
+            <button
               className={clsx(styles.micBtn, {
                 [styles.micRecording]: micState === 'recording',
                 [styles.micTranscribing]: micState === 'transcribing',
@@ -134,6 +171,7 @@ export function ChatInput(): JSX.Element {
           </button>
         </div>
       </div>
+      <ScreenSourcePickerModal />
     </div>
   )
 }
