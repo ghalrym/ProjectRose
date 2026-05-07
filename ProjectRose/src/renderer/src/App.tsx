@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import { TopBar } from './components/TopBar/TopBar'
 import { FileActions } from './components/TopBar/FileActions'
 import { EditorView } from './components/EditorView/EditorView'
@@ -38,9 +38,12 @@ function App(): JSX.Element {
   const toggleTerminal = useViewStore((s) => s.toggleTerminal)
 
   const { load: loadSettings } = useSettingsStore()
+  const settingsLoaded = useSettingsStore((s) => s.loaded)
+  const agentStartsExpanded = useSettingsStore((s) => s.agentStartsExpanded)
   const setServiceStatus = useServiceStore((s) => s.setStatus)
   const [needsSetup, setNeedsSetup] = useState(false)
   const [, setExtVersion] = useState(0)
+  const initialExpandApplied = useRef(false)
 
   // Speech is now in-process — always available
   useEffect(() => {
@@ -89,6 +92,17 @@ function App(): JSX.Element {
 
   // Reload settings when a project is opened to merge in repo config
   useEffect(() => { if (rootPath) loadSettings() }, [rootPath, loadSettings])
+
+  // First time settings finish loading, seed the agent view's expanded state
+  // from the user's preference. After this point the user can toggle in-session
+  // without us clobbering their choice.
+  useEffect(() => {
+    if (!settingsLoaded || initialExpandApplied.current) return
+    initialExpandApplied.current = true
+    if (agentStartsExpanded) {
+      useViewStore.setState({ isChatFullWidth: true })
+    }
+  }, [settingsLoaded, agentStartsExpanded])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)

@@ -32,6 +32,7 @@ export interface AppSettings {
   router: RouterConfig
   hostMode: 'projectrose' | 'self'
   includeThinkingInContext: boolean
+  agentStartsExpanded: boolean
   ollamaBaseUrl: string
   openaiCompatBaseUrl: string
   // Namespaced extension settings: { 'rose-discord': { global: {...}, project: {...} } }
@@ -55,6 +56,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   router: { enabled: false, modelName: '' },
   hostMode: 'self',
   includeThinkingInContext: false,
+  agentStartsExpanded: false,
   ollamaBaseUrl: 'http://localhost:11434',
   openaiCompatBaseUrl: '',
   openaiCompatApiKey: '',

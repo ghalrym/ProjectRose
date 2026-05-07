@@ -259,7 +259,7 @@ export function SettingsView(): JSX.Element {
   const {
     micDeviceId, userName, agentName, activeListeningDraftSeconds,
     models, defaultModelId, providerKeys, router,
-    includeThinkingInContext,
+    includeThinkingInContext, agentStartsExpanded,
     ollamaBaseUrl, openaiCompatBaseUrl, openaiCompatApiKey,
     update,
   } = useSettingsStore()
@@ -700,6 +700,22 @@ export function SettingsView(): JSX.Element {
                   update({ activeListeningDraftSeconds: Math.round(n) })
                 }
               }}
+            />
+          </div>
+        </section>
+
+        <section className={styles.section} style={{ paddingTop: 16 }}>
+          <div className={styles.sectionTitle}>Agent View</div>
+          <div className={styles.settingRow}>
+            <div className={styles.settingInfo}>
+              <div className={styles.settingLabel}>Start expanded</div>
+              <div className={styles.settingDesc}>
+                Open the agent view in full-width mode when the app launches. When off, the agent opens in the default split layout.
+              </div>
+            </div>
+            <HToggle
+              on={agentStartsExpanded}
+              onChange={(v) => update({ agentStartsExpanded: v })}
             />
           </div>
         </section>
