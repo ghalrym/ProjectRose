@@ -12,12 +12,19 @@ export const RELEASES: ReleaseEntry[] = [
     version: '1.4.0',
     tag: null,
     date: null,
-    title: 'Share your screen or camera with the agent',
+    title: 'Screen sharing, redesigned navigation, and new extensions',
     unreleased: true,
     highlights: [
       'Chat composer can share a screen, a window, or a camera feed with the agent',
       'A fresh frame is attached automatically to each message you send while sharing is on',
-      'Live preview tile shows what the agent will see before you send'
+      'Live preview tile shows what the agent will see before you send',
+      'Agent can take its own screenshots while working on screenshare-based tasks',
+      'Redesigned navigation with a bottom dock and an apps drawer that pulls up from the menu bar',
+      'Chat can open in full or half-screen view',
+      'Settings button is now a cogwheel; agent and settings split out of the apps drawer',
+      'New WordPress and Bond extensions, available in the in-app discovery page',
+      'Extensions can mark individual tools as off-by-default',
+      'Project opening no longer shows the app bar or breadcrumb'
     ]
   },
   {
