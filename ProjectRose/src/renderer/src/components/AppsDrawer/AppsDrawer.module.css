@@ -13,7 +13,7 @@
   left: 0;
   right: 0;
   bottom: 42px; /* sits flush against the top of the dock */
-  height: min(60vh, 520px);
+  height: calc(100vh - 130px);
   z-index: 40;
 
   display: flex;
