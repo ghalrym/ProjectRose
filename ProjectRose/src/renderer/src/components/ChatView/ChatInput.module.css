@@ -65,6 +65,19 @@
   background: var(--color-bg-secondary);
 }
 
+/* Full-width chat mode: carve a half-circle out of the input bar's
+   bottom-center so the dock FAB peeks through it (Venn-style).
+
+   Horizontal alignment: the FAB lives on the BottomDock at window-center
+   (left: 50% of the full window). The input bar, however, sits in the
+   chat panel which is offset right of the 300px session sidebar — so its
+   own 50% lands 150px right of the FAB. Shift the gradient's center by
+   −150px (half the sidebar width) to put the notch directly under the
+   FAB. If ChatView's sidebar column ever changes, update both. */
+.inputAreaNotched {
+  padding-bottom: 60px;
+}
+
 .textarea {
   flex: 1;
   min-height: 40px;

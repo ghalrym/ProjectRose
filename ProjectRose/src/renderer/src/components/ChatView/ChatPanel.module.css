@@ -7,6 +7,16 @@
   background: var(--color-bg-primary);
 }
 
+/* In full-width chat mode the panel spans the center of the window, so the
+   bottom-dock FAB (which pokes ~58px up from the dock) lands on top of the
+   message input. The input bar gets a notch (see ChatInput.module.css) that
+   the FAB peeks through; this small bottom padding leaves a thin reveal of
+   panel background between the input and the dock so the notch reads as a
+   gap rather than a flush edge. */
+.chatPanelFullWidth {
+  padding-bottom: 2px;
+}
+
 /* ── mode toggle ── */
 .panelHeader {
   display: flex;

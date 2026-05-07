@@ -136,7 +136,7 @@ export function ChatPanel(): JSX.Element {
   const items = groupMessages(messages)
 
   return (
-    <div className={styles.chatPanel}>
+    <div className={clsx(styles.chatPanel, isChatFullWidth && styles.chatPanelFullWidth)}>
       <div className={styles.panelHeader}>
         {showExpandToggle && (
           <button
@@ -219,7 +219,7 @@ export function ChatPanel(): JSX.Element {
         <TranscriptView />
       )}
 
-      <ChatInput />
+      <ChatInput notched={activeView === 'chat' && isChatFullWidth} />
     </div>
   )
 }

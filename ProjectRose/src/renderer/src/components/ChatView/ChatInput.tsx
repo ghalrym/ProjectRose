@@ -11,7 +11,7 @@ import styles from './ChatInput.module.css'
 
 type MicState = 'idle' | 'recording' | 'transcribing'
 
-export function ChatInput(): JSX.Element {
+export function ChatInput({ notched = false }: { notched?: boolean }): JSX.Element {
   const inputValue = useChatStore((s) => s.inputValue)
   const setInputValue = useChatStore((s) => s.setInputValue)
   const sendMessage = useChatStore((s) => s.sendMessage)
@@ -107,7 +107,7 @@ export function ChatInput(): JSX.Element {
         </div>
       )}
       <SharePreview />
-      <div className={styles.inputArea}>
+      <div className={clsx(styles.inputArea, notched && styles.inputAreaNotched)}>
         <textarea
           ref={textareaRef}
           className={styles.textarea}
