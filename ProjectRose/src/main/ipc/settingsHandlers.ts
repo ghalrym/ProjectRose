@@ -1,10 +1,8 @@
 import { ipcMain, app } from 'electron'
 import { join, dirname } from 'path'
-import { readFile, writeFile, mkdir, readdir } from 'fs/promises'
+import { readFile, writeFile, mkdir } from 'fs/promises'
 import { IPC } from '../../shared/ipcChannels'
-import { NavItem } from '../../shared/types'
 import { serviceStatus } from '../services/serviceStatus'
-import { prPath } from '../lib/projectPaths'
 
 export interface ModelConfig {
   id: string
@@ -28,7 +26,6 @@ export interface AppSettings {
   roseSpeechSpeakerId: number | null
   activeListeningSetupComplete: boolean
   activeListeningDraftSeconds: number
-  navItems: NavItem[]
   models: ModelConfig[]
   defaultModelId: string
   providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string }; projectrose: { accessToken: string; refreshToken: string; email: string; plan: string } | null }
@@ -43,21 +40,6 @@ export interface AppSettings {
   [key: string]: unknown
 }
 
-// Migrate old view IDs to extension IDs
-const NAV_ID_MIGRATIONS: Record<string, string> = {
-  discord: 'rose-discord',
-  email: 'rose-email',
-  git: 'rose-git',
-  docker: 'rose-docker'
-}
-
-const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { viewId: 'chat',      label: 'Agent',     visible: true },
-  { viewId: 'editor',    label: 'Editor',    visible: true },
-  { viewId: 'heartbeat', label: 'Heartbeat', visible: true },
-  { viewId: 'settings',  label: 'Settings',  visible: true },
-]
-
 const DEFAULT_SETTINGS: AppSettings = {
   heartbeatEnabled: true,
   heartbeatIntervalMinutes: 5,
@@ -67,7 +49,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   roseSpeechSpeakerId: null,
   activeListeningSetupComplete: false,
   activeListeningDraftSeconds: 8,
-  navItems: DEFAULT_NAV_ITEMS,
   models: [],
   defaultModelId: '',
   providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' }, projectrose: null },
@@ -81,27 +62,6 @@ const DEFAULT_SETTINGS: AppSettings = {
 }
 
 const GLOBAL_SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
-
-interface ExtNavItem { id: string; label: string }
-
-async function getInstalledExtensionNavItems(rootPath: string): Promise<ExtNavItem[]> {
-  const extensionsDir = prPath(rootPath, 'extensions')
-  try {
-    const entries = await readdir(extensionsDir)
-    const items: ExtNavItem[] = []
-    for (const entry of entries) {
-      try {
-        const raw = await readFile(join(extensionsDir, entry, 'rose-extension.json'), 'utf-8')
-        const manifest = JSON.parse(raw)
-        if (!manifest?.id || !manifest?.navItem?.label) continue
-        items.push({ id: manifest.id as string, label: manifest.navItem.label as string })
-      } catch { /* skip invalid entries */ }
-    }
-    return items
-  } catch {
-    return []
-  }
-}
 
 // Host-owned secret fields (stored in userData/settings.json, not the
 // project repo config). Extensions declare their own sensitive keys via
@@ -136,29 +96,6 @@ function getRepoConfigPath(rootPath: string): string {
   return join(rootPath, '.projectrose', 'config.json')
 }
 
-async function mergeNavItems(stored: NavItem[], rootPath?: string): Promise<NavItem[]> {
-  // Migrate legacy IDs and ensure core items are present
-  const migrated = stored.map((n) => ({ ...n, viewId: NAV_ID_MIGRATIONS[n.viewId] ?? n.viewId }))
-  const known = new Set(migrated.map((n) => n.viewId))
-  const missingCore = DEFAULT_NAV_ITEMS.filter((n) => !known.has(n.viewId))
-  const base = [...migrated, ...missingCore]
-
-  if (!rootPath) return base
-
-  // With a project root, reconcile rose-* items against what's actually installed
-  const installedExts = await getInstalledExtensionNavItems(rootPath)
-  const installedIds = new Set(installedExts.map((e) => e.id))
-
-  const reconciled = base.filter((n) => !n.viewId.startsWith('rose-') || installedIds.has(n.viewId))
-  const reconciledIds = new Set(reconciled.map((n) => n.viewId))
-
-  const missingExts = installedExts
-    .filter((e) => !reconciledIds.has(e.id))
-    .map((e) => ({ viewId: e.id, label: e.label, visible: true }))
-
-  return [...reconciled, ...missingExts]
-}
-
 export async function readSettings(rootPath?: string): Promise<AppSettings> {
   let globalSettings: Partial<AppSettings> = {}
   try { globalSettings = JSON.parse(await readFile(GLOBAL_SETTINGS_PATH, 'utf-8')) } catch { /* defaults */ }
@@ -179,7 +116,9 @@ export async function readSettings(rootPath?: string): Promise<AppSettings> {
     ...pick(globalSettings, sensitiveKeys)
   }
 
-  merged.navItems = await mergeNavItems(merged.navItems, rootPath)
+  // Drop any legacy navItems entry — the host no longer has a navigation bar.
+  delete (merged as Record<string, unknown>).navItems
+
   return merged
 }
 

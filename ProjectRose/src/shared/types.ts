@@ -26,12 +26,6 @@ export type BaseView = 'editor' | 'chat' | 'settings' | 'apps'
 // Accepts base views and extension IDs (e.g. 'rose-discord')
 export type ActiveView = BaseView | (string & Record<never, never>)
 
-export interface NavItem {
-  viewId: string
-  label: string
-  visible: boolean
-}
-
 export interface ModelConfig {
   id: string
   displayName: string

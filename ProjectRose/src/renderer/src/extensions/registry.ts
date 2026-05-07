@@ -41,15 +41,6 @@ export function getAllExtensions(): RendererExtension[] {
   return [...DYNAMIC_EXTENSIONS]
 }
 
-export function getExtensionNavItems(): Array<{ viewId: string; label: string }> {
-  return DYNAMIC_EXTENSIONS
-    .filter((e) => e.manifest.navItem)
-    .map((e) => ({
-      viewId: e.manifest.id,
-      label: e.manifest.navItem!.label
-    }))
-}
-
 const STYLE_DATA_ATTR = 'data-rose-extension'
 
 function clearExtensionStyles(): void {

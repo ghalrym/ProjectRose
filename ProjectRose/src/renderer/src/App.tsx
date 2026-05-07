@@ -9,7 +9,7 @@ import { AccountView } from './components/AccountView/AccountView'
 import { AppBoardView } from './components/AppBoardView/AppBoardView'
 import { WelcomeView } from './components/WelcomeView/WelcomeView'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
-import { StatusBar } from './components/StatusBar/StatusBar'
+import { BottomDock } from './components/BottomDock/BottomDock'
 import { UpdateToast } from './components/UpdateToast'
 import { getExtensionByViewId, loadDynamicExtensions, subscribeToExtensionsChange } from './extensions/registry'
 import { useThemeStore } from './stores/useThemeStore'
@@ -200,7 +200,7 @@ function App(): JSX.Element {
       <div className={styles.app}>
         <div className={styles.titleBar} />
         <WelcomeView onOpenFolder={handleOpenFolder} />
-        <StatusBar />
+        <BottomDock />
         <UpdateToast />
       </div>
     )
@@ -240,7 +240,7 @@ function App(): JSX.Element {
         </div>
         {activeView !== 'chat' && <ChatPanel />}
       </main>
-      <StatusBar />
+      <BottomDock />
       <UpdateToast />
     </div>
   )

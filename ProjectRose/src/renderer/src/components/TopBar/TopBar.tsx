@@ -1,7 +1,5 @@
 import { useProjectStore } from '../../stores/useProjectStore'
 import { BrandMenu } from './BrandMenu'
-import { ViewToggle } from './ViewToggle'
-import { ThemeToggle } from './ThemeToggle'
 import { Breadcrumbs } from '../Breadcrumbs/Breadcrumbs'
 import styles from './TopBar.module.css'
 
@@ -19,19 +17,9 @@ export function TopBar(): JSX.Element {
 
       <div className={styles.divider} />
 
-      {/* breadcrumb — fills remaining left space */}
+      {/* breadcrumb — fills remaining space */}
       <div className={styles.breadcrumbZone}>
         <Breadcrumbs />
-      </div>
-
-      <div className={styles.spacer} />
-
-      <ViewToggle />
-
-      <div className={styles.spacer} />
-
-      <div className={styles.right}>
-        <ThemeToggle />
       </div>
     </div>
   )

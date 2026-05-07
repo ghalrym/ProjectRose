@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { InstalledExtension } from '../../../../shared/extension-types'
-import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { loadDynamicExtensions } from '../../extensions/registry'
 import { BUILTIN_CATALOG, type CatalogEntry } from '../../extensions/builtinCatalog'
@@ -18,8 +17,6 @@ export function ExtensionsTab(): JSX.Element {
   const [activePane, setActivePane] = useState<ExtensionPane>('discover')
 
   const rootPath = useProjectStore((s) => s.rootPath)
-  const navItems = useSettingsStore((s) => s.navItems)
-  const updateSettings = useSettingsStore((s) => s.update)
 
   const loadInstalled = useCallback(async () => {
     if (!rootPath) { setInstalled([]); return }
@@ -31,23 +28,14 @@ export function ExtensionsTab(): JSX.Element {
 
   const installedIds = useMemo(() => new Set(installed.map((e) => e.manifest.id)), [installed])
 
-  // After any install, refresh the installed list, register a nav item for any
-  // newly added extension that declares one, and load its dynamic bundle.
+  // After any install, refresh the installed list and load the dynamic bundle.
+  // Extensions show up in the Apps board, not the nav, so there's no nav-item to register.
   const finalizeInstall = useCallback(async (): Promise<void> => {
     if (!rootPath) return
     const { installed: newInstalled } = await window.api.extension.list(rootPath)
     setInstalled(newInstalled)
-
-    const prevIds = new Set(installed.map((e) => e.manifest.id))
-    const added = newInstalled.filter((e) => !prevIds.has(e.manifest.id) && e.manifest.navItem)
-    const newNavItems = added
-      .filter((e) => !navItems.some((n) => n.viewId === e.manifest.id))
-      .map((e) => ({ viewId: e.manifest.id, label: e.manifest.navItem!.label, visible: true }))
-    if (newNavItems.length > 0) {
-      await updateSettings({ navItems: [...navItems, ...newNavItems] })
-    }
     await loadDynamicExtensions(rootPath)
-  }, [installed, navItems, updateSettings, rootPath])
+  }, [rootPath])
 
   const installFromUrl = useCallback(async (url: string): Promise<{ ok: boolean; error?: string }> => {
     if (!rootPath) return { ok: false, error: 'No project open' }
@@ -116,10 +104,9 @@ export function ExtensionsTab(): JSX.Element {
   const handleUninstall = useCallback(async (ext: InstalledExtension) => {
     if (!rootPath) return
     await window.api.extension.uninstall(rootPath, ext.manifest.id)
-    await updateSettings({ navItems: navItems.filter((n) => n.viewId !== ext.manifest.id) })
     await loadInstalled()
     await loadDynamicExtensions(rootPath)
-  }, [loadInstalled, navItems, updateSettings, rootPath])
+  }, [loadInstalled, rootPath])
 
   const handleToggle = useCallback(async (id: string, currentlyEnabled: boolean) => {
     if (!rootPath) return

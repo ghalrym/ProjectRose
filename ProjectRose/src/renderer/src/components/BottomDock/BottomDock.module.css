@@ -1,0 +1,245 @@
+/* ── Always-dark palette for the dock (matches design) ── */
+.dock {
+  --d-ink:        #2e2418;
+  --d-ink-deep:   #1a1410;
+  --d-sepia:      #7a2a20;
+  --d-sepia-deep: #5a1a14;
+  --d-ochre:      #c4956a;
+  --d-paper:      #f7f2e6;
+  --d-ink-soft:   #9c8c6e;
+  --d-ink-wisp:   #c4b8a0;
+
+  position: relative;
+  flex-shrink: 0;
+  height: 84px;
+  background: linear-gradient(180deg, var(--d-ink) 0%, var(--d-ink-deep) 100%);
+  border-top: 1px solid rgba(122, 42, 32, 0.4);
+  box-shadow:
+    0 -1px 0 rgba(196, 149, 106, 0.2),
+    0 -8px 24px rgba(0, 0, 0, 0.18);
+  color: var(--d-paper);
+  font-family: var(--font-family-mono);
+  user-select: none;
+}
+
+/* hairline glow at the top edge */
+.topGlow {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  pointer-events: none;
+  opacity: 0.6;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--d-sepia) 30%,
+    var(--d-ochre) 50%,
+    var(--d-sepia) 70%,
+    transparent 100%
+  );
+}
+
+/* ── Empty pedestal area for the FAB ── */
+.fabRow {
+  height: 56px;
+}
+
+/* ── Center FAB ── */
+.fab {
+  position: absolute;
+  left: 50%;
+  top: -28px;
+  transform: translateX(-50%);
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 2px solid rgba(196, 149, 106, 0.5);
+  padding: 0;
+  cursor: pointer;
+  color: var(--d-paper);
+  background: radial-gradient(
+    circle at 50% 38%,
+    var(--d-sepia) 0%,
+    var(--d-sepia-deep) 60%,
+    var(--d-ink) 100%
+  );
+  box-shadow:
+    0 0 0 4px var(--d-ink),
+    0 0 30px rgba(122, 42, 32, 0.9),
+    inset 0 -8px 20px rgba(46, 36, 24, 0.8),
+    inset 0 8px 16px var(--d-sepia);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.fab:hover {
+  transform: translateX(-50%) scale(1.04);
+  box-shadow:
+    0 0 0 4px var(--d-ink),
+    0 0 36px rgba(122, 42, 32, 1),
+    inset 0 -8px 20px rgba(46, 36, 24, 0.8),
+    inset 0 8px 16px var(--d-sepia);
+}
+
+.fab:active {
+  transform: translateX(-50%) scale(0.98);
+}
+
+.fabBreathRing {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 1px solid rgba(196, 149, 106, 0.35);
+  animation: breath 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.fabLabel {
+  position: absolute;
+  left: 50%;
+  top: 48px;
+  transform: translateX(-50%);
+  font-size: 8px;
+  letter-spacing: 2.4px;
+  font-weight: 500;
+  color: var(--d-ochre);
+  text-shadow: 0 0 10px var(--d-sepia);
+  pointer-events: none;
+}
+
+/* ── Status row (fused) ── */
+.statusRow {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 22px;
+  border-top: 1px solid rgba(122, 42, 32, 0.25);
+  background: rgba(0, 0, 0, 0.25);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--d-ink-wisp);
+}
+
+.statusMessage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--d-ochre);
+  font-weight: 500;
+  animation: fadeIn 120ms ease-out;
+}
+
+.statusIdle {
+  color: var(--d-ink-soft);
+  font-weight: 400;
+  font-style: italic;
+}
+
+.statusDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--d-ink-soft);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.statusMessage:not(.statusIdle) .statusDot {
+  opacity: 1;
+  background: var(--d-sepia);
+  box-shadow: 0 0 8px var(--d-sepia);
+}
+
+.tone_info    { background: var(--d-ink-wisp) !important; box-shadow: none !important; }
+.tone_success { background: #7a9a40 !important;            box-shadow: 0 0 8px #7a9a40 !important; }
+.tone_warning { background: #c4956a !important;            box-shadow: 0 0 8px #c4956a !important; }
+.tone_error   { background: #c4524a !important;            box-shadow: 0 0 8px #c4524a !important; }
+
+.sep {
+  color: var(--d-ink-soft);
+  opacity: 0.4;
+}
+
+.spacer {
+  flex: 1;
+  min-width: 12px;
+}
+
+.themePill {
+  padding: 3px 9px;
+  border: 1px solid rgba(122, 42, 32, 0.5);
+  background: rgba(122, 42, 32, 0.18);
+  color: var(--d-ochre);
+  letter-spacing: 1.4px;
+  font-weight: 500;
+  font-size: 9px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.themePill:hover {
+  background: rgba(122, 42, 32, 0.32);
+  border-color: rgba(122, 42, 32, 0.8);
+}
+
+.brand {
+  letter-spacing: 1.4px;
+  color: var(--d-ochre);
+}
+
+.version {
+  letter-spacing: 0.4px;
+  color: var(--d-ink-soft);
+}
+
+/* ── Update badge ── */
+.updateBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: none;
+  border: 1px solid var(--d-ochre);
+  border-radius: 9999px;
+  color: var(--d-ochre);
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: opacity 0.1s;
+}
+
+.updateBadge:hover {
+  opacity: 0.85;
+}
+
+.updateDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--d-ochre);
+  flex-shrink: 0;
+  animation: updatePulse 1.6s ease-in-out infinite;
+}
+
+/* ── Animations ── */
+@keyframes breath {
+  0%, 100% { transform: scale(1);    opacity: 0.55; }
+  50%      { transform: scale(1.08); opacity: 0.9;  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes updatePulse {
+  0%, 100% { opacity: 1;   }
+  50%      { opacity: 0.4; }
+}

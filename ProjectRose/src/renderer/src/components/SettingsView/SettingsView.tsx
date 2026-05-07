@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { ExtensionsTab } from './ExtensionsTab'
 import { PromptsTab } from './PromptsTab'
 import { UpdatesTab } from './UpdatesTab'
@@ -6,7 +6,6 @@ import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useViewStore } from '../../stores/useViewStore'
 import { getAllExtensions, getExtensionByViewId, subscribeToExtensionsChange } from '../../extensions/registry'
-import { NavItem } from '../../../../shared/types'
 import type { ModelConfig, ToolMeta } from '@shared/types'
 import styles from './SettingsView.module.css'
 
@@ -259,7 +258,7 @@ function KeyInput({ value, placeholder, onChange, type = 'password' }: {
 export function SettingsView(): JSX.Element {
   const {
     micDeviceId, userName, agentName, activeListeningDraftSeconds,
-    navItems, models, defaultModelId, providerKeys, router,
+    models, defaultModelId, providerKeys, router,
     includeThinkingInContext,
     ollamaBaseUrl, openaiCompatBaseUrl, openaiCompatApiKey,
     update,
@@ -273,8 +272,6 @@ export function SettingsView(): JSX.Element {
 
   // ── nav ──
   const [activePage, setActivePage] = useState('general')
-  const dragIndexRef = useRef<number | null>(null)
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
   // ── audio ──
   const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([])
@@ -361,32 +358,6 @@ export function SettingsView(): JSX.Element {
   }, [])
 
   useEffect(() => { loadAudioDevices() }, [loadAudioDevices])
-
-  // ── nav drag ──
-  const handleNavDragStart = useCallback((index: number) => { dragIndexRef.current = index }, [])
-  const handleNavDragOver = useCallback((e: React.DragEvent, index: number) => {
-    e.preventDefault(); setDragOverIndex(index)
-  }, [])
-  const handleNavDrop = useCallback((dropIndex: number) => {
-    const fromIndex = dragIndexRef.current
-    if (fromIndex === null || fromIndex === dropIndex) {
-      dragIndexRef.current = null; setDragOverIndex(null); return
-    }
-    const reordered = [...navItems]
-    const [moved] = reordered.splice(fromIndex, 1)
-    reordered.splice(dropIndex, 0, moved)
-    dragIndexRef.current = null; setDragOverIndex(null)
-    update({ navItems: reordered })
-  }, [navItems, update])
-  const handleNavDragEnd = useCallback(() => {
-    dragIndexRef.current = null; setDragOverIndex(null)
-  }, [])
-  const toggleNavItemVisible = useCallback((index: number) => {
-    const updated: NavItem[] = navItems.map((item, i) =>
-      i === index ? { ...item, visible: !item.visible } : item
-    )
-    update({ navItems: updated })
-  }, [navItems, update])
 
   // ── model fetch helpers ──
   const fetchOllamaModels = useCallback(async (key: string, baseUrl: string) => {
@@ -618,12 +589,11 @@ export function SettingsView(): JSX.Element {
 
   const topLevelItems = [
     { id: 'general',   label: 'General',   n: '01' },
-    { id: 'shortcuts', label: 'Shortcuts', n: '02' },
-    { id: 'providers', label: 'Providers', n: '03' },
-    { id: 'tools',     label: 'Tools',     n: '04' },
-    { id: 'skills',    label: 'Skills',    n: '05' },
-    { id: 'prompts',   label: 'Prompts',   n: '06' },
-    { id: 'updates',   label: 'Updates',   n: '08' },
+    { id: 'providers', label: 'Providers', n: '02' },
+    { id: 'tools',     label: 'Tools',     n: '03' },
+    { id: 'skills',    label: 'Skills',    n: '04' },
+    { id: 'prompts',   label: 'Prompts',   n: '05' },
+    { id: 'updates',   label: 'Updates',   n: '07' },
   ]
   const updatesItem = topLevelItems.find((i) => i.id === 'updates')!
   const sidebarTopItems = topLevelItems.filter((i) => i.id !== 'updates')
@@ -654,60 +624,6 @@ export function SettingsView(): JSX.Element {
   }, [settingsTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const connectedCount = PROVIDERS.filter((p) => getProviderStatus(p.kind) === 'connected').length
-
-  // ─────────────────────────────────────────────────────────
-  // Render: Shortcuts
-  // ─────────────────────────────────────────────────────────
-
-  function renderShortcuts(): JSX.Element {
-    return (
-      <section className={styles.section}>
-        <div className={styles.sectionTitle}>Navigation Bar</div>
-        <div className={styles.navList}>
-          {navItems
-            .map((item, index) => ({ item, index }))
-            .filter(({ item }) => item.viewId !== 'settings' && item.viewId !== 'apps')
-            .map(({ item, index }) => (
-              <div
-                key={item.viewId}
-                className={`${styles.navItem} ${dragOverIndex === index ? styles.navItemDragOver : ''}`}
-                draggable
-                onDragStart={() => handleNavDragStart(index)}
-                onDragOver={(e) => handleNavDragOver(e, index)}
-                onDrop={() => handleNavDrop(index)}
-                onDragEnd={handleNavDragEnd}
-              >
-                <span className={styles.navDragHandle}>⠿</span>
-                <span className={styles.navItemLabel}>{item.label}</span>
-                <button
-                  type="button"
-                  className={`${styles.toggle} ${item.visible ? styles.toggleOn : styles.toggleOff}`}
-                  onClick={() => toggleNavItemVisible(index)}
-                  role="switch"
-                  aria-checked={item.visible}
-                >
-                  <span className={styles.toggleThumb} />
-                </button>
-              </div>
-            ))}
-          {navItems.find((item) => item.viewId === 'settings') && (
-            <div className={styles.navItem}>
-              <span className={styles.navDragHandle} style={{ opacity: 0.2, cursor: 'default' }}>⠿</span>
-              <span className={styles.navItemLabel}>Settings</span>
-              <span className={styles.navItemLocked}>always visible</span>
-            </div>
-          )}
-          {navItems.find((item) => item.viewId === 'apps') && (
-            <div className={styles.navItem}>
-              <span className={styles.navDragHandle} style={{ opacity: 0.2, cursor: 'default' }}>⠿</span>
-              <span className={styles.navItemLabel}>Apps</span>
-              <span className={styles.navItemLocked}>always visible</span>
-            </div>
-          )}
-        </div>
-      </section>
-    )
-  }
 
   // ─────────────────────────────────────────────────────────
   // Render: General
@@ -1270,7 +1186,6 @@ export function SettingsView(): JSX.Element {
   function renderPage(): JSX.Element {
     switch (activePage) {
       case 'general':    return renderGeneral()
-      case 'shortcuts':  return renderShortcuts()
       case 'providers':  return renderProviders()
       case 'tools':      return renderTools()
       case 'skills':     return renderSkills()
