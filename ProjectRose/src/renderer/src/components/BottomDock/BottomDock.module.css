@@ -10,6 +10,7 @@
   --d-ink-wisp:   #c4b8a0;
 
   position: relative;
+  z-index: 50;
   flex-shrink: 0;
   height: 84px;
   background: linear-gradient(180deg, var(--d-ink) 0%, var(--d-ink-deep) 100%);
@@ -87,6 +88,23 @@
 
 .fab:active {
   transform: translateX(-50%) scale(0.98);
+}
+
+.fabActive {
+  border-color: rgba(196, 149, 106, 0.95);
+  box-shadow:
+    0 0 0 4px var(--d-ink),
+    0 0 40px rgba(196, 149, 106, 0.7),
+    inset 0 -8px 20px rgba(46, 36, 24, 0.8),
+    inset 0 8px 16px var(--d-sepia);
+}
+
+.fabActive:hover {
+  box-shadow:
+    0 0 0 4px var(--d-ink),
+    0 0 44px rgba(196, 149, 106, 0.85),
+    inset 0 -8px 20px rgba(46, 36, 24, 0.8),
+    inset 0 8px 16px var(--d-sepia);
 }
 
 .fabBreathRing {

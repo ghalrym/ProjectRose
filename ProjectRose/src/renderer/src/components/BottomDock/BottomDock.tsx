@@ -1,13 +1,14 @@
-import { useViewStore } from '../../stores/useViewStore'
 import { useStatusStore } from '../../stores/useStatusStore'
 import { useUpdaterStore } from '../../stores/useUpdaterStore'
 import { useThemeStore } from '../../stores/useThemeStore'
+import { useAppsDrawerStore } from '../../stores/useAppsDrawerStore'
 import { RoseMark } from '../TopBar/RoseMark'
 import clsx from 'clsx'
 import styles from './BottomDock.module.css'
 
 export function BottomDock(): JSX.Element {
-  const setActiveView = useViewStore((s) => s.setActiveView)
+  const drawerOpen = useAppsDrawerStore((s) => s.open)
+  const toggleDrawer = useAppsDrawerStore((s) => s.toggle)
 
   const message = useStatusStore((s) => s.message)
   const tone = useStatusStore((s) => s.tone)
@@ -29,10 +30,11 @@ export function BottomDock(): JSX.Element {
 
       <button
         type="button"
-        className={styles.fab}
-        onClick={() => setActiveView('apps')}
-        title="Open apps"
-        aria-label="Open apps"
+        className={clsx(styles.fab, drawerOpen && styles.fabActive)}
+        onClick={toggleDrawer}
+        title={drawerOpen ? 'Close apps' : 'Open apps'}
+        aria-label={drawerOpen ? 'Close apps' : 'Open apps'}
+        aria-expanded={drawerOpen}
       >
         <span className={styles.fabBreathRing} />
         <RoseMark size={32} />
