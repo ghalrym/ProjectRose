@@ -28,3 +28,6 @@
 [submodule "RoseExtensions/rose-bond"]
 	path = RoseExtensions/rose-bond
 	url = https://github.com/RoseAgent/projectrose-bond.git
+[submodule "RoseExtensions/rose-wordpress"]
+	path = RoseExtensions/rose-wordpress
+	url = https://github.com/RoseAgent/projectrose-wordpress.git
