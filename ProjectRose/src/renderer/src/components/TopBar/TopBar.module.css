@@ -24,21 +24,6 @@
   z-index: 1;
 }
 
-/* ── Vertical divider ── */
-.divider {
-  width: 1px;
-  height: 24px;
-  background: var(--color-border);
-  flex-shrink: 0;
-}
-
-/* ── Breadcrumb zone ── */
-.breadcrumbZone {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
 /* ── FileActions toolbar row (editor-only, below TopBar) ── */
 .fileActions {
   display: flex;
