@@ -117,6 +117,29 @@ function hasInstalledBundle(dir: string): boolean {
   return existsSync(join(dir, 'main.js')) || existsSync(join(dir, 'renderer.js'))
 }
 
+// Add any tools the manifest marks `defaultDisabled: true` to the project's
+// disabledTools list. Idempotent — running again on reinstall just re-adds
+// the same names. The user can re-enable individual tools in Settings → Tools.
+async function applyDefaultDisabledTools(rootPath: string, manifest: ExtensionManifest): Promise<void> {
+  const defaults = (manifest.provides.tools ?? [])
+    .filter((t) => t.defaultDisabled)
+    .map((t) => t.name)
+  if (defaults.length === 0) return
+
+  const settingsPath = prPath(rootPath, 'project-settings.json')
+  let projectSettings: { disabledTools?: string[] } & Record<string, unknown> = {}
+  try {
+    projectSettings = JSON.parse(await readFile(settingsPath, 'utf-8'))
+  } catch { /* file may not exist yet */ }
+
+  const merged = new Set(projectSettings.disabledTools ?? [])
+  for (const name of defaults) merged.add(name)
+  projectSettings.disabledTools = [...merged]
+
+  await mkdir(dirname(settingsPath), { recursive: true })
+  await writeFile(settingsPath, JSON.stringify(projectSettings, null, 2), 'utf-8')
+}
+
 // Tracks cleanup functions for loaded extension main modules, keyed by "<rootPath>/<id>"
 const loadedMains = new Map<string, () => void>()
 
@@ -304,6 +327,7 @@ export function registerExtensionHandlers(): void {
         await rm(destDir, { recursive: true, force: true })
       }
       await rename(tmpDir, destDir)
+      await applyDefaultDisabledTools(rootPath, manifest)
       return { ok: true, manifest }
     } catch (err) {
       await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
@@ -356,6 +380,7 @@ export function registerExtensionHandlers(): void {
         await rm(destDir, { recursive: true, force: true })
       }
       await rename(tmpDir, destDir)
+      await applyDefaultDisabledTools(rootPath, manifest)
 
       const warning = hasInstalledBundle(destDir)
         ? undefined

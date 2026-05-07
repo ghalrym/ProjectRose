@@ -16,7 +16,11 @@ export interface ExtensionManifest {
     projectSettings?: boolean
     globalSettings?: boolean
     agentTools?: boolean
-    tools?: Array<{ name: string; displayName: string; description: string }>
+    // Each tool entry is display metadata for the host's Settings → Tools UI.
+    // `defaultDisabled: true` adds the tool to the project's disabledTools
+    // list when the extension is installed, so the agent does not see it
+    // until the user explicitly enables it in Settings → Tools.
+    tools?: Array<{ name: string; displayName: string; description: string; defaultDisabled?: boolean }>
     chatHooks?: boolean
     // Relative path inside the extension bundle pointing at a markdown file
     // whose contents are appended to the system prompt as the extension's
