@@ -39,7 +39,6 @@ export function BottomDock(): JSX.Element {
         <span className={styles.fabBreathRing} />
         <RoseMark size={32} />
       </button>
-      <div className={styles.fabLabel} aria-hidden="true">APP</div>
 
       <div className={styles.statusRow}>
         <span className={clsx(styles.statusMessage, isIdle && styles.statusIdle)} key={message ?? 'idle'}>

@@ -12,7 +12,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 84px; /* sits flush against the top of the dock */
+  bottom: 42px; /* sits flush against the top of the dock */
   height: min(60vh, 520px);
   z-index: 40;
 

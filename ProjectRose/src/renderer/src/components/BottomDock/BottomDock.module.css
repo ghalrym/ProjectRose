@@ -12,7 +12,7 @@
   position: relative;
   z-index: 50;
   flex-shrink: 0;
-  height: 84px;
+  height: 42px;
   background: linear-gradient(180deg, var(--d-ink) 0%, var(--d-ink-deep) 100%);
   border-top: 1px solid rgba(122, 42, 32, 0.4);
   box-shadow:
@@ -44,14 +44,14 @@
 
 /* ── Empty pedestal area for the FAB ── */
 .fabRow {
-  height: 56px;
+  height: 14px;
 }
 
 /* ── Center FAB ── */
 .fab {
   position: absolute;
   left: 50%;
-  top: -28px;
+  top: -58px;
   transform: translateX(-50%);
   width: 72px;
   height: 72px;
@@ -113,19 +113,6 @@
   border-radius: 50%;
   border: 1px solid rgba(196, 149, 106, 0.35);
   animation: breath 1.4s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.fabLabel {
-  position: absolute;
-  left: 50%;
-  top: 48px;
-  transform: translateX(-50%);
-  font-size: 8px;
-  letter-spacing: 2.4px;
-  font-weight: 500;
-  color: var(--d-ochre);
-  text-shadow: 0 0 10px var(--d-sepia);
   pointer-events: none;
 }
 
