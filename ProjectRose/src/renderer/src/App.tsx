@@ -22,6 +22,7 @@ import { useSettingsStore } from './stores/useSettingsStore'
 import { useServiceStore } from './stores/useServiceStore'
 import { useStatusStore } from './stores/useStatusStore'
 import { useUpdaterStore } from './stores/useUpdaterStore'
+import { useAppsDrawerStore } from './stores/useAppsDrawerStore'
 import { useScreenWebcamShare } from './hooks/useScreenWebcamShare'
 import styles from './App.module.css'
 
@@ -125,6 +126,11 @@ function App(): JSX.Element {
   // Check for ROSE.md when a project is opened; trigger wizard if missing.
   // If already initialized, ensure scaffold directories exist (recreates any that were deleted).
   useEffect(() => {
+    // Always start with the apps drawer closed when the rootPath changes —
+    // the store survives across mounts, so without this an open value can
+    // leak from a previous session into a freshly opened project.
+    useAppsDrawerStore.getState().close()
+
     if (!rootPath) {
       setNeedsSetup(false)
       return

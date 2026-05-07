@@ -104,15 +104,28 @@ function buildAppItems(): AppItem[] {
 }
 
 export function AppsDrawer(): JSX.Element {
-  const open = useAppsDrawerStore((s) => s.open)
+  const storeOpen = useAppsDrawerStore((s) => s.open)
   const close = useAppsDrawerStore((s) => s.close)
   const setActiveView = useViewStore((s) => s.setActiveView)
 
   const [query, setQuery] = useState('')
   const [extVersion, setExtVersion] = useState(0)
+  // The zustand store survives across mounts (HMR, project switches). The first
+  // paint of this component must always be CLOSED, otherwise a stale open=true
+  // value would render the drawer in the open state and then animate it down.
+  // We force-render closed for the first frame, then sync to the store.
+  const [mounted, setMounted] = useState(false)
+  const open = mounted && storeOpen
+
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => subscribeToExtensionsChange(() => setExtVersion((v) => v + 1)), [])
+
+  useEffect(() => {
+    // Reset any stale open state, then unblock the real open value.
+    close()
+    setMounted(true)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-focus the search field whenever the drawer opens; clear the query on close.
   useEffect(() => {
@@ -148,6 +161,11 @@ export function AppsDrawer(): JSX.Element {
     setActiveView(id)
     close()
   }
+
+  // Don't render anything until after the first paint. This guarantees the
+  // drawer is never present in the DOM in an "open" state at startup,
+  // regardless of any stale store value.
+  if (!mounted) return <></>
 
   return (
     <>
