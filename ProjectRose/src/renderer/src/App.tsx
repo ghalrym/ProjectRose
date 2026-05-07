@@ -200,8 +200,6 @@ function App(): JSX.Element {
       <div className={styles.app}>
         <div className={styles.titleBar} />
         <WelcomeView onOpenFolder={handleOpenFolder} />
-        <AppsDrawer />
-        <BottomDock />
         <UpdateToast />
       </div>
     )
