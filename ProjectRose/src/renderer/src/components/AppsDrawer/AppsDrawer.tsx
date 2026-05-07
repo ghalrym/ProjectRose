@@ -42,34 +42,8 @@ function EditorIcon(): JSX.Element {
   )
 }
 
-function ChatIcon(): JSX.Element {
-  return (
-    <svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-      <path d="M6 8 H26 A2 2 0 0 1 28 10 V20 A2 2 0 0 1 26 22 H14 L8 27 V22 A2 2 0 0 1 6 20 V10 A2 2 0 0 1 6 8 Z" />
-      <path d="M11 13 H21 M11 17 H18" opacity="0.7" />
-    </svg>
-  )
-}
-
-function SettingsIcon(): JSX.Element {
-  return (
-    <svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-      <circle cx="16" cy="16" r="3" />
-      <path d="M16 4 V8 M16 24 V28 M4 16 H8 M24 16 H28 M7.5 7.5 L10.3 10.3 M21.7 21.7 L24.5 24.5 M7.5 24.5 L10.3 21.7 M21.7 10.3 L24.5 7.5" opacity="0.7" />
-    </svg>
-  )
-}
-
 function buildAppItems(): AppItem[] {
   const items: AppItem[] = [
-    {
-      id: 'chat',
-      name: 'Agent',
-      latin: 'Rosa loquens',
-      description: 'Talk with Rose — chat, voice, agentic tools.',
-      searchTerms: 'agent chat voice rose talk built-in',
-      iconNode: <ChatIcon />
-    },
     {
       id: 'editor',
       name: 'Editor',
@@ -90,15 +64,6 @@ function buildAppItems(): AppItem[] {
       iconNode: <ExtensionIcon ext={ext} />
     })
   }
-
-  items.push({
-    id: 'settings',
-    name: 'Settings',
-    latin: 'Rosa regulae',
-    description: 'Preferences, providers, tools, and more.',
-    searchTerms: 'settings preferences config options',
-    iconNode: <SettingsIcon />
-  })
 
   return items
 }
