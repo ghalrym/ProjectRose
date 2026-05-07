@@ -8,6 +8,13 @@ export interface CatalogEntry {
 
 export const BUILTIN_CATALOG: CatalogEntry[] = [
   {
+    id: 'rose-bond',
+    name: 'Bond',
+    description: 'Control Bond Bridge smart-home devices: fans, fireplaces, shades, generics. Multi-bridge, IR/RF learn, scenes, rooms, AI tool calls.',
+    author: 'ProjectRose',
+    repoUrl: 'https://github.com/RoseAgent/projectrose-bond.git'
+  },
+  {
     id: 'rose-crm',
     name: 'CRM',
     description: 'Contact management — store and retrieve people and places for the AI agent.',
@@ -69,5 +76,12 @@ export const BUILTIN_CATALOG: CatalogEntry[] = [
     description: 'Headless harnesses for Claude Code, Codex, and OpenCode. Lets the host agent delegate tasks to other coding agents.',
     author: 'ProjectRose',
     repoUrl: 'https://github.com/RoseAgent/roseproject-coding-agents.git'
+  },
+  {
+    id: 'rose-wordpress',
+    name: 'WordPress',
+    description: 'Manage one or more self-hosted WordPress sites via Application Passwords. Posts, pages, custom post types, media, comments, users, taxonomies, plugins, themes, and site settings — for both the user and the AI agent.',
+    author: 'ProjectRose',
+    repoUrl: 'https://github.com/RoseAgent/projectrose-wordpress.git'
   }
 ]
