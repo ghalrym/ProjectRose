@@ -179,8 +179,20 @@ const api = {
   aiChat: (messages: Message[], rootPath: string, sessionId: string): Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }> =>
     ipcRenderer.invoke(IPC.AI_CHAT, { messages, rootPath, sessionId }),
 
-  aiCompress: (messages: Message[]): Promise<Message[]> =>
-    ipcRenderer.invoke(IPC.AI_COMPRESS, messages),
+  aiContextStatus: (
+    rootPath: string,
+    messages: Array<Record<string, unknown>>
+  ): Promise<{ estimatedTokens: number; contextLength: number; percentUsed: number; totalToolSteps: number }> =>
+    ipcRenderer.invoke(IPC.AI_CONTEXT_STATUS, { rootPath, messages }),
+
+  aiCompressToolNoise: (
+    rootPath: string,
+    messages: Array<Record<string, unknown>>
+  ): Promise<{
+    compressedMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+    compressedFromCount: number
+  } | null> =>
+    ipcRenderer.invoke(IPC.AI_COMPRESS_TOOL_NOISE, { rootPath, messages }),
 
   aiGetSystemPrompt: (rootPath: string): Promise<string> =>
     ipcRenderer.invoke(IPC.AI_GET_SYSTEM_PROMPT, rootPath),
@@ -324,9 +336,33 @@ const api = {
   session: {
     list: (rootPath: string): Promise<Array<{ id: string; title: string; createdAt: number; updatedAt: number }>> =>
       ipcRenderer.invoke(IPC.SESSION_LIST, rootPath),
-    load: (rootPath: string, sessionId: string): Promise<{ id: string; title: string; createdAt: number; updatedAt: number; messages: unknown[] } | null> =>
+    load: (
+      rootPath: string,
+      sessionId: string
+    ): Promise<{
+      id: string
+      title: string
+      createdAt: number
+      updatedAt: number
+      messages: unknown[]
+      compressedMessages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+      compressedAt?: number
+      compressedFromCount?: number
+    } | null> =>
       ipcRenderer.invoke(IPC.SESSION_LOAD, rootPath, sessionId),
-    save: (rootPath: string, session: { id: string; title: string; createdAt: number; updatedAt: number; messages: unknown[] }): Promise<void> =>
+    save: (
+      rootPath: string,
+      session: {
+        id: string
+        title: string
+        createdAt: number
+        updatedAt: number
+        messages: unknown[]
+        compressedMessages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+        compressedAt?: number
+        compressedFromCount?: number
+      }
+    ): Promise<void> =>
       ipcRenderer.invoke(IPC.SESSION_SAVE, rootPath, session),
     delete: (rootPath: string, sessionId: string): Promise<void> =>
       ipcRenderer.invoke(IPC.SESSION_DELETE, rootPath, sessionId)

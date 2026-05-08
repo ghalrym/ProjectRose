@@ -22,6 +22,7 @@ interface SettingsState {
   ollamaBaseUrl: string
   openaiCompatBaseUrl: string
   openaiCompatApiKey: string
+  compressionThresholdPct: number
   extensions: Record<string, Record<string, unknown>>
   loaded: boolean
   load: () => Promise<void>
@@ -53,6 +54,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   ollamaBaseUrl: 'http://localhost:11434',
   openaiCompatBaseUrl: '',
   openaiCompatApiKey: '',
+  compressionThresholdPct: 0.70,
   extensions: {},
   loaded: false,
 

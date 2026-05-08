@@ -35,6 +35,10 @@ export interface AppSettings {
   agentStartsExpanded: boolean
   ollamaBaseUrl: string
   openaiCompatBaseUrl: string
+  // Fraction (0..1) of the model's context window at which the compression
+  // toast suggests the user compress older turns. Pairs with a separate
+  // tool-step threshold in the renderer.
+  compressionThresholdPct: number
   // Namespaced extension settings: { 'rose-discord': { global: {...}, project: {...} } }
   extensions: Record<string, Record<string, unknown>>
   // Allow extensions to write arbitrary keys without the host knowing about them.
@@ -60,6 +64,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   ollamaBaseUrl: 'http://localhost:11434',
   openaiCompatBaseUrl: '',
   openaiCompatApiKey: '',
+  compressionThresholdPct: 0.70,
   extensions: {}
 }
 

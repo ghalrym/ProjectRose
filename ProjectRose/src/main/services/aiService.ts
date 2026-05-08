@@ -4,8 +4,10 @@ import { randomUUID } from 'crypto'
 import { prPath } from '../lib/projectPaths'
 import { BrowserWindow } from 'electron'
 import { setActiveProjectRoot, getModifiedFiles, resetModifiedFiles } from './toolHandlers'
-import { streamChat, compressMessages, routeRequest, cancelAllAskUserQuestions } from './llmClient'
-import type { StreamResult } from './llmClient'
+import { streamChat, compressTurnsForContext, routeRequest, cancelAllAskUserQuestions } from './llmClient'
+import type { StreamResult, CompressionResult, ApiShapeMessage } from './llmClient'
+import { getContextLength } from './contextLengthRegistry'
+import { estimateTokens } from './tokenCounter'
 import type { ModelMessage } from 'ai'
 import { readSettings } from '../ipc/settingsHandlers'
 import type { AppSettings, ModelConfig } from '../ipc/settingsHandlers'
@@ -341,9 +343,88 @@ export async function runAgentOnce(
   return { content: streamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay }
 }
 
-export async function compressHistory(messages: Message[]): Promise<Message[]> {
-  const settings = await readSettings()
-  const defaultModel = settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
-  if (!defaultModel) return messages
-  return compressMessages(messages, defaultModel, settings.providerKeys, settings.ollamaBaseUrl, settings.openaiCompatBaseUrl)
+// ── Context compression / status ──
+
+export interface ContextStatus {
+  estimatedTokens: number
+  contextLength: number
+  percentUsed: number
+  totalToolSteps: number
 }
+
+function pickActiveModel(settings: AppSettings): ModelConfig | null {
+  if (settings.hostMode === 'projectrose') {
+    return {
+      id: 'projectrose-account',
+      displayName: 'ProjectRose Account',
+      provider: 'projectrose',
+      modelName: 'managed',
+      tags: ['account'],
+    }
+  }
+  return settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0] ?? null
+}
+
+// Count renderer 'tool' messages — used as the second arm of the threshold
+// (independent of token estimate so cloud models with huge context windows
+// still surface a suggestion when tool usage piles up).
+function countToolSteps(messages: Array<Record<string, unknown>>): number {
+  let n = 0
+  for (const m of messages) if (m.role === 'tool') n++
+  return n
+}
+
+// Convert renderer messages to api shape (user/assistant/system) for token
+// estimation. Mirrors useChatStore.sendMessage's filter so the count reflects
+// what the model actually sees.
+function toApiShape(messages: Array<Record<string, unknown>>): Array<{ role: string; content: string }> {
+  const out: Array<{ role: string; content: string }> = []
+  for (const m of messages) {
+    const content = typeof m.content === 'string' ? m.content : ''
+    if (m.role === 'user' || m.role === 'assistant') {
+      out.push({ role: m.role, content })
+    } else if (m.role === 'injected') {
+      const extName = typeof m.extensionName === 'string' ? m.extensionName : 'extension'
+      out.push({ role: 'system', content: `[Extension ${extName}] ${content}` })
+    }
+  }
+  return out
+}
+
+export async function getContextStatus(
+  rootPath: string,
+  messages: Array<Record<string, unknown>>
+): Promise<ContextStatus> {
+  const settings = await readSettings(rootPath)
+  const model = pickActiveModel(settings)
+  const contextLength = model
+    ? await getContextLength(model.provider, model.modelName, settings.ollamaBaseUrl)
+    : 8192
+  const apiShape = toApiShape(messages)
+  const estimatedTokens = estimateTokens(apiShape)
+  const percentUsed = contextLength > 0 ? estimatedTokens / contextLength : 0
+  return {
+    estimatedTokens,
+    contextLength,
+    percentUsed,
+    totalToolSteps: countToolSteps(messages),
+  }
+}
+
+export async function compressToolNoise(
+  rootPath: string,
+  messages: Array<Record<string, unknown>>
+): Promise<CompressionResult | null> {
+  const settings = await readSettings(rootPath)
+  const model = pickActiveModel(settings)
+  if (!model) return null
+  return compressTurnsForContext(
+    messages,
+    model,
+    settings.providerKeys,
+    settings.ollamaBaseUrl,
+    settings.openaiCompatBaseUrl
+  )
+}
+
+export type { CompressionResult, ApiShapeMessage }

@@ -13,6 +13,7 @@ import { AskUserCell } from './AskUserCell'
 import { InjectedCell } from './InjectedCell'
 import { SystemPromptCell } from './SystemPromptCell'
 import { ChatInput } from './ChatInput'
+import { CompressionToast } from './CompressionToast'
 import { TranscriptView } from './TranscriptView'
 import styles from './ChatPanel.module.css'
 
@@ -220,6 +221,7 @@ export function ChatPanel(): JSX.Element {
       )}
 
       <ChatInput notched={activeView === 'chat' && isChatFullWidth} />
+      <CompressionToast />
     </div>
   )
 }

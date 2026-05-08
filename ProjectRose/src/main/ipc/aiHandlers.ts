@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
-import { chat, compressHistory, buildAgentMd, cancelActiveChat } from '../services/aiService'
+import { chat, buildAgentMd, cancelActiveChat, compressToolNoise, getContextStatus } from '../services/aiService'
 import { resolveAskUserQuestion, resolveScreenshotRequest, type ScreenshotResult } from '../services/llmClient'
 import type { Message } from '../../shared/roseModelTypes'
 
@@ -13,9 +13,16 @@ export function registerAiHandlers(): void {
   )
 
   ipcMain.handle(
-    IPC.AI_COMPRESS,
-    async (_event, messages: Message[]) => {
-      return compressHistory(messages)
+    IPC.AI_CONTEXT_STATUS,
+    async (_event, payload: { rootPath: string; messages: Array<Record<string, unknown>> }) => {
+      return getContextStatus(payload.rootPath, payload.messages)
+    }
+  )
+
+  ipcMain.handle(
+    IPC.AI_COMPRESS_TOOL_NOISE,
+    async (_event, payload: { rootPath: string; messages: Array<Record<string, unknown>> }) => {
+      return compressToolNoise(payload.rootPath, payload.messages)
     }
   )
 

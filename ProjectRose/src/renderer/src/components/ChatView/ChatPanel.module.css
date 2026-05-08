@@ -5,6 +5,7 @@
   overflow: hidden;
   border-left: 1px solid var(--color-topbar-border);
   background: var(--color-bg-primary);
+  position: relative;
 }
 
 /* In full-width chat mode the panel spans the center of the window, so the

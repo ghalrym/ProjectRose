@@ -259,7 +259,7 @@ export function SettingsView(): JSX.Element {
   const {
     micDeviceId, userName, agentName, activeListeningDraftSeconds,
     models, defaultModelId, providerKeys, router,
-    includeThinkingInContext, agentStartsExpanded,
+    includeThinkingInContext, agentStartsExpanded, compressionThresholdPct,
     ollamaBaseUrl, openaiCompatBaseUrl, openaiCompatApiKey,
     update,
   } = useSettingsStore()
@@ -291,7 +291,6 @@ export function SettingsView(): JSX.Element {
   const [providerTesting, setProviderTesting] = useState<Record<string, boolean>>({})
 
   // ── behavior (local — store additions possible later) ──
-  const [autoSummarize, setAutoSummarize] = useState(true)
   const [streamToolResults, setStreamToolResults] = useState(false)
 
   // ── extensions ──
@@ -999,10 +998,27 @@ export function SettingsView(): JSX.Element {
               />
             </HSettingRow>
             <HSettingRow
-              label="Auto-summarize at 80% context"
-              desc="Compress earlier messages once the context window fills, so long sessions don't drop the thread."
+              label="Suggest compression threshold"
+              desc="When the chat fills past this fraction of the model's context window, a toast offers to compress older turns. Set higher to delay suggestions; lower to be warned earlier."
             >
-              <HToggle on={autoSummarize} onChange={setAutoSummarize} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  className={styles.input}
+                  type="number"
+                  min={5}
+                  max={100}
+                  step={5}
+                  style={{ width: 64, textAlign: 'right' }}
+                  value={Math.round(compressionThresholdPct * 100)}
+                  onChange={(e) => {
+                    const n = Number(e.target.value)
+                    if (Number.isFinite(n) && n >= 5 && n <= 100) {
+                      update({ compressionThresholdPct: n / 100 })
+                    }
+                  }}
+                />
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>% context</span>
+              </div>
             </HSettingRow>
             <HSettingRow
               label="Stream tool results inline"

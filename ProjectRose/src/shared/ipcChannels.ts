@@ -43,7 +43,8 @@ export const IPC = {
   INDEXING_PROGRESS: 'indexing:progress',
 
   AI_CHAT: 'ai:chat',
-  AI_COMPRESS: 'ai:compress',
+  AI_CONTEXT_STATUS: 'ai:contextStatus',
+  AI_COMPRESS_TOOL_NOISE: 'ai:compressToolNoise',
   AI_GET_SYSTEM_PROMPT: 'ai:getSystemPrompt',
   AI_MODEL_SELECTED: 'ai:modelSelected',
   AI_STREAM_RESET: 'ai:streamReset',

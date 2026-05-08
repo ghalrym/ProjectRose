@@ -556,34 +556,177 @@ export async function streamChat(params: {
 }
 
 
-export async function compressMessages(
-  messages: Message[],
+// Renderer-shaped message: structural subset of useChatStore's ChatMessage.
+// Defined here as Record<string, unknown> to avoid an import cycle with the
+// renderer module — fields are pulled out by name with runtime checks.
+type RendererMessage = Record<string, unknown>
+
+// Output shape sent to the LLM. Matches what useChatStore.sendMessage builds
+// from settled renderer messages (apiMessages).
+export interface ApiShapeMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+}
+
+// Number of trailing turns left untouched by compression. A "turn" starts at a
+// user message and ends just before the next user message (or end of list).
+// Holding back the recent two means the model still sees the active back-and-forth
+// verbatim while older history collapses into summaries.
+const KEEP_RECENT_TURNS = 2
+
+interface Turn {
+  // Indices into the input renderer-message array, inclusive.
+  start: number
+  end: number
+  // Indices into the api-shape view (post-filter to user/assistant/injected).
+  apiStart: number
+  apiEnd: number
+}
+
+function isApiShape(role: unknown): role is 'user' | 'assistant' | 'injected' {
+  return role === 'user' || role === 'assistant' || role === 'injected'
+}
+
+function rendererToApi(m: RendererMessage): ApiShapeMessage | null {
+  const role = m.role
+  const content = typeof m.content === 'string' ? m.content : ''
+  if (role === 'user') return { role: 'user', content }
+  if (role === 'assistant') return { role: 'assistant', content }
+  if (role === 'injected') {
+    const extName = typeof m.extensionName === 'string' ? m.extensionName : 'extension'
+    return { role: 'system', content: `[Extension ${extName}] ${content}` }
+  }
+  return null
+}
+
+// Walk renderer messages and produce one Turn per user message. The first turn
+// covers any leading non-user messages too (shouldn't normally happen, but if
+// the session starts with system/injected content it still gets grouped).
+function splitIntoTurns(messages: RendererMessage[]): Turn[] {
+  const turns: Turn[] = []
+  let currentStart = 0
+  let currentApiStart = 0
+  let apiIdx = 0
+  let started = false
+
+  for (let i = 0; i < messages.length; i++) {
+    const role = messages[i].role
+    if (role === 'user') {
+      if (started) {
+        turns.push({
+          start: currentStart,
+          end: i - 1,
+          apiStart: currentApiStart,
+          apiEnd: apiIdx - 1,
+        })
+      }
+      currentStart = i
+      currentApiStart = apiIdx
+      started = true
+    }
+    if (isApiShape(role)) apiIdx++
+  }
+  if (started) {
+    turns.push({
+      start: currentStart,
+      end: messages.length - 1,
+      apiStart: currentApiStart,
+      apiEnd: apiIdx - 1,
+    })
+  }
+  return turns
+}
+
+// Build a compact text representation of one old turn that the summarizer can
+// digest. Mentions tools used (with success/error) so the summary can name them
+// even though tool messages never round-trip to the LLM in normal chat.
+function describeTurnForSummary(messages: RendererMessage[], turn: Turn): string {
+  const lines: string[] = []
+  for (let i = turn.start; i <= turn.end; i++) {
+    const m = messages[i]
+    const role = m.role
+    const content = typeof m.content === 'string' ? m.content : ''
+    if (role === 'user') {
+      lines.push(`USER: ${content}`)
+    } else if (role === 'assistant') {
+      if (content.trim().length > 0) lines.push(`ASSISTANT: ${content}`)
+    } else if (role === 'tool') {
+      const name = typeof m.name === 'string' ? m.name : 'tool'
+      const error = m.error === true
+      const result = typeof m.result === 'string' ? m.result : ''
+      const snippet = result.length > 200 ? result.slice(0, 200) + '…' : result
+      lines.push(`TOOL ${name}${error ? ' (error)' : ''}: ${snippet}`)
+    } else if (role === 'ask_user') {
+      const q = typeof m.question === 'string' ? m.question : ''
+      const a = typeof m.answer === 'string' ? m.answer : ''
+      lines.push(`ASK_USER: ${q} → ${a}`)
+    } else if (role === 'injected') {
+      const extName = typeof m.extensionName === 'string' ? m.extensionName : 'extension'
+      lines.push(`INJECTED [${extName}]: ${content}`)
+    }
+  }
+  return lines.join('\n')
+}
+
+export interface CompressionResult {
+  // Replacement view for the first `compressedFromCount` items of the
+  // renderer's api-shape messages. The renderer substitutes them in before
+  // sending the next chat call.
+  compressedMessages: ApiShapeMessage[]
+  // Number of original api-shape messages this view replaces. Used by the
+  // renderer to slice out the substituted prefix.
+  compressedFromCount: number
+}
+
+export async function compressTurnsForContext(
+  messages: RendererMessage[],
   modelConfig: ModelConfig,
   providerKeys: ProviderKeys,
   ollamaBaseUrl: string,
   openaiCompatBaseUrl: string
-): Promise<Message[]> {
-  if (messages.length <= 40) return messages
+): Promise<CompressionResult | null> {
+  const turns = splitIntoTurns(messages)
+  if (turns.length <= KEEP_RECENT_TURNS) return null
 
-  const half = Math.floor(messages.length / 2)
-  const firstHalf = messages.slice(0, half)
-  const secondHalf = messages.slice(half)
+  const oldTurns = turns.slice(0, turns.length - KEEP_RECENT_TURNS)
+  const recentTurns = turns.slice(turns.length - KEEP_RECENT_TURNS)
 
-  const model = resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
-  const conversationText = firstHalf
-    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+  const oldDescriptions = oldTurns
+    .map((t, idx) => `### Turn ${idx + 1}\n${describeTurnForSummary(messages, t)}`)
     .join('\n\n')
 
-  const { text } = await generateText({
+  const model = resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
+  const summaryPrompt = `You are compressing the older portion of a coding-assistant chat session to keep the model's context focused. For each turn below, write ONE short sentence (max 25 words) that captures: what the user asked, which tools the assistant used, and the outcome. Output as a numbered list with no preamble or trailing remarks.
+
+${oldDescriptions}`
+
+  const { text: summary } = await generateText({
     model,
-    messages: [{
-      role: 'user' as const,
-      content: `Summarize the following conversation concisely, preserving key context and decisions:\n\n${conversationText}`
-    }]
+    messages: [{ role: 'user' as const, content: summaryPrompt }]
   })
 
-  return [
-    { role: 'user', content: `Previous conversation summary:\n${text}` },
-    ...secondHalf
-  ]
+  const summaryBlock: ApiShapeMessage = {
+    role: 'system',
+    content: `Summary of earlier turns in this session (older history compressed to save context):\n${summary.trim()}`
+  }
+
+  // Append the recent turns verbatim, in api shape, after the summary.
+  const recentApi: ApiShapeMessage[] = []
+  for (const t of recentTurns) {
+    for (let i = t.start; i <= t.end; i++) {
+      const api = rendererToApi(messages[i])
+      if (api) recentApi.push(api)
+    }
+  }
+
+  // compressedMessages already contains the recent turns verbatim, so the
+  // substitution covers ALL api-shape messages present at compression time.
+  // The renderer slices its current apiMessages by this count and appends any
+  // newer ones produced after compression.
+  const compressedFromCount = recentTurns[recentTurns.length - 1].apiEnd + 1
+
+  return {
+    compressedMessages: [summaryBlock, ...recentApi],
+    compressedFromCount,
+  }
 }
