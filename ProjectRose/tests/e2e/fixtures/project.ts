@@ -37,5 +37,9 @@ export async function openProject(
   }, dir)
 
   await win.getByRole('button', { name: 'Open Project' }).click()
-  await win.locator('button', { hasText: 'AGENT' }).waitFor({ state: 'visible', timeout: 15000 })
+  // After project opens, the TopBar renders the brand button (always visible —
+  // even when the SetupWizard overlay covers the rest of the UI).
+  await win
+    .getByRole('button', { name: /Project\s*Rose/ })
+    .waitFor({ state: 'visible', timeout: 15000 })
 }

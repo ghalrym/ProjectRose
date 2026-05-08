@@ -17,7 +17,7 @@ async function mockInstallHandler(app: ElectronApplication): Promise<void> {
 // Write a minimal fake extension into <rootPath>/.projectrose/extensions/<id>/.
 // Must be called AFTER the Extensions tab's initial loadInstalled() resolves
 // (with the empty list) — otherwise the renderer's "newly added" detection
-// won't fire and the nav item won't register.
+// won't fire and the extension card won't register.
 function stageFakeExtension(rootPath: string, id: string, name: string): void {
   const extDir = join(rootPath, '.projectrose', 'extensions', id)
   mkdirSync(extDir, { recursive: true })
@@ -43,20 +43,18 @@ exports.SettingsView = SettingsView;
   writeFileSync(join(extDir, 'renderer.js'), rendererCode)
 }
 
-// Open Settings → Extensions, let the initial (empty) list load resolve,
-// run the staging callback to write the fake extension to disk, then paste
-// a fake URL and click the URL form's INSTALL button (the first — catalog
-// rows have their own INSTALL buttons below). The IPC handler returns ok,
-// the renderer re-lists, and the staged extension is detected as "new".
+// Open the dock Settings shortcut, expand the Extensions sidebar item, click
+// Manage to open the install panel, wait for the (empty) installed list to
+// load, stage the extension on disk, then submit the URL form. The mocked
+// IPC handler returns ok and the renderer re-lists, picking up the staged
+// extension as newly installed.
 async function installViaUrlForm(
   win: import('playwright').Page,
   stage: () => void
 ): Promise<void> {
-  await win.getByRole('button', { name: /^№\d+\s+SETTINGS$/ }).click()
-  // Sidebar Extensions toggle expands the submenu; Manage opens the install panel
+  await win.getByRole('button', { name: 'Settings', exact: true }).click()
   await win.getByRole('button', { name: /^№\d+\s+Extensions/ }).click()
   await win.getByRole('button', { name: 'Manage', exact: true }).click()
-  // Wait for ExtensionsTab's initial loadInstalled() to settle with empty result
   await win.waitForTimeout(500)
   stage()
   await win.getByPlaceholder(/github\.com/).fill('https://example.test/repo.git')
@@ -69,7 +67,7 @@ test.describe('Extension System', () => {
     test('extensions tab shows install panel when project is open', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
-      await win.getByRole('button', { name: /^№\d+\s+SETTINGS$/ }).click()
+      await win.getByRole('button', { name: 'Settings', exact: true }).click()
       await win.getByRole('button', { name: /^№\d+\s+Extensions/ }).click()
       await win.getByRole('button', { name: 'Manage', exact: true }).click()
       await expect(win.getByText('INSTALL FROM GIT')).toBeVisible({ timeout: 5000 })
@@ -90,16 +88,19 @@ test.describe('Extension System', () => {
       await screenshot(win, 'extensions--installed')
     })
 
-    test('installed extension appears in nav bar', async ({ app, win }) => {
+    test('installed extension appears in apps drawer', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
 
       await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-navtest', 'Nav Test'))
 
-      // The extension's nav label should appear as a nav button (format: №XX NAV TEST)
-      await expect(win.getByRole('button', { name: /^№\d+ NAV TEST$/ })).toBeVisible({ timeout: 5000 })
-      await screenshot(win, 'extensions--nav-item')
+      // Open the AppsDrawer and confirm the extension shows up as a card. Cards
+      // have an accessible name that begins with a "№XX " specimen prefix —
+      // distinct from the settings sidebar entry (just "Nav Test").
+      await win.getByRole('button', { name: 'Open apps' }).click()
+      await expect(win.getByRole('button', { name: /^№\d+.*Nav Test/ })).toBeVisible({ timeout: 5000 })
+      await screenshot(win, 'extensions--app-card')
     })
   })
 
@@ -168,11 +169,10 @@ test.describe('Extension System', () => {
     test('core settings pages are always in sidebar regardless of extensions', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
-      await win.getByRole('button', { name: /^№\d+\s+SETTINGS$/ }).click()
+      await win.getByRole('button', { name: 'Settings', exact: true }).click()
       const sidebar = win.getByRole('complementary')
       // Sidebar items include a №XX prefix in their accessible name
       await expect(sidebar.getByRole('button', { name: /^№\d+\s+General$/ })).toBeVisible({ timeout: 5000 })
-      await expect(sidebar.getByRole('button', { name: /^№\d+\s+Shortcuts$/ })).toBeVisible()
       await expect(sidebar.getByRole('button', { name: /^№\d+\s+Providers$/ })).toBeVisible()
       await expect(sidebar.getByRole('button', { name: /^№\d+\s+Tools$/ })).toBeVisible()
       await expect(sidebar.getByRole('button', { name: /^№\d+\s+Skills$/ })).toBeVisible()

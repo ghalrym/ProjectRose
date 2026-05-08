@@ -2,16 +2,16 @@ import { test, expect } from './fixtures/electron'
 import { createSeedProject, openProject } from './fixtures/project'
 import { screenshot } from './fixtures/screenshot'
 
-// The Settings sidebar is split into separate pages: General, Shortcuts,
-// Providers, Tools, Skills, and a collapsible Extensions group.
+// The Settings sidebar is split into separate pages: General, Providers, Tools,
+// Skills, Prompts, a collapsible Extensions group, and Updates.
 
 test.describe('Settings View', () => {
   test.beforeEach(async ({ app, win }) => {
     const dir = createSeedProject()
     await openProject(app, win, dir)
-    // Use the toolbar SETTINGS button specifically — the chat panel may also
-    // render an "OPEN PROVIDER SETTINGS →" banner when no provider is configured.
-    await win.getByRole('button', { name: /^№\d+\s+SETTINGS$/ }).click()
+    // Use the BottomDock's context-sensitive shortcut button — on the chat
+    // (default) view it is labeled "Settings".
+    await win.getByRole('button', { name: 'Settings', exact: true }).click()
     await expect(win.getByRole('complementary').getByText('Settings', { exact: false })).toBeVisible({ timeout: 5000 })
   })
 
@@ -31,11 +31,12 @@ test.describe('Settings View', () => {
   test('sidebar contains all core pages', async ({ win }) => {
     const sidebar = win.getByRole('complementary')
     await expect(sidebar.getByRole('button', { name: /^№\d+\s+General$/ })).toBeVisible()
-    await expect(sidebar.getByRole('button', { name: /^№\d+\s+Shortcuts$/ })).toBeVisible()
     await expect(sidebar.getByRole('button', { name: /^№\d+\s+Providers$/ })).toBeVisible()
     await expect(sidebar.getByRole('button', { name: /^№\d+\s+Tools$/ })).toBeVisible()
     await expect(sidebar.getByRole('button', { name: /^№\d+\s+Skills$/ })).toBeVisible()
+    await expect(sidebar.getByRole('button', { name: /^№\d+\s+Prompts$/ })).toBeVisible()
     await expect(sidebar.getByRole('button', { name: /^№\d+\s+Extensions/ })).toBeVisible()
+    await expect(sidebar.getByRole('button', { name: /^№\d+\s+Updates$/ })).toBeVisible()
   })
 
   test('sidebar items show specimen numbers', async ({ win }) => {
@@ -43,11 +44,6 @@ test.describe('Settings View', () => {
     await expect(sidebar.getByText(/№01/)).toBeVisible()
     await expect(sidebar.getByText(/№02/)).toBeVisible()
     await expect(sidebar.getByText(/№05/)).toBeVisible()
-  })
-
-  test('Shortcuts page shows Navigation Bar section', async ({ win }) => {
-    await win.getByRole('button', { name: /^№\d+\s+Shortcuts$/ }).click()
-    await expect(win.getByText('Navigation Bar')).toBeVisible({ timeout: 3000 })
   })
 
   test('navigate to Extensions tab expands it and shows Manage', async ({ win }) => {
@@ -90,8 +86,8 @@ test.describe('Settings View', () => {
 
   test('expanding a provider card shows its fields', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Providers$/ }).click()
-    // Click the first provider card header button to expand it (Ollama is first by spec order)
-    await win.locator('button[class*="providerCardHeader"]').nth(1).click() // Anthropic — second card
+    // Click the Anthropic provider card header (second by spec order: Ollama, Anthropic, …)
+    await win.locator('button[class*="providerCardHeader"]').nth(1).click()
     await expect(win.getByText('API KEY', { exact: true })).toBeVisible({ timeout: 3000 })
     await expect(win.getByRole('button', { name: 'VERIFY & SAVE' })).toBeVisible()
     await expect(win.getByRole('button', { name: 'CLEAR' })).toBeVisible()
@@ -100,10 +96,8 @@ test.describe('Settings View', () => {
 
   test('only one provider card can be open at a time', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Providers$/ }).click()
-    // Target only the <button> elements — [class*="providerCardHeader"] would also match
-    // the inner div (providerCardHeaderInner) causing wrong elements to be clicked
     const cards = win.locator('button[class*="providerCardHeader"]')
-    // Open Anthropic card (second by spec order)
+    // Open Anthropic card (second)
     await cards.nth(1).click()
     await expect(win.getByText('API KEY', { exact: true })).toBeVisible({ timeout: 3000 })
     // Open OpenAI card — Anthropic should close
@@ -165,13 +159,12 @@ test.describe('Settings View', () => {
     await win.getByRole('button', { name: /^№\d+\s+Providers$/ }).click()
     await expect(win.getByText('BEHAVIOR · CONTEXT')).toBeVisible({ timeout: 3000 })
     await expect(win.getByText('Include thinking in context')).toBeVisible()
-    await expect(win.getByText('Auto-summarize at 80% context')).toBeVisible()
+    await expect(win.getByText('Suggest compression threshold')).toBeVisible()
     await expect(win.getByText('Stream tool results inline')).toBeVisible()
   })
 
   test('Providers page colophon is visible', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Providers$/ }).click()
-    // Scope to the colophon block (contains 'COLOPHON') to avoid matching header/status bar
     await expect(
       win.locator('[class*="colophon"]').filter({ hasText: 'COLOPHON' })
     ).toContainText('Rosa configurata', { timeout: 3000 })
