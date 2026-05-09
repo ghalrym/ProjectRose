@@ -691,6 +691,11 @@ export interface CompressionResult {
   // Number of original api-shape messages this view replaces. Used by the
   // renderer to slice out the substituted prefix.
   compressedFromCount: number
+  // Raw renderer-message counterpart of compressedFromCount. Includes the
+  // kept-verbatim recent-turn raw messages, since those are also embedded in
+  // compressedMessages. Used by status reporting to count tool steps only in
+  // the post-compression tail.
+  compressedFromRawCount: number
 }
 
 export async function compressTurnsForContext(
@@ -739,9 +744,11 @@ ${oldDescriptions}`
   // The renderer slices its current apiMessages by this count and appends any
   // newer ones produced after compression.
   const compressedFromCount = recentTurns[recentTurns.length - 1].apiEnd + 1
+  const compressedFromRawCount = recentTurns[recentTurns.length - 1].end + 1
 
   return {
     compressedMessages: [summaryBlock, ...recentApi],
     compressedFromCount,
+    compressedFromRawCount,
   }
 }

@@ -181,9 +181,14 @@ const api = {
 
   aiContextStatus: (
     rootPath: string,
-    messages: Array<Record<string, unknown>>
+    messages: Array<Record<string, unknown>>,
+    compression: {
+      compressedMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+      compressedFromCount: number
+      compressedFromRawCount: number
+    } | null
   ): Promise<{ estimatedTokens: number; contextLength: number; percentUsed: number; totalToolSteps: number }> =>
-    ipcRenderer.invoke(IPC.AI_CONTEXT_STATUS, { rootPath, messages }),
+    ipcRenderer.invoke(IPC.AI_CONTEXT_STATUS, { rootPath, messages, compression }),
 
   aiCompressToolNoise: (
     rootPath: string,
@@ -191,6 +196,7 @@ const api = {
   ): Promise<{
     compressedMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
     compressedFromCount: number
+    compressedFromRawCount: number
   } | null> =>
     ipcRenderer.invoke(IPC.AI_COMPRESS_TOOL_NOISE, { rootPath, messages }),
 
@@ -348,6 +354,7 @@ const api = {
       compressedMessages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
       compressedAt?: number
       compressedFromCount?: number
+      compressedFromRawCount?: number
     } | null> =>
       ipcRenderer.invoke(IPC.SESSION_LOAD, rootPath, sessionId),
     save: (
@@ -361,6 +368,7 @@ const api = {
         compressedMessages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
         compressedAt?: number
         compressedFromCount?: number
+        compressedFromRawCount?: number
       }
     ): Promise<void> =>
       ipcRenderer.invoke(IPC.SESSION_SAVE, rootPath, session),

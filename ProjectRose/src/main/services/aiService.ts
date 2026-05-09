@@ -393,23 +393,49 @@ function toApiShape(messages: Array<Record<string, unknown>>): Array<{ role: str
   return out
 }
 
+export interface ContextStatusCompression {
+  compressedMessages: ApiShapeMessage[]
+  compressedFromCount: number
+  compressedFromRawCount: number
+}
+
 export async function getContextStatus(
   rootPath: string,
-  messages: Array<Record<string, unknown>>
+  messages: Array<Record<string, unknown>>,
+  compression: ContextStatusCompression | null
 ): Promise<ContextStatus> {
   const settings = await readSettings(rootPath)
   const model = pickActiveModel(settings)
   const contextLength = model
     ? await getContextLength(model.provider, model.modelName, settings.ollamaBaseUrl)
     : 8192
-  const apiShape = toApiShape(messages)
+
+  // Mirror useChatStore.sendMessage's substitution: when a compression
+  // snapshot is present and the prefix it claims to replace is still intact,
+  // count tokens/tool-steps against the post-compression view (what the LLM
+  // actually sees). Otherwise fall back to raw — same fail-open the renderer
+  // uses on prefix-mismatch.
+  let apiShape: Array<{ role: string; content: string }>
+  let toolSteps: number
+  if (compression && messages.length >= compression.compressedFromRawCount) {
+    const tail = messages.slice(compression.compressedFromRawCount)
+    apiShape = [
+      ...compression.compressedMessages.map((m) => ({ role: m.role, content: m.content })),
+      ...toApiShape(tail),
+    ]
+    toolSteps = countToolSteps(tail)
+  } else {
+    apiShape = toApiShape(messages)
+    toolSteps = countToolSteps(messages)
+  }
+
   const estimatedTokens = estimateTokens(apiShape)
   const percentUsed = contextLength > 0 ? estimatedTokens / contextLength : 0
   return {
     estimatedTokens,
     contextLength,
     percentUsed,
-    totalToolSteps: countToolSteps(messages),
+    totalToolSteps: toolSteps,
   }
 }
 

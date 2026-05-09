@@ -11,7 +11,7 @@ export interface SessionMeta {
 
 // Snapshot of the "compressed view" the renderer should send to the LLM in
 // place of the leading portion of its api-shape messages. Persisted alongside
-// the raw history so it survives restarts. All three fields move together —
+// the raw history so it survives restarts. All four fields move together —
 // loaders that see a partial shape should ignore compression and use messages.
 export interface CompressedSnapshot {
   compressedMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
@@ -20,6 +20,11 @@ export interface CompressedSnapshot {
   // [...compressedMessages, ...apiMessages.slice(compressedFromCount)] for
   // every turn until the user re-compresses (or this snapshot is cleared).
   compressedFromCount: number
+  // Raw renderer-message counterpart of compressedFromCount. Includes the
+  // kept-verbatim recent-turn raw messages (which are also embedded in
+  // compressedMessages). Used by status reporting to count tool steps only
+  // in the post-compression tail (slice raw messages by this count).
+  compressedFromRawCount: number
 }
 
 export interface Session extends SessionMeta, Partial<CompressedSnapshot> {

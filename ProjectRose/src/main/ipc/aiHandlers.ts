@@ -14,8 +14,16 @@ export function registerAiHandlers(): void {
 
   ipcMain.handle(
     IPC.AI_CONTEXT_STATUS,
-    async (_event, payload: { rootPath: string; messages: Array<Record<string, unknown>> }) => {
-      return getContextStatus(payload.rootPath, payload.messages)
+    async (_event, payload: {
+      rootPath: string
+      messages: Array<Record<string, unknown>>
+      compression: {
+        compressedMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+        compressedFromCount: number
+        compressedFromRawCount: number
+      } | null
+    }) => {
+      return getContextStatus(payload.rootPath, payload.messages, payload.compression)
     }
   )
 

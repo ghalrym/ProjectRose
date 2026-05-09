@@ -99,9 +99,12 @@ interface ChatState {
 
   // Per-session compression snapshot — replaces the leading `compressedFromCount`
   // api-shape messages on every send until cleared or replaced. Persisted in
-  // session JSON so it survives restarts.
+  // session JSON so it survives restarts. `compressedFromRawCount` is the raw
+  // counterpart of `compressedFromCount`, used to slice the raw message tail
+  // when computing post-compression context status (token count + tool steps).
   compressedMessages: CompressedApiMessage[] | null
   compressedFromCount: number | null
+  compressedFromRawCount: number | null
   compressedAt: number | null
 
   contextStatus: ContextStatus | null
@@ -143,6 +146,7 @@ function generateId(): string {
 interface PersistOpts {
   compressedMessages?: CompressedApiMessage[] | null
   compressedFromCount?: number | null
+  compressedFromRawCount?: number | null
   compressedAt?: number | null
 }
 
@@ -154,9 +158,15 @@ function persistSession(rootPath: string, sessionId: string, title: string, crea
     updatedAt: Date.now(),
     messages: messages as unknown[]
   }
-  if (opts.compressedMessages && opts.compressedFromCount != null && opts.compressedAt != null) {
+  if (
+    opts.compressedMessages &&
+    opts.compressedFromCount != null &&
+    opts.compressedFromRawCount != null &&
+    opts.compressedAt != null
+  ) {
     payload.compressedMessages = opts.compressedMessages
     payload.compressedFromCount = opts.compressedFromCount
+    payload.compressedFromRawCount = opts.compressedFromRawCount
     payload.compressedAt = opts.compressedAt
   }
   window.api.session.save(rootPath, payload).catch(() => { /* persistence failures are non-fatal */ })
@@ -214,6 +224,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   pendingModelDisplay: null,
   compressedMessages: null,
   compressedFromCount: null,
+  compressedFromRawCount: null,
   compressedAt: null,
   contextStatus: null,
   compressionToastDismissed: null,
@@ -483,6 +494,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       persistSession(rootPath, sessionId!, title, createdAt, s.messages, {
         compressedMessages: s.compressedMessages,
         compressedFromCount: s.compressedFromCount,
+        compressedFromRawCount: s.compressedFromRawCount,
         compressedAt: s.compressedAt,
       })
     }
@@ -669,12 +681,23 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       const first = sessions[0]
       const loaded = await window.api.session.load(rootPath, first.id)
       if (loaded) {
+        // All-or-nothing: snapshots written before compressedFromRawCount
+        // existed are dropped here (raw history remains; the user just sees
+        // the compress toast again on next threshold cross). Synthesizing
+        // the raw count would mis-slice mid-turn since old snapshots have
+        // tool/thinking/ask_user messages in their prefix.
+        const hasFullSnapshot =
+          !!loaded.compressedMessages &&
+          loaded.compressedFromCount != null &&
+          loaded.compressedFromRawCount != null &&
+          loaded.compressedAt != null
         set({
           currentSessionId: first.id,
           messages: sanitizeLoadedMessages((loaded.messages as ChatMessage[]) ?? []),
-          compressedMessages: loaded.compressedMessages ?? null,
-          compressedFromCount: loaded.compressedFromCount ?? null,
-          compressedAt: loaded.compressedAt ?? null,
+          compressedMessages: hasFullSnapshot ? loaded.compressedMessages! : null,
+          compressedFromCount: hasFullSnapshot ? loaded.compressedFromCount! : null,
+          compressedFromRawCount: hasFullSnapshot ? loaded.compressedFromRawCount! : null,
+          compressedAt: hasFullSnapshot ? loaded.compressedAt! : null,
           compressionToastDismissed: null,
           contextStatus: null,
         })
@@ -686,6 +709,11 @@ export const useChatStore = create<ChatState>()((set, get) => ({
   switchSession: async (rootPath, sessionId) => {
     const loaded = await window.api.session.load(rootPath, sessionId)
     if (loaded) {
+      const hasFullSnapshot =
+        !!loaded.compressedMessages &&
+        loaded.compressedFromCount != null &&
+        loaded.compressedFromRawCount != null &&
+        loaded.compressedAt != null
       set({
         currentSessionId: sessionId,
         messages: sanitizeLoadedMessages((loaded.messages as ChatMessage[]) ?? []),
@@ -693,9 +721,10 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         assistantPlaceholderId: null,
         thinkingPlaceholderId: null,
         pendingModelDisplay: null,
-        compressedMessages: loaded.compressedMessages ?? null,
-        compressedFromCount: loaded.compressedFromCount ?? null,
-        compressedAt: loaded.compressedAt ?? null,
+        compressedMessages: hasFullSnapshot ? loaded.compressedMessages! : null,
+        compressedFromCount: hasFullSnapshot ? loaded.compressedFromCount! : null,
+        compressedFromRawCount: hasFullSnapshot ? loaded.compressedFromRawCount! : null,
+        compressedAt: hasFullSnapshot ? loaded.compressedAt! : null,
         compressionToastDismissed: null,
         contextStatus: null,
       })
@@ -712,17 +741,31 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     pendingModelDisplay: null,
     compressedMessages: null,
     compressedFromCount: null,
+    compressedFromRawCount: null,
     compressedAt: null,
     contextStatus: null,
     compressionToastDismissed: null,
   }),
 
   refreshContextStatus: async (rootPath) => {
-    if (get().messages.length === 0) {
+    const s = get()
+    if (s.messages.length === 0) {
       set({ contextStatus: null })
       return
     }
-    const status = await window.api.aiContextStatus(rootPath, get().messages as unknown as Array<Record<string, unknown>>)
+    const snapshot =
+      s.compressedMessages && s.compressedFromCount != null && s.compressedFromRawCount != null
+        ? {
+            compressedMessages: s.compressedMessages,
+            compressedFromCount: s.compressedFromCount,
+            compressedFromRawCount: s.compressedFromRawCount,
+          }
+        : null
+    const status = await window.api.aiContextStatus(
+      rootPath,
+      s.messages as unknown as Array<Record<string, unknown>>,
+      snapshot
+    )
     set({ contextStatus: status })
   },
 
@@ -740,10 +783,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         set({
           compressedMessages: result.compressedMessages,
           compressedFromCount: result.compressedFromCount,
+          compressedFromRawCount: result.compressedFromRawCount,
           compressedAt: at,
-          // After successful compression, clear the dismiss snapshot so the
-          // next threshold cross can fire again (with the new lower baseline).
-          compressionToastDismissed: null,
         })
         // Persist the new snapshot. We need session metadata to call persistSession.
         const session = get().sessions.find((s) => s.id === sessionId)
@@ -751,10 +792,23 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           persistSession(rootPath, sessionId, session.title, session.createdAt, get().messages, {
             compressedMessages: result.compressedMessages,
             compressedFromCount: result.compressedFromCount,
+            compressedFromRawCount: result.compressedFromRawCount,
             compressedAt: at,
           })
         }
+        // Recompute status against the new snapshot, then snap the dismiss
+        // baseline to it. If post-compression usage is below threshold the
+        // toast hides naturally; if it isn't (recent turns alone exceed it),
+        // the snap suppresses the toast until usage grows by REDISPLAY_*
+        // deltas. Either way we don't immediately re-fire the toast at the
+        // exact level the user just acted on.
         await get().refreshContextStatus(rootPath)
+        const fresh = get().contextStatus
+        set({
+          compressionToastDismissed: fresh
+            ? { percentUsed: fresh.percentUsed, totalToolSteps: fresh.totalToolSteps }
+            : null,
+        })
       }
     } finally {
       set({ isCompressing: false })
