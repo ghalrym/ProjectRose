@@ -1,10 +1,22 @@
 import { resolve } from 'path'
 import { readFileSync } from 'fs'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
-import { createLogger } from 'vite'
+import { createLogger, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const appVersion = JSON.parse(readFileSync(resolve('package.json'), 'utf-8')).version as string
+
+// Load .env / .env.development / .env.development.local from this dir.
+// Only keys we explicitly forward below are exposed to the main bundle.
+const env = loadEnv(process.env.NODE_ENV ?? 'development', resolve('.'), '')
+
+// Build a process.env replacement map for the main bundle. Skip empty values so
+// the `?? '<placeholder>'` fallbacks in src/main/lib/webConfig.ts still work in
+// production builds where no .env file is present.
+const mainProcessEnvDefines: Record<string, string> = {}
+if (env.WEB_BASE_URL) {
+  mainProcessEnvDefines['process.env.WEB_BASE_URL'] = JSON.stringify(env.WEB_BASE_URL)
+}
 
 // Suppress the Monaco marked.js missing-sourcemap warning.
 // The warning fires on the server logger — intercepting here is the guaranteed fix.
@@ -18,6 +30,7 @@ rendererLogger.warn = (msg, opts) => {
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin({ include: ['node-pty'] })],
+    define: mainProcessEnvDefines,
     build: {
       rollupOptions: {
         input: {

@@ -5,3 +5,8 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
+
+# Per-developer env overrides — `.env.development` is checked in for the
+# shared local-dev URL; `.local` variants override it without leaking.
+.env.local
+.env.*.local

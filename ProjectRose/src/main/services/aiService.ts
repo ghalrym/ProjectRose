@@ -22,6 +22,7 @@ import type { AgentContext, SubagentCounter } from './agentRunner'
 import type { InjectionRecord } from '../../shared/extensionHooks'
 import { IPC } from '../../shared/ipcChannels'
 import type { Message } from '../../shared/roseModelTypes'
+import { loadSession } from '../lib/session'
 
 let activeAbortController: AbortController | null = null
 
@@ -117,13 +118,14 @@ function extractErrorMessage(err: unknown): string {
 // ── Model selection ──
 
 async function selectModel(userMessage: string, settings: AppSettings): Promise<ModelConfig> {
-  const { models, defaultModelId, router, hostMode, providerKeys } = settings
+  const { models, defaultModelId, router, hostMode } = settings
   if (models.length === 0) {
     throw new Error('No models configured. Please add a model in Settings → Chat.')
   }
 
   if (hostMode === 'projectrose') {
-    if (!providerKeys.projectrose?.accessToken) {
+    const session = await loadSession()
+    if (!session?.token) {
       throw new Error('Sign in to your ProjectRose account to use the managed AI endpoint.')
     }
     return {

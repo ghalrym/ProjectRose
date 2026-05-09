@@ -430,12 +430,19 @@ const api = {
       ipcRenderer.invoke(IPC.AUTH_LOGIN),
     logout: (): Promise<void> =>
       ipcRenderer.invoke(IPC.AUTH_LOGOUT),
-    getStatus: (): Promise<{ loggedIn: boolean; email: string; plan: string }> =>
+    cancel: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.AUTH_CANCEL),
+    getStatus: (): Promise<{ loggedIn: boolean; email: string; name: string; avatar: string }> =>
       ipcRenderer.invoke(IPC.AUTH_GET_STATUS),
-    onChanged: (callback: (data: { loggedIn: boolean; email: string }) => void): (() => void) => {
-      const handler = (_e: unknown, data: { loggedIn: boolean; email: string }): void => callback(data)
+    onChanged: (callback: (data: { loggedIn: boolean; email: string; name: string; avatar: string }) => void): (() => void) => {
+      const handler = (_e: unknown, data: { loggedIn: boolean; email: string; name: string; avatar: string }): void => callback(data)
       ipcRenderer.on(IPC.AUTH_CHANGED, handler)
       return () => { ipcRenderer.removeListener(IPC.AUTH_CHANGED, handler) }
+    },
+    onPairingPending: (callback: (data: { url: string }) => void): (() => void) => {
+      const handler = (_e: unknown, data: { url: string }): void => callback(data)
+      ipcRenderer.on(IPC.AUTH_PAIRING_PENDING, handler)
+      return () => { ipcRenderer.removeListener(IPC.AUTH_PAIRING_PENDING, handler) }
     }
   },
 

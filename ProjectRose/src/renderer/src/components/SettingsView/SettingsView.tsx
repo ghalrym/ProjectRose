@@ -61,11 +61,12 @@ interface ProviderMeta {
 }
 
 const PROVIDERS: ProviderMeta[] = [
-  { kind: 'ollama',    spec: '01', name: 'Ollama',            latin: 'Rosa localis'    },
-  { kind: 'anthropic', spec: '02', name: 'Anthropic',         latin: 'Rosa claudia'    },
-  { kind: 'openai',    spec: '03', name: 'OpenAI',            latin: 'Rosa generativa' },
-  { kind: 'bedrock',   spec: '04', name: 'Amazon Bedrock',    latin: 'Rosa nubila'     },
-  { kind: 'compat',    spec: '05', name: 'OpenAI-compatible', latin: 'Rosa heterodoxa' },
+  { kind: 'projectrose', spec: '00', name: 'ProjectRose',       latin: 'Rosa managed'    },
+  { kind: 'ollama',      spec: '01', name: 'Ollama',            latin: 'Rosa localis'    },
+  { kind: 'anthropic',   spec: '02', name: 'Anthropic',         latin: 'Rosa claudia'    },
+  { kind: 'openai',      spec: '03', name: 'OpenAI',            latin: 'Rosa generativa' },
+  { kind: 'bedrock',     spec: '04', name: 'Amazon Bedrock',    latin: 'Rosa nubila'     },
+  { kind: 'compat',      spec: '05', name: 'OpenAI-compatible', latin: 'Rosa heterodoxa' },
 ]
 
 // ─────────────────────────────────────────────────────────────
@@ -90,6 +91,16 @@ const BEDROCK_FALLBACK = [
 function ProviderGlyph({ kind, size = 28 }: { kind: string; size?: number }): JSX.Element | null {
   const c = 'var(--color-accent)'
   switch (kind) {
+    case 'projectrose':
+      return (
+        <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.6">
+          <circle cx="16" cy="16" r="6" fill={c} stroke="none" />
+          <path d="M16 4 C20 8 20 12 16 16 C12 12 12 8 16 4 Z" opacity="0.7" />
+          <path d="M28 16 C24 20 20 20 16 16 C20 12 24 12 28 16 Z" opacity="0.7" />
+          <path d="M16 28 C12 24 12 20 16 16 C20 20 20 24 16 28 Z" opacity="0.7" />
+          <path d="M4 16 C8 12 12 12 16 16 C12 20 8 20 4 16 Z" opacity="0.7" />
+        </svg>
+      )
     case 'anthropic':
       return (
         <svg viewBox="0 0 32 32" width={size} height={size}>
@@ -290,6 +301,51 @@ export function SettingsView(): JSX.Element {
   const [testedProviders, setTestedProviders] = useState<Record<string, 'connected' | 'error'>>({})
   const [providerTesting, setProviderTesting] = useState<Record<string, boolean>>({})
 
+  // ── projectrose account state ──
+  const [prAccount, setPrAccount] = useState<{ loggedIn: boolean; email: string; name: string }>({ loggedIn: false, email: '', name: '' })
+  const [prMode, setPrMode] = useState<'idle' | 'pending'>('idle')
+  const [prPairingUrl, setPrPairingUrl] = useState('')
+  const [prError, setPrError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    window.api.auth.getStatus().then((s) => { if (!cancelled) setPrAccount({ loggedIn: s.loggedIn, email: s.email, name: s.name }) })
+    const offChanged = window.api.auth.onChanged((d) => {
+      setPrAccount({ loggedIn: d.loggedIn, email: d.email, name: d.name })
+      setPrMode('idle')
+      setPrPairingUrl('')
+      setPrError('')
+    })
+    const offPending = window.api.auth.onPairingPending((d) => {
+      setPrPairingUrl(d.url)
+      setPrMode('pending')
+      setPrError('')
+    })
+    return () => { cancelled = true; offChanged(); offPending() }
+  }, [])
+
+  async function projectroseSignIn(): Promise<void> {
+    setPrError('')
+    setPrMode('pending')
+    try {
+      await window.api.auth.login()
+    } catch (e) {
+      setPrError(e instanceof Error ? e.message : 'Sign-in failed')
+      setPrMode('idle')
+      setPrPairingUrl('')
+    }
+  }
+
+  async function projectroseCancel(): Promise<void> {
+    try { await window.api.auth.cancel() } catch { /* ignore */ }
+    setPrMode('idle')
+    setPrPairingUrl('')
+  }
+
+  async function projectroseSignOut(): Promise<void> {
+    try { await window.api.auth.logout() } catch { /* ignore */ }
+  }
+
   // ── behavior (local — store additions possible later) ──
   const [streamToolResults, setStreamToolResults] = useState(false)
 
@@ -432,11 +488,13 @@ export function SettingsView(): JSX.Element {
       }
       case 'ollama':  return { baseUrl: ollamaBaseUrl }
       case 'compat':  return { baseUrl: openaiCompatBaseUrl, apiKey: openaiCompatApiKey }
+      case 'projectrose': return {}
       default: return {}
     }
   }
 
   function getProviderStatus(kind: string): ProviderStatus {
+    if (kind === 'projectrose') return prAccount.loggedIn ? 'connected' : 'missing'
     if (testedProviders[kind] === 'connected') return 'connected'
     if (testedProviders[kind] === 'error') return 'error'
     const fields = getProviderFields(kind)
@@ -553,6 +611,17 @@ export function SettingsView(): JSX.Element {
           className={styles.modelTechInput}
           type="text"
           placeholder="model name"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )
+    }
+    if (provider === 'projectrose') {
+      return (
+        <input
+          className={styles.modelTechInput}
+          type="text"
+          placeholder="managed"
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -797,9 +866,13 @@ export function SettingsView(): JSX.Element {
                       <div className={styles.providerStatusRow}>
                         <StatusBadge state={status} />
                         <span className={styles.providerFieldInfo}>
-                          {status === 'connected' || status === 'unverified'
-                            ? `${filledCount}/${totalFields} field${totalFields === 1 ? '' : 's'} · ${modelsForProvider.length} model${modelsForProvider.length === 1 ? '' : 's'}`
-                            : `${totalFields} field${totalFields === 1 ? '' : 's'} required`}
+                          {p.kind === 'projectrose'
+                            ? prAccount.loggedIn
+                              ? `signed in · ${modelsForProvider.length} model${modelsForProvider.length === 1 ? '' : 's'}`
+                              : 'sign in to use the managed endpoint'
+                            : status === 'connected' || status === 'unverified'
+                              ? `${filledCount}/${totalFields} field${totalFields === 1 ? '' : 's'} · ${modelsForProvider.length} model${modelsForProvider.length === 1 ? '' : 's'}`
+                              : `${totalFields} field${totalFields === 1 ? '' : 's'} required`}
                         </span>
                       </div>
                     </div>
@@ -814,48 +887,111 @@ export function SettingsView(): JSX.Element {
 
                 {isExpanded && (
                   <div className={`${styles.providerCardBody} ${styles.drawerIn}`}>
-                    {fieldDefs.map((f) => (
-                      <FieldRow key={f.key} label={f.label} hint={f.hint}>
-                        <KeyInput
-                          value={fields[f.key] ?? ''}
-                          placeholder={f.placeholder}
-                          type={f.secret ? 'password' : 'text'}
-                          onChange={(v) => handleProviderFieldChange(p.kind, f.key, v)}
-                        />
-                      </FieldRow>
-                    ))}
-                    <div className={styles.providerCardFooter}>
-                      <span className={styles.providerStorageHint}>
-                        stored in {p.kind === 'ollama' ? 'config file' : 'system keychain'}
-                      </span>
-                      <div className={styles.providerFooterBtns}>
-                        <button
-                          type="button"
-                          className={styles.ghostBtn}
-                          onClick={() => clearProvider(p.kind)}
-                        >
-                          CLEAR
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.primaryBtn}
-                          disabled={filledCount < totalFields || isTesting}
-                          onClick={() => verifyProvider(p.kind)}
-                        >
-                          {isTesting ? 'TESTING…' : status === 'connected' ? '↻ TEST AGAIN' : 'VERIFY & SAVE'}
-                        </button>
+                    {p.kind === 'projectrose' ? (
+                      <div style={{ padding: '12px 16px 4px' }}>
+                        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
+                          {prAccount.loggedIn
+                            ? 'Active — chats route through the managed endpoint while you’re signed in. Sign out to fall back to your other providers.'
+                            : 'Sign in to route chats through the managed ProjectRose endpoint backed by your subscription — no API keys needed.'}
+                        </p>
+                        {prAccount.loggedIn ? (
+                          <>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-primary)', marginBottom: 4 }}>
+                              {prAccount.name || prAccount.email}
+                            </div>
+                            {prAccount.name && (
+                              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>
+                                {prAccount.email}
+                              </div>
+                            )}
+                          </>
+                        ) : prMode === 'pending' ? (
+                          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
+                            Browser opened — finish authorization there.
+                            {prPairingUrl && (
+                              <>
+                                {' '}
+                                <button
+                                  type="button"
+                                  onClick={() => navigator.clipboard.writeText(prPairingUrl).catch(() => {})}
+                                  style={{ background: 'none', border: 'none', padding: 0, color: 'var(--color-accent)', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, fontFamily: 'inherit' }}
+                                >
+                                  COPY LINK
+                                </button>
+                              </>
+                            )}
+                          </p>
+                        ) : null}
+                        {prError && (
+                          <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{prError}</p>
+                        )}
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        {fieldDefs.map((f) => (
+                          <FieldRow key={f.key} label={f.label} hint={f.hint}>
+                            <KeyInput
+                              value={fields[f.key] ?? ''}
+                              placeholder={f.placeholder}
+                              type={f.secret ? 'password' : 'text'}
+                              onChange={(v) => handleProviderFieldChange(p.kind, f.key, v)}
+                            />
+                          </FieldRow>
+                        ))}
+                      </>
+                    )}
+                    {p.kind === 'projectrose' ? (
+                      <div className={styles.providerCardFooter} style={{ justifyContent: 'stretch' }}>
+                        {prAccount.loggedIn ? (
+                          <button type="button" className={styles.ghostBtn} style={{ width: '100%' }} onClick={projectroseSignOut}>
+                            SIGN OUT
+                          </button>
+                        ) : prMode === 'pending' ? (
+                          <button type="button" className={styles.ghostBtn} style={{ width: '100%' }} onClick={projectroseCancel}>
+                            CANCEL
+                          </button>
+                        ) : (
+                          <button type="button" className={styles.primaryBtn} style={{ width: '100%' }} onClick={projectroseSignIn}>
+                            SIGN IN
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className={styles.providerCardFooter}>
+                        <span className={styles.providerStorageHint}>
+                          stored in {p.kind === 'ollama' ? 'config file' : 'system keychain'}
+                        </span>
+                        <div className={styles.providerFooterBtns}>
+                          <button
+                            type="button"
+                            className={styles.ghostBtn}
+                            onClick={() => clearProvider(p.kind)}
+                          >
+                            CLEAR
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.primaryBtn}
+                            disabled={filledCount < totalFields || isTesting}
+                            onClick={() => verifyProvider(p.kind)}
+                          >
+                            {isTesting ? 'TESTING…' : status === 'connected' ? '↻ TEST AGAIN' : 'VERIFY & SAVE'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
-                    <div className={styles.providerModelsDivider}>MODELS</div>
+                    {p.kind !== 'projectrose' && (
+                      <div className={styles.providerModelsDivider}>MODELS</div>
+                    )}
 
-                    {modelsForProvider.length === 0 && (
+                    {p.kind !== 'projectrose' && modelsForProvider.length === 0 && (
                       <div className={styles.providerModelsEmpty}>
                         No models yet — add one below.
                       </div>
                     )}
 
-                    {modelsForProvider.map((m) => (
+                    {p.kind !== 'projectrose' && modelsForProvider.map((m) => (
                       <div key={m.id} className={styles.providerModelRow}>
                         <input
                           type="radio"
@@ -921,13 +1057,15 @@ export function SettingsView(): JSX.Element {
                       </div>
                     ))}
 
-                    <button
-                      type="button"
-                      className={styles.providerAddModelBtn}
-                      onClick={() => addModel(modelProvider)}
-                    >
-                      + ADD MODEL
-                    </button>
+                    {p.kind !== 'projectrose' && (
+                      <button
+                        type="button"
+                        className={styles.providerAddModelBtn}
+                        onClick={() => addModel(modelProvider)}
+                      >
+                        + ADD MODEL
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

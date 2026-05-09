@@ -532,6 +532,14 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       cleanupStreamReset()
     }
 
+    // Electron's webContents.send (used for IPC.AI_TOKEN / IPC.AI_THINKING / etc.)
+    // and ipcMain.handle response (returned by window.api.aiChat) travel on
+    // separate IPC paths with no FIFO ordering between them. The invoke
+    // response can overtake several streaming events. Deferring listener
+    // teardown + placeholder reset by a few hundred ms gives the streaming
+    // events time to land before the listeners go away.
+    const POST_RESOLUTION_DEFER_MS = 250
+
     try {
       const response = await window.api.aiChat(
         [...apiMessages, { role: 'user', content: trimmed, attachments: userMsg.attachments }],
@@ -539,41 +547,45 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         sessionId!
       )
 
-      cleanup()
+      setTimeout(() => {
+        cleanup()
+        const placeholderId = get().assistantPlaceholderId
 
-      const placeholderId = get().assistantPlaceholderId
+        set((s) => ({
+          messages: s.messages.map((m) => {
+            if (m.id === placeholderId && m.role === 'assistant') {
+              return { ...m, streaming: false, modelDisplay: response.modelDisplay }
+            }
+            if (m.role === 'thinking' && (m as ThinkingMessage).streaming) {
+              return { ...m, streaming: false }
+            }
+            return m
+          }),
+          isLoading: false,
+          assistantPlaceholderId: null,
+          thinkingPlaceholderId: null,
+          pendingModelDisplay: null
+        }))
 
-      set((s) => ({
-        messages: s.messages.map((m) => {
-          if (m.id === placeholderId && m.role === 'assistant') {
-            return { ...m, streaming: false, modelDisplay: response.modelDisplay }
-          }
-          if (m.role === 'thinking' && (m as ThinkingMessage).streaming) {
-            return { ...m, streaming: false }
-          }
-          return m
-        }),
-        isLoading: false,
-        assistantPlaceholderId: null,
-        thinkingPlaceholderId: null,
-        pendingModelDisplay: null
-      }))
+        persistFromState()
+        set((s) => ({
+          sessions: s.sessions.map((sess) =>
+            sess.id === sessionId ? { ...sess, updatedAt: Date.now() } : sess
+          )
+        }))
 
-      persistFromState()
-      set((s) => ({
-        sessions: s.sessions.map((sess) =>
-          sess.id === sessionId ? { ...sess, updatedAt: Date.now() } : sess
-        )
-      }))
+        // Refresh after each settled turn so the toast can fire when usage
+        // crosses the threshold. Failures are swallowed — status is best-effort.
+        get().refreshContextStatus(rootPath).catch(() => { /* ignore */ })
 
-      // Refresh after each settled turn so the toast can fire when usage
-      // crosses the threshold. Failures are swallowed — status is best-effort.
-      get().refreshContextStatus(rootPath).catch(() => { /* ignore */ })
-
-      if (response.modifiedFiles.length > 0) {
-        useProjectStore.getState().refreshTree()
-      }
+        if (response.modifiedFiles.length > 0) {
+          useProjectStore.getState().refreshTree()
+        }
+      }, POST_RESOLUTION_DEFER_MS)
     } catch (err) {
+      // Defer the same way as the success path so streaming events that
+      // arrived before the error can still land on the right placeholder.
+      const handleError = (): void => {
       cleanup()
 
       const isAbort = err instanceof Error &&
@@ -642,6 +654,8 @@ export const useChatStore = create<ChatState>()((set, get) => ({
       })
 
       persistFromState()
+      }
+      setTimeout(handleError, POST_RESOLUTION_DEFER_MS)
     }
   },
 

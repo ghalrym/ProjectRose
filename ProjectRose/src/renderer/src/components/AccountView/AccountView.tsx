@@ -4,13 +4,19 @@ import styles from './AccountView.module.css'
 interface AuthStatus {
   loggedIn: boolean
   email: string
-  plan: string
+  name: string
+  avatar: string
 }
 
+type Mode = 'idle' | 'pending'
+
 export function AccountView(): JSX.Element {
-  const [status, setStatus] = useState<AuthStatus>({ loggedIn: false, email: '', plan: '' })
+  const [status, setStatus] = useState<AuthStatus>({ loggedIn: false, email: '', name: '', avatar: '' })
   const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState(false)
+  const [mode, setMode] = useState<Mode>('idle')
+  const [pairingUrl, setPairingUrl] = useState<string>('')
+  const [error, setError] = useState<string>('')
+  const [copied, setCopied] = useState(false)
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -23,27 +29,54 @@ export function AccountView(): JSX.Element {
 
   useEffect(() => {
     fetchStatus()
-    const cleanup = window.api.auth.onChanged((data) => {
-      setStatus((prev) => ({ ...prev, loggedIn: data.loggedIn, email: data.email }))
+    const offChanged = window.api.auth.onChanged((data) => {
+      setStatus({ loggedIn: data.loggedIn, email: data.email, name: data.name, avatar: data.avatar })
+      setMode('idle')
+      setPairingUrl('')
+      setError('')
     })
-    return cleanup
+    const offPending = window.api.auth.onPairingPending((data) => {
+      setPairingUrl(data.url)
+      setMode('pending')
+      setError('')
+    })
+    return () => { offChanged(); offPending() }
   }, [fetchStatus])
 
   async function handleLogin() {
-    setActionLoading(true)
+    setError('')
+    setMode('pending')
     try {
       await window.api.auth.login()
-    } finally {
-      setActionLoading(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Sign-in failed')
+      setMode('idle')
+      setPairingUrl('')
     }
   }
 
+  async function handleCancel() {
+    try { await window.api.auth.cancel() } catch { /* ignore */ }
+    setMode('idle')
+    setPairingUrl('')
+  }
+
   async function handleLogout() {
-    setActionLoading(true)
     try {
       await window.api.auth.logout()
     } finally {
-      setActionLoading(false)
+      setMode('idle')
+    }
+  }
+
+  async function handleCopyLink() {
+    if (!pairingUrl) return
+    try {
+      await navigator.clipboard.writeText(pairingUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // ignore — the user can long-press the link instead
     }
   }
 
@@ -61,23 +94,59 @@ export function AccountView(): JSX.Element {
       {status.loggedIn ? (
         <>
           <div className={styles.section}>
-            <div className={styles.row}>
-              <span className={styles.field}>Email</span>
-              <span className={styles.value}>{status.email}</span>
-            </div>
-            <div className={styles.row}>
-              <span className={styles.field}>Plan</span>
-              <span className={styles.badge}>{(status.plan ?? 'free').toUpperCase()}</span>
-            </div>
+            {status.avatar && (
+              <div className={styles.avatarRow}>
+                <img className={styles.avatar} src={status.avatar} alt="" />
+                <div className={styles.identity}>
+                  {status.name && <div className={styles.identityName}>{status.name}</div>}
+                  <div className={styles.identityEmail}>{status.email}</div>
+                </div>
+              </div>
+            )}
+            {!status.avatar && (
+              <>
+                {status.name && (
+                  <div className={styles.row}>
+                    <span className={styles.field}>Name</span>
+                    <span className={styles.value}>{status.name}</span>
+                  </div>
+                )}
+                <div className={styles.row}>
+                  <span className={styles.field}>Email</span>
+                  <span className={styles.value}>{status.email}</span>
+                </div>
+              </>
+            )}
           </div>
 
           <div className={styles.section}>
             <button
               className={styles.btnSecondary}
               onClick={handleLogout}
-              disabled={actionLoading}
             >
-              {actionLoading ? 'SIGNING OUT...' : 'SIGN OUT →'}
+              SIGN OUT →
+            </button>
+          </div>
+        </>
+      ) : mode === 'pending' ? (
+        <>
+          <div className={styles.section}>
+            <p className={styles.description}>
+              Browser opened — finish authorization there. This window will update automatically.
+            </p>
+            {pairingUrl && (
+              <p className={styles.muted}>
+                If your browser didn’t open,{' '}
+                <button type="button" className={styles.linkButton} onClick={handleCopyLink}>
+                  {copied ? 'COPIED' : 'COPY LINK'}
+                </button>
+                {' '}and paste it into your browser.
+              </p>
+            )}
+          </div>
+          <div className={styles.section}>
+            <button className={styles.btnSecondary} onClick={handleCancel}>
+              CANCEL →
             </button>
           </div>
         </>
@@ -87,12 +156,12 @@ export function AccountView(): JSX.Element {
             Sign in to use the managed AI endpoint backed by your ProjectRose subscription.
             Your chat will route through our servers — no API keys needed.
           </p>
+          {error && <p className={styles.error}>{error}</p>}
           <button
             className={styles.btnPrimary}
             onClick={handleLogin}
-            disabled={actionLoading}
           >
-            {actionLoading ? 'SIGNING IN...' : 'SIGN IN →'}
+            SIGN IN →
           </button>
         </div>
       )}

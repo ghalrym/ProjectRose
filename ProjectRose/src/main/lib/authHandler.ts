@@ -1,10 +1,20 @@
-import { BrowserWindow, session } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
+import { randomBytes } from 'crypto'
+import { hostname } from 'os'
+import type { Server } from 'http'
 import { IPC } from '../../shared/ipcChannels'
-import { readSettings, writeSettings } from '../ipc/settingsHandlers'
+import { WEB_BASE_URL } from './webConfig'
+import { startLoopbackServer } from './loopback'
+import { loadSession, saveSession, clearSession, type Session } from './session'
 
-const LOCAL_BASE_URL = 'http://localhost:8000'
-const SESSION_COOKIE = 'projectrose_session'
-const REFRESH_COOKIE = 'projectrose_refresh'
+const PAIRING_TIMEOUT_MS = 5 * 60 * 1000
+
+interface PendingPairing {
+  server: Server
+  cancel: (err: Error) => void
+}
+
+let pending: PendingPairing | null = null
 
 function notifyRenderer(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -12,87 +22,120 @@ function notifyRenderer(channel: string, payload: unknown): void {
   }
 }
 
+function emitChanged(session: Session | null): void {
+  notifyRenderer(IPC.AUTH_CHANGED, session
+    ? { loggedIn: true, email: session.user.email, name: session.user.name, avatar: session.user.avatar }
+    : { loggedIn: false, email: '', name: '', avatar: '' })
+}
+
+interface ExchangeResponse {
+  token: string
+  token_type: string
+  device_name: string
+  user: { id: string; email: string; name: string; avatar: string }
+}
+
+async function exchangeCode(code: string): Promise<ExchangeResponse> {
+  const res = await fetch(`${WEB_BASE_URL}/api/auth/device/exchange`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Exchange failed (${res.status}): ${body || res.statusText}`)
+  }
+  return await res.json() as ExchangeResponse
+}
+
 export async function openAuthWindow(): Promise<void> {
-  const [parent] = BrowserWindow.getAllWindows()
+  if (pending) {
+    // Cancel any in-flight pairing before starting a new one.
+    cancelPairing()
+  }
 
-  const authWin = new BrowserWindow({
-    width: 480,
-    height: 680,
-    parent,
-    modal: true,
-    autoHideMenuBar: true,
-    title: 'Sign In — ProjectRose',
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
+  const state = randomBytes(16).toString('hex')
+  const deviceName = `${hostname()} · ${app.getName()}`
+
+  const { server, port, codePromise } = await startLoopbackServer(state)
+
+  const url = new URL('/auth-device.html', WEB_BASE_URL)
+  url.searchParams.set('state', state)
+  url.searchParams.set('port', String(port))
+  url.searchParams.set('name', deviceName)
+  const authUrl = url.toString()
+
+  let cancelHandler!: (err: Error) => void
+  const cancellation = new Promise<never>((_, reject) => { cancelHandler = reject })
+  pending = { server, cancel: cancelHandler }
+
+  notifyRenderer(IPC.AUTH_PAIRING_PENDING, { url: authUrl })
+  shell.openExternal(authUrl).catch(() => {
+    // openExternal can fail on headless Linux. The renderer's "Copy link"
+    // fallback uses the url payload above so the user can paste it manually.
   })
 
-  authWin.loadURL(`${LOCAL_BASE_URL}/auth`)
+  let timeoutHandle: NodeJS.Timeout | null = null
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error('Pairing timed out — try again from Settings.')), PAIRING_TIMEOUT_MS)
+  })
 
-  authWin.webContents.on('did-navigate', async (_event, url) => {
-    if (!url.includes('/dashboard')) return
-
-    try {
-      const [sessionCookie] = await session.defaultSession.cookies.get({ url: LOCAL_BASE_URL, name: SESSION_COOKIE })
-      const [refreshCookie] = await session.defaultSession.cookies.get({ url: LOCAL_BASE_URL, name: REFRESH_COOKIE })
-
-      const accessToken = sessionCookie?.value
-      const refreshToken = refreshCookie?.value ?? ''
-      if (!accessToken) return
-
-      const res = await fetch(`${LOCAL_BASE_URL}/api/me`, {
-        headers: { Cookie: `${SESSION_COOKIE}=${accessToken}` },
-      })
-      if (!res.ok) return
-
-      const data = await res.json() as { user: Record<string, string> }
-      const email = data.user.email ?? ''
-      const plan = data.user.plan_key ?? 'free'
-
-      const settings = await readSettings()
-      await writeSettings({
-        ...settings,
-        providerKeys: {
-          ...settings.providerKeys,
-          projectrose: { accessToken, refreshToken, email, plan },
-        },
-      })
-
-      notifyRenderer(IPC.AUTH_CHANGED, { loggedIn: true, email })
-
-      if (parent && !parent.isDestroyed()) { if (parent.isMinimized()) parent.restore(); parent.focus() }
-    } catch { /* ignore network/parse errors */ } finally {
-      if (!authWin.isDestroyed()) authWin.close()
+  try {
+    const code = await Promise.race([codePromise, timeoutPromise, cancellation])
+    console.log(`[auth] received pairing code (length=${code.length})`)
+    const response = await exchangeCode(code)
+    const session: Session = {
+      token: response.token,
+      deviceName: response.device_name,
+      user: response.user,
     }
-  })
+    await saveSession(session)
+    console.log(`[auth] signed in as user ${session.user.id} on device "${session.deviceName}"`)
+    emitChanged(session)
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle)
+    if (!server.listening) {
+      // already closed
+    } else {
+      server.close()
+    }
+    pending = null
+  }
+}
+
+export function cancelPairing(): void {
+  if (!pending) return
+  const { server, cancel } = pending
+  pending = null
+  try { server.close() } catch { /* best effort */ }
+  cancel(new Error('Sign-in cancelled'))
 }
 
 export async function handleLogout(): Promise<void> {
-  const settings = await readSettings()
-
-  try {
-    const token = settings.providerKeys.projectrose?.accessToken
-    if (token) {
-      await fetch(`${LOCAL_BASE_URL}/auth/signout`, {
-        headers: { Cookie: `${SESSION_COOKIE}=${token}` },
-      }).catch(() => {})
+  const session = await loadSession()
+  if (session) {
+    try {
+      await fetch(`${WEB_BASE_URL}/api/auth/device/revoke`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.token}` },
+      })
+    } catch {
+      // best-effort; we still clear local state below.
     }
-    await session.defaultSession.cookies.remove(LOCAL_BASE_URL, SESSION_COOKIE)
-    await session.defaultSession.cookies.remove(LOCAL_BASE_URL, REFRESH_COOKIE)
-  } catch { /* best effort */ }
-
-  await writeSettings({
-    ...settings,
-    providerKeys: { ...settings.providerKeys, projectrose: null },
-  })
-
-  notifyRenderer(IPC.AUTH_CHANGED, { loggedIn: false, email: '' })
+  }
+  await clearSession()
+  emitChanged(null)
 }
 
-export async function getAuthStatus(): Promise<{ loggedIn: boolean; email: string; plan: string }> {
-  const settings = await readSettings()
-  const pr = settings.providerKeys.projectrose
-  if (!pr?.accessToken) return { loggedIn: false, email: '', plan: '' }
-  return { loggedIn: true, email: pr.email, plan: pr.plan }
+export interface AuthStatus {
+  loggedIn: boolean
+  email: string
+  name: string
+  avatar: string
+}
+
+export async function getAuthStatus(): Promise<AuthStatus> {
+  const session = await loadSession()
+  if (!session) return { loggedIn: false, email: '', name: '', avatar: '' }
+  return { loggedIn: true, email: session.user.email, name: session.user.name, avatar: session.user.avatar }
 }

@@ -82,6 +82,24 @@ function App(): JSX.Element {
   // Re-render when dynamic extensions finish loading
   useEffect(() => subscribeToExtensionsChange(() => setExtVersion((v) => v + 1)), [])
 
+  // Auto-bind hostMode to ProjectRose sign-in state. Signed in → managed
+  // endpoint becomes the default; signed out → fall back to whatever the user
+  // had configured. Reconciles on launch and on every auth change.
+  useEffect(() => {
+    if (!settingsLoaded) return
+    let cancelled = false
+    const sync = (loggedIn: boolean): void => {
+      const desired: 'projectrose' | 'self' = loggedIn ? 'projectrose' : 'self'
+      const current = useSettingsStore.getState().hostMode
+      if (current !== desired) {
+        useSettingsStore.getState().update({ hostMode: desired }).catch(() => {})
+      }
+    }
+    window.api.auth.getStatus().then((s) => { if (!cancelled) sync(s.loggedIn) }).catch(() => {})
+    const off = window.api.auth.onChanged((d) => sync(d.loggedIn))
+    return () => { cancelled = true; off() }
+  }, [settingsLoaded])
+
   // Load dynamic (third-party) extensions whenever the project changes
   useEffect(() => {
     loadDynamicExtensions(rootPath ?? '').catch(console.error)

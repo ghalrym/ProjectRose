@@ -14,7 +14,7 @@ interface SettingsState {
   activeListeningDraftSeconds: number
   models: ModelConfig[]
   defaultModelId: string
-  providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string }; projectrose: { accessToken: string; refreshToken: string; email: string; plan: string } | null }
+  providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string } }
   router: RouterConfig
   hostMode: 'projectrose' | 'self'
   includeThinkingInContext: boolean
@@ -46,7 +46,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   activeListeningDraftSeconds: 8,
   models: [],
   defaultModelId: '',
-  providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' }, projectrose: null },
+  providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' } },
   router: { enabled: false, modelName: '' },
   hostMode: 'self',
   includeThinkingInContext: false,

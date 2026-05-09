@@ -28,7 +28,7 @@ export interface AppSettings {
   activeListeningDraftSeconds: number
   models: ModelConfig[]
   defaultModelId: string
-  providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string }; projectrose: { accessToken: string; refreshToken: string; email: string; plan: string } | null }
+  providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string } }
   router: RouterConfig
   hostMode: 'projectrose' | 'self'
   includeThinkingInContext: boolean
@@ -56,7 +56,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   activeListeningDraftSeconds: 8,
   models: [],
   defaultModelId: '',
-  providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' }, projectrose: null },
+  providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' } },
   router: { enabled: false, modelName: '' },
   hostMode: 'self',
   includeThinkingInContext: false,
@@ -125,6 +125,13 @@ export async function readSettings(rootPath?: string): Promise<AppSettings> {
 
   // Drop any legacy navItems entry — the host no longer has a navigation bar.
   delete (merged as Record<string, unknown>).navItems
+
+  // Drop any legacy providerKeys.projectrose blob — the cookie-derived token
+  // is incompatible with the new opaque-bearer scheme and lives in
+  // safeStorage now (userData/session.bin).
+  if (merged.providerKeys && (merged.providerKeys as Record<string, unknown>).projectrose !== undefined) {
+    delete (merged.providerKeys as Record<string, unknown>).projectrose
+  }
 
   return merged
 }

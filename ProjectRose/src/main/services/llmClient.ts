@@ -20,6 +20,8 @@ import type { Message } from '../../shared/roseModelTypes'
 import type { ModelConfig, RouterConfig } from '../ipc/settingsHandlers'
 import type { InjectionRecord } from '../../shared/extensionHooks'
 import { fireThoughtHook, fireMessageHook, fireTokenHook, fireToolCallHook } from './extensionHooks'
+import { loadSession } from '../lib/session'
+import { WEB_BASE_URL } from '../lib/webConfig'
 
 function notifyRenderer(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -64,16 +66,15 @@ export type ProviderKeys = {
   anthropic: string
   openai: string
   bedrock?: { region: string; accessKeyId: string; secretAccessKey: string }
-  projectrose?: { accessToken: string; refreshToken: string; email: string; plan: string } | null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function resolveModel(
+export async function resolveModel(
   model: ModelConfig,
   providerKeys: ProviderKeys,
   ollamaBaseUrl: string,
   openaiCompatBaseUrl: string
-): any {
+): Promise<any> {
   switch (model.provider) {
     case 'openai': {
       const provider = createOpenAI({ apiKey: providerKeys.openai || undefined })
@@ -143,12 +144,17 @@ export function resolveModel(
       return provider(model.modelName)
     }
     case 'projectrose': {
-      const token = providerKeys.projectrose?.accessToken ?? ''
+      const session = await loadSession()
+      const token = session?.token ?? ''
       const provider = createOpenAI({
         apiKey: token,
-        baseURL: 'http://localhost:8000/api/openai'
+        baseURL: `${WEB_BASE_URL}/api/openai`
       })
-      return provider(model.modelName || 'managed')
+      // Explicit .responses() — hits /api/openai/responses. The bare provider()
+      // call resolves to the same thing in @ai-sdk/openai 3.x but explicit
+      // beats implicit, and reasoning streams (response.reasoning_summary_text.delta)
+      // only flow through the Responses transport.
+      return provider.responses(model.modelName || 'managed')
     }
     case 'anthropic':
     default: {
@@ -420,7 +426,7 @@ export async function streamChat(params: {
   const emit: EmitFn = params.notify ?? notifyRenderer
   const hookCtx: HookCtx | undefined = params.turnId ? { turnId: params.turnId, rootPath: projectRoot } : undefined
   const toolCtx: ExtensionToolCtx = { sessionId: params.sessionId, turnId: params.turnId }
-  const model = resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
+  const model = await resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
   const tools = {
     ...buildCoreTools(projectRoot, emit, toolCtx, hookCtx),
     ...buildExtensionTools(extensionTools ?? [], projectRoot, emit, toolCtx, hookCtx),
@@ -443,6 +449,9 @@ export async function streamChat(params: {
   let accumulatedText = ''
   let inputTokens = 0
   let outputTokens = 0
+  // Some upstream models prefix the first message delta with stray newlines
+  // (e.g. minimax). Swallow leading whitespace until the first real character.
+  let textStarted = false
 
   for (let stepNum = 0; stepNum < 100; stepNum++) {
     let hadTools = false
@@ -488,12 +497,18 @@ export async function streamChat(params: {
           switch (chunk.type) {
             case 'text-delta':
               if (chunk.text) {
-                accumulatedText += chunk.text
-                textBuffer += chunk.text
-                emit(IPC.AI_TOKEN, { token: chunk.text })
+                let token = chunk.text
+                if (!textStarted) {
+                  token = token.replace(/^\s+/, '')
+                  if (token.length === 0) break
+                  textStarted = true
+                }
+                accumulatedText += token
+                textBuffer += token
+                emit(IPC.AI_TOKEN, { token })
                 // Notify on_token hooks. Voided so a slow handler never stalls
                 // streaming — handlers must self-throttle if they need to.
-                if (hookCtx) void fireTokenHook(chunk.text, hookCtx.turnId, hookCtx.rootPath)
+                if (hookCtx) void fireTokenHook(token, hookCtx.turnId, hookCtx.rootPath)
               }
               break
             case 'reasoning-delta':
@@ -695,7 +710,7 @@ export async function compressTurnsForContext(
     .map((t, idx) => `### Turn ${idx + 1}\n${describeTurnForSummary(messages, t)}`)
     .join('\n\n')
 
-  const model = resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
+  const model = await resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
   const summaryPrompt = `You are compressing the older portion of a coding-assistant chat session to keep the model's context focused. For each turn below, write ONE short sentence (max 25 words) that captures: what the user asked, which tools the assistant used, and the outcome. Output as a numbered list with no preamble or trailing remarks.
 
 ${oldDescriptions}`
