@@ -31,3 +31,6 @@
 [submodule "RoseExtensions/rose-wordpress"]
 	path = RoseExtensions/rose-wordpress
 	url = https://github.com/RoseAgent/projectrose-wordpress.git
+[submodule "RoseExtensions/rose-concretecms"]
+	path = RoseExtensions/rose-concretecms
+	url = https://github.com/RoseAgent/projectrose-concretecms.git
