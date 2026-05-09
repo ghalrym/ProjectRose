@@ -48,6 +48,34 @@
   min-width: 0;
 }
 
+/* ── FAB-aware bottom shelf for split layouts ──
+   The bottom-dock FAB cluster protrudes ~60px above the dock and slides
+   horizontally with --fab-offset-x. Each grid column reserves bottom
+   padding equal to how far the cluster has intruded into it, so content
+   never sits behind the cluster. The padding scales smoothly during
+   drag (1:1 with intrusion depth, capped at the cluster's protrusion).
+
+   Cluster geometry (window-relative):
+     center = 50vw + offsetX
+     left   = center − 36px   (FAB radius)
+     right  = center + 44px   (settings satellite far edge)
+
+   Split-layout columns:
+     left column (viewArea):  x ∈ [0,           100vw − 400px]
+     right column (ChatPanel): x ∈ [100vw − 400px, 100vw]
+
+   Intrusion depths simplify to:
+     left  : 50vw − offsetX − 364px
+     right : offsetX − 50vw + 444px
+*/
+.mainContent:not(.mainContentChat) > .viewArea {
+  padding-bottom: clamp(0px, calc(50vw - var(--fab-offset-x, 0px) - 364px), 60px);
+}
+
+.mainContent:not(.mainContentChat) > :nth-child(2) {
+  padding-bottom: clamp(0px, calc(var(--fab-offset-x, 0px) - 50vw + 444px), 60px);
+}
+
 .placeholder {
   display: flex;
   align-items: center;

@@ -1,11 +1,15 @@
+import { useEffect, useRef } from 'react'
 import { useStatusStore } from '../../stores/useStatusStore'
 import { useUpdaterStore } from '../../stores/useUpdaterStore'
 import { useThemeStore } from '../../stores/useThemeStore'
 import { useAppsDrawerStore } from '../../stores/useAppsDrawerStore'
 import { useViewStore } from '../../stores/useViewStore'
+import { useDockPositionStore } from '../../stores/useDockPositionStore'
 import { RoseMark } from '../TopBar/RoseMark'
 import clsx from 'clsx'
 import styles from './BottomDock.module.css'
+
+const DRAG_THRESHOLD_PX = 4
 
 function SettingsGearIcon(): JSX.Element {
   return (
@@ -52,6 +56,58 @@ export function BottomDock(): JSX.Element {
   const theme = useThemeStore((s) => s.theme)
   const toggleTheme = useThemeStore((s) => s.toggleTheme)
 
+  const offsetX = useDockPositionStore((s) => s.offsetX)
+  const setOffsetX = useDockPositionStore((s) => s.setOffsetX)
+
+  // Publish the offset on the document root so siblings of the dock
+  // (the view area / chat panel grid columns) can react to FAB position.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--fab-offset-x', `${offsetX}px`)
+  }, [offsetX])
+
+  const dockRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ startX: number; startOffset: number; moved: boolean } | null>(null)
+  const justDraggedRef = useRef(false)
+
+  const onFabPointerDown = (e: React.PointerEvent<HTMLButtonElement>): void => {
+    if (e.button !== 0) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    dragRef.current = { startX: e.clientX, startOffset: offsetX, moved: false }
+  }
+
+  const onFabPointerMove = (e: React.PointerEvent<HTMLButtonElement>): void => {
+    const info = dragRef.current
+    if (!info) return
+    const dx = e.clientX - info.startX
+    if (!info.moved && Math.abs(dx) < DRAG_THRESHOLD_PX) return
+    info.moved = true
+    justDraggedRef.current = true
+    const dock = dockRef.current
+    if (!dock) return
+    const half = dock.clientWidth / 2
+    // FAB is 72px wide; settings extends ~44px right of FAB center.
+    // Clamp so the cluster stays visible on both edges.
+    const min = -half + 40
+    const max = half - 50
+    const next = Math.max(min, Math.min(max, info.startOffset + dx))
+    setOffsetX(next)
+  }
+
+  const onFabPointerUp = (e: React.PointerEvent<HTMLButtonElement>): void => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
+    dragRef.current = null
+  }
+
+  const consumeDragClick = (): boolean => {
+    if (justDraggedRef.current) {
+      justDraggedRef.current = false
+      return true
+    }
+    return false
+  }
+
   const isIdle = message === null
   const updateReady = updaterPhase === 'ready'
 
@@ -62,13 +118,19 @@ export function BottomDock(): JSX.Element {
   const shortcutTarget = onAgentView ? 'settings' : 'chat'
   const shortcutLabel = onAgentView ? 'Settings' : 'Agent'
 
-  const openShortcut = (): void => {
+  const onFabClick = (): void => {
+    if (consumeDragClick()) return
+    toggleDrawer()
+  }
+
+  const onSettingsClick = (): void => {
+    if (consumeDragClick()) return
     closeDrawer()
     setActiveView(shortcutTarget)
   }
 
   return (
-    <div className={styles.dock}>
+    <div ref={dockRef} className={styles.dock}>
       <div className={styles.topGlow} />
 
       <div className={styles.fabRow} aria-hidden="true" />
@@ -76,7 +138,11 @@ export function BottomDock(): JSX.Element {
       <button
         type="button"
         className={clsx(styles.fab, drawerOpen && styles.fabActive)}
-        onClick={toggleDrawer}
+        onClick={onFabClick}
+        onPointerDown={onFabPointerDown}
+        onPointerMove={onFabPointerMove}
+        onPointerUp={onFabPointerUp}
+        onPointerCancel={onFabPointerUp}
         title={drawerOpen ? 'Close apps' : 'Open apps'}
         aria-label={drawerOpen ? 'Close apps' : 'Open apps'}
         aria-expanded={drawerOpen}
@@ -88,7 +154,11 @@ export function BottomDock(): JSX.Element {
       <button
         type="button"
         className={styles.settingsFab}
-        onClick={openShortcut}
+        onClick={onSettingsClick}
+        onPointerDown={onFabPointerDown}
+        onPointerMove={onFabPointerMove}
+        onPointerUp={onFabPointerUp}
+        onPointerCancel={onFabPointerUp}
         title={shortcutLabel}
         aria-label={shortcutLabel}
       >

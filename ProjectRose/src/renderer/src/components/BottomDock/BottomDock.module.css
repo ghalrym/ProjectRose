@@ -50,7 +50,7 @@
 /* ── Center FAB ── */
 .fab {
   position: absolute;
-  left: 50%;
+  left: calc(50% + var(--fab-offset-x, 0px));
   top: -58px;
   transform: translateX(-50%);
   width: 72px;
@@ -58,7 +58,8 @@
   border-radius: 50%;
   border: 2px solid rgba(196, 149, 106, 0.5);
   padding: 0;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
   color: var(--d-paper);
   background: radial-gradient(
     circle at 50% 38%,
@@ -122,7 +123,7 @@
      Place the settings circle's center on the FAB edge at 45° down-right
      (≈ +25.5px on each axis) for a clean Venn-style overlap. */
   position: absolute;
-  left: calc(50% + 26px);
+  left: calc(50% + 26px + var(--fab-offset-x, 0px));
   top: 4px;
   transform: translate(-50%, -50%);
   width: 36px;
@@ -130,7 +131,8 @@
   border-radius: 50%;
   border: 2px solid rgba(196, 149, 106, 0.5);
   padding: 0;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
   color: var(--d-paper);
   background: radial-gradient(
     circle at 50% 38%,
