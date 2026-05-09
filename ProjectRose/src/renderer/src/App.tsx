@@ -11,7 +11,7 @@ import { WelcomeView } from './components/WelcomeView/WelcomeView'
 import { SetupWizard } from './components/SetupWizard/SetupWizard'
 import { BottomDock } from './components/BottomDock/BottomDock'
 import { UpdateToast } from './components/UpdateToast'
-import { getExtensionByViewId, loadDynamicExtensions, subscribeToExtensionsChange } from './extensions/registry'
+import { loadDynamicExtensions } from './extensions/registry'
 import { useThemeStore } from './stores/useThemeStore'
 import { useViewStore } from './stores/useViewStore'
 import { useActiveListeningStore } from './stores/useActiveListeningStore'
@@ -42,7 +42,6 @@ function App(): JSX.Element {
   const agentStartsExpanded = useSettingsStore((s) => s.agentStartsExpanded)
   const setServiceStatus = useServiceStore((s) => s.setStatus)
   const [needsSetup, setNeedsSetup] = useState(false)
-  const [, setExtVersion] = useState(0)
   const initialExpandApplied = useRef(false)
 
   // Speech is now in-process — always available
@@ -79,8 +78,15 @@ function App(): JSX.Element {
     })
   }, [])
 
-  // Re-render when dynamic extensions finish loading
-  useEffect(() => subscribeToExtensionsChange(() => setExtVersion((v) => v + 1)), [])
+  // Reset stale activeView (e.g. an extension id persisted from a prior version
+  // when extensions still rendered as the main view). The drawer now owns
+  // extensions; the main view only renders the four built-ins.
+  useEffect(() => {
+    const v = useViewStore.getState().activeView
+    if (v !== 'editor' && v !== 'chat' && v !== 'settings' && v !== 'account') {
+      useViewStore.getState().setActiveView('chat')
+    }
+  }, [])
 
   // Auto-bind hostMode to ProjectRose sign-in state. Signed in → managed
   // endpoint becomes the default; signed out → fall back to whatever the user
@@ -269,10 +275,6 @@ function App(): JSX.Element {
           {activeView === 'chat' && <ChatView />}
           {activeView === 'settings' && <SettingsView />}
           {activeView === 'account' && <AccountView />}
-          {(() => {
-            const ext = getExtensionByViewId(activeView)
-            return ext?.PageView ? <ext.PageView /> : null
-          })()}
         </div>
         {activeView !== 'chat' && <ChatPanel />}
       </main>

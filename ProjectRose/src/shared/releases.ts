@@ -15,10 +15,14 @@ export const RELEASES: ReleaseEntry[] = [
     title: 'Account sign-in, Concrete CMS, and compression-toast fix',
     unreleased: true,
     highlights: [
-      'Account sign-in flow connects to a hosted server for API access — no manual provider-key entry required',
+      'Sign in to your ProjectRose account from Settings → Providers — no API keys to copy around',
+      'When you\'re signed in, chats automatically use your account; sign out and your other providers come back',
+      'Your sign-in is saved securely on your device',
+      'New Concrete CMS extension in the in-app discovery page',
       'Bottom dock button can be repositioned to your preferred spot',
-      'New Concrete CMS extension available in the in-app discovery page',
-      'Fix: chat compression toast no longer cycles — clicking Compress now hides the toast and the reported context usage reflects the post-compression view'
+      'App Board got a refresh — lighter background and a divider under the title for a cleaner look',
+      'Extension settings pages have proper spacing so text no longer hugs the edge',
+      'Fix: the compression toast no longer keeps reappearing after you click Compress'
     ]
   },
   {

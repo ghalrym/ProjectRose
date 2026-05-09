@@ -5,7 +5,7 @@ import { UpdatesTab } from './UpdatesTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useViewStore } from '../../stores/useViewStore'
-import { getAllExtensions, getExtensionByViewId, subscribeToExtensionsChange } from '../../extensions/registry'
+import { subscribeToExtensionsChange } from '../../extensions/registry'
 import type { ModelConfig, ToolMeta } from '@shared/types'
 import styles from './SettingsView.module.css'
 
@@ -349,10 +349,6 @@ export function SettingsView(): JSX.Element {
   // ── behavior (local — store additions possible later) ──
   const [streamToolResults, setStreamToolResults] = useState(false)
 
-  // ── extensions ──
-  const [, setExtVersion] = useState(0)
-  useEffect(() => subscribeToExtensionsChange(() => setExtVersion((v) => v + 1)), [])
-
   // ── skills ──
   const [skills, setSkills] = useState<{ name: string; description: string }[]>([])
 
@@ -651,29 +647,17 @@ export function SettingsView(): JSX.Element {
   // Sidebar items
   // ─────────────────────────────────────────────────────────
 
-  const extensionSettingsItems = getAllExtensions()
-    .filter((e) => e.SettingsView != null)
-    .map((e) => ({ id: e.manifest.id, label: e.manifest.name }))
-
   const topLevelItems = [
-    { id: 'general',   label: 'General',   n: '01' },
-    { id: 'providers', label: 'Providers', n: '02' },
-    { id: 'tools',     label: 'Tools',     n: '03' },
-    { id: 'skills',    label: 'Skills',    n: '04' },
-    { id: 'prompts',   label: 'Prompts',   n: '05' },
-    { id: 'updates',   label: 'Updates',   n: '07' },
+    { id: 'general',    label: 'General',    n: '01' },
+    { id: 'providers',  label: 'Providers',  n: '02' },
+    { id: 'tools',      label: 'Tools',      n: '03' },
+    { id: 'skills',     label: 'Skills',     n: '04' },
+    { id: 'prompts',    label: 'Prompts',    n: '05' },
+    { id: 'extensions', label: 'Extensions', n: '06' },
+    { id: 'updates',    label: 'Updates',    n: '07' },
   ]
-  const updatesItem = topLevelItems.find((i) => i.id === 'updates')!
-  const sidebarTopItems = topLevelItems.filter((i) => i.id !== 'updates')
 
-  const extensionChildIds = ['extensions', ...extensionSettingsItems.map((e) => e.id)]
-  const allPageIds = [...topLevelItems.map((i) => i.id), ...extensionChildIds]
-
-  const [extensionsExpanded, setExtensionsExpanded] = useState(false)
-
-  useEffect(() => {
-    if (extensionChildIds.includes(activePage)) setExtensionsExpanded(true)
-  }, [activePage]) // eslint-disable-line react-hooks/exhaustive-deps
+  const allPageIds = topLevelItems.map((i) => i.id)
 
   useEffect(() => {
     if (!allPageIds.includes(activePage)) {
@@ -686,7 +670,6 @@ export function SettingsView(): JSX.Element {
   useEffect(() => {
     if (settingsTarget && allPageIds.includes(settingsTarget)) {
       setActivePage(settingsTarget)
-      if (extensionChildIds.includes(settingsTarget)) setExtensionsExpanded(true)
       setSettingsTarget(null)
     }
   }, [settingsTarget]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1363,15 +1346,7 @@ export function SettingsView(): JSX.Element {
       case 'updates':    return <UpdatesTab />
       case 'extensions': return renderExtensions()
       default: {
-        const ext = getExtensionByViewId(activePage)
-        if (ext?.SettingsView) {
-          const ExtSettingsView = ext.SettingsView
-          return <ExtSettingsView />
-        }
-        const label =
-          topLevelItems.find((i) => i.id === activePage)?.label ??
-          extensionSettingsItems.find((i) => i.id === activePage)?.label ??
-          activePage
+        const label = topLevelItems.find((i) => i.id === activePage)?.label ?? activePage
         return (
           <section className={styles.section}>
             <div className={styles.sectionTitle}>{label}</div>
@@ -1392,7 +1367,7 @@ export function SettingsView(): JSX.Element {
         {/* Sidebar */}
         <aside className={styles.sidebar}>
           <div className={styles.sidebarLabel}>Settings · Drawer</div>
-          {sidebarTopItems.map((item) => {
+          {topLevelItems.map((item) => {
             const isActive = activePage === item.id
             return (
               <button
@@ -1408,65 +1383,6 @@ export function SettingsView(): JSX.Element {
               </button>
             )
           })}
-
-          <button
-            type="button"
-            className={styles.sidebarItem}
-            onClick={() => setExtensionsExpanded((v) => !v)}
-            aria-expanded={extensionsExpanded}
-          >
-            <span className={styles.sidebarItemNum}>№07</span>
-            <span style={{ flex: 1 }}>Extensions</span>
-            <span
-              className={styles.sidebarCaret}
-              style={{ transform: extensionsExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
-            >
-              ▸
-            </span>
-          </button>
-
-          {extensionsExpanded && (
-            <>
-              <button
-                key="extensions"
-                type="button"
-                className={`${styles.sidebarSubItem} ${activePage === 'extensions' ? styles.sidebarItemActive : ''}`}
-                onClick={() => setActivePage('extensions')}
-              >
-                Manage
-              </button>
-              {extensionSettingsItems.map((item) => {
-                const isActive = activePage === item.id
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`${styles.sidebarSubItem} ${isActive ? styles.sidebarItemActive : ''}`}
-                    onClick={() => setActivePage(item.id)}
-                  >
-                    {item.label}
-                  </button>
-                )
-              })}
-            </>
-          )}
-
-          {(() => {
-            const isActive = activePage === updatesItem.id
-            return (
-              <button
-                key={updatesItem.id}
-                type="button"
-                className={`${styles.sidebarItem} ${isActive ? styles.sidebarItemActive : ''}`}
-                onClick={() => setActivePage(updatesItem.id)}
-              >
-                <span className={`${styles.sidebarItemNum} ${isActive ? styles.sidebarItemActiveNum : ''}`}>
-                  №{updatesItem.n}
-                </span>
-                <span>{updatesItem.label}</span>
-              </button>
-            )
-          })()}
 
           <div className={styles.sidebarFooter}>
             <div>SPECIMEN · CONFIG</div>

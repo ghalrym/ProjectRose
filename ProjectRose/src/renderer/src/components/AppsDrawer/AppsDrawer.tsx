@@ -1,18 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { getAllExtensions, subscribeToExtensionsChange, type RendererExtension } from '../../extensions/registry'
-import { useViewStore } from '../../stores/useViewStore'
+import { useEffect, useState } from 'react'
+import {
+  getAllExtensions,
+  getExtensionByViewId,
+  subscribeToExtensionsChange,
+  type RendererExtension
+} from '../../extensions/registry'
 import { useAppsDrawerStore } from '../../stores/useAppsDrawerStore'
+import { useViewStore } from '../../stores/useViewStore'
 import clsx from 'clsx'
 import styles from './AppsDrawer.module.css'
-
-interface AppItem {
-  id: string
-  name: string
-  latin?: string
-  description?: string
-  searchTerms: string
-  iconNode: React.ReactNode
-}
 
 function Monogram({ name }: { name: string }): JSX.Element {
   const initials = name
@@ -32,75 +28,47 @@ function ExtensionIcon({ ext }: { ext: RendererExtension }): JSX.Element {
   return <Monogram name={ext.manifest.name} />
 }
 
-function EditorIcon(): JSX.Element {
+function CogIcon(): JSX.Element {
   return (
-    <svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-      <path d="M6 5 L20 5 L26 11 L26 27 L6 27 Z" />
-      <path d="M20 5 L20 11 L26 11" />
-      <path d="M10 16 L22 16 M10 20 L22 20 M10 24 L18 24" opacity="0.7" />
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   )
-}
-
-function buildAppItems(): AppItem[] {
-  const items: AppItem[] = [
-    {
-      id: 'editor',
-      name: 'Editor',
-      latin: 'Rosa scriptoris',
-      description: 'Built-in code editor — file tree, tabs, terminal.',
-      searchTerms: 'editor code files monaco terminal built-in',
-      iconNode: <EditorIcon />
-    }
-  ]
-
-  for (const ext of getAllExtensions()) {
-    items.push({
-      id: ext.manifest.id,
-      name: ext.manifest.name,
-      latin: ext.manifest.latin,
-      description: ext.manifest.description,
-      searchTerms: [ext.manifest.id, ext.manifest.name, ext.manifest.description, ext.manifest.author].join(' '),
-      iconNode: <ExtensionIcon ext={ext} />
-    })
-  }
-
-  return items
 }
 
 export function AppsDrawer(): JSX.Element {
   const storeOpen = useAppsDrawerStore((s) => s.open)
   const close = useAppsDrawerStore((s) => s.close)
+  const activeExtensionId = useAppsDrawerStore((s) => s.activeExtensionId)
+  const mode = useAppsDrawerStore((s) => s.mode)
+  const setActiveExtension = useAppsDrawerStore((s) => s.setActiveExtension)
+  const setMode = useAppsDrawerStore((s) => s.setMode)
   const setActiveView = useViewStore((s) => s.setActiveView)
 
-  const [query, setQuery] = useState('')
   const [extVersion, setExtVersion] = useState(0)
   // The zustand store survives across mounts (HMR, project switches). The first
   // paint of this component must always be CLOSED, otherwise a stale open=true
   // value would render the drawer in the open state and then animate it down.
-  // We force-render closed for the first frame, then sync to the store.
   const [mounted, setMounted] = useState(false)
   const open = mounted && storeOpen
-
-  const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => subscribeToExtensionsChange(() => setExtVersion((v) => v + 1)), [])
 
   useEffect(() => {
-    // Reset any stale open state, then unblock the real open value.
     close()
     setMounted(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Re-focus the search field whenever the drawer opens; clear the query on close.
-  useEffect(() => {
-    if (open) {
-      const t = setTimeout(() => searchRef.current?.focus(), 220)
-      return () => clearTimeout(t)
-    }
-    setQuery('')
-    return undefined
-  }, [open])
 
   // ESC closes
   useEffect(() => {
@@ -112,29 +80,76 @@ export function AppsDrawer(): JSX.Element {
     return () => window.removeEventListener('keydown', handler)
   }, [open, close])
 
-  const allItems = useMemo(() => buildAppItems(), [extVersion])
+  const extensions = getAllExtensions()
+  void extVersion // re-read getAllExtensions when registry changes
 
-  const items = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return allItems
-    return allItems.filter(
-      (a) => a.searchTerms.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)
-    )
-  }, [allItems, query])
+  // Auto-select first extension when opening, when nothing selected, or when
+  // the previously-selected extension has been uninstalled/disabled.
+  useEffect(() => {
+    if (!open) return
+    if (extensions.length === 0) return
+    const current = activeExtensionId ? getExtensionByViewId(activeExtensionId) : undefined
+    if (!current) {
+      setActiveExtension(extensions[0].manifest.id)
+    }
+  }, [open, extensions, activeExtensionId, setActiveExtension])
 
-  function handleLaunch(id: string): void {
-    setActiveView(id)
-    close()
+  if (!mounted) return <></>
+
+  const activeExt = activeExtensionId ? getExtensionByViewId(activeExtensionId) : undefined
+
+  function handleSelect(id: string): void {
+    setActiveExtension(id)
   }
 
-  // Don't render anything until after the first paint. This guarantees the
-  // drawer is never present in the DOM in an "open" state at startup,
-  // regardless of any stale store value.
-  if (!mounted) return <></>
+  function handleCog(ext: RendererExtension, e: React.MouseEvent): void {
+    e.stopPropagation()
+    if (!ext.SettingsView) return
+    if (activeExtensionId === ext.manifest.id) {
+      setMode(mode === 'settings' ? 'page' : 'settings')
+    } else {
+      setActiveExtension(ext.manifest.id)
+      setMode('settings')
+    }
+  }
+
+  function renderMain(): JSX.Element {
+    if (extensions.length === 0) {
+      return (
+        <div className={styles.emptyState}>
+          <div className={styles.emptyTitle}>No extensions installed</div>
+          <button
+            type="button"
+            className={styles.emptyAction}
+            onClick={() => {
+              close()
+              setActiveView('settings')
+            }}
+          >
+            Open Settings → Extensions → Manage
+          </button>
+        </div>
+      )
+    }
+    if (!activeExt) return <div className={styles.emptyState} />
+    if (mode === 'settings' && activeExt.SettingsView) {
+      const Comp = activeExt.SettingsView
+      return <Comp />
+    }
+    if (activeExt.PageView) {
+      const Comp = activeExt.PageView
+      return <Comp />
+    }
+    return (
+      <div className={styles.emptyState}>
+        <div className={styles.emptyTitle}>{activeExt.manifest.name}</div>
+        <div className={styles.emptySub}>This extension does not provide a page view.</div>
+      </div>
+    )
+  }
 
   return (
     <>
-      {/* Backdrop — click outside to close */}
       <div
         className={clsx(styles.backdrop, open && styles.backdropOpen)}
         onClick={close}
@@ -154,45 +169,60 @@ export function AppsDrawer(): JSX.Element {
             <span className={styles.headerMeta}>PROJECTROSE · APPS</span>
             <span className={styles.headerName}>App Board</span>
           </div>
-          <div className={styles.searchWrap}>
-            <svg className={styles.searchIcon} viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <circle cx="7" cy="7" r="5" />
-              <path d="M11 11 L14 14" />
-            </svg>
-            <input
-              ref={searchRef}
-              className={styles.searchInput}
-              type="text"
-              value={query}
-              placeholder="Search apps…"
-              onChange={(e) => setQuery(e.target.value)}
-              tabIndex={open ? 0 : -1}
-            />
-          </div>
         </div>
 
-        <div className={styles.body}>
-          {items.length === 0 ? (
-            <div className={styles.empty}>No apps match &ldquo;{query}&rdquo;</div>
-          ) : (
-            <div className={styles.grid}>
-              {items.map((app, idx) => (
-                <button
-                  key={app.id}
-                  type="button"
-                  className={styles.card}
-                  onClick={() => handleLaunch(app.id)}
-                  title={app.description}
-                  tabIndex={open ? 0 : -1}
+        <div className={styles.divider} aria-hidden="true" />
+
+        <div className={styles.layout}>
+          <aside className={styles.sidebar}>
+            {extensions.map((ext, idx) => {
+              const isActive = ext.manifest.id === activeExtensionId
+              const showingSettings = isActive && mode === 'settings'
+              return (
+                <div
+                  key={ext.manifest.id}
+                  className={clsx(styles.sidebarItem, isActive && styles.sidebarItemActive)}
                 >
-                  <span className={styles.cardSpecimen}>№{String(idx + 1).padStart(2, '0')}</span>
-                  <div className={styles.iconBox}>{app.iconNode}</div>
-                  <span className={styles.cardLabel}>{app.name}</span>
-                  {app.latin && <span className={styles.cardLatin}>{app.latin}</span>}
-                </button>
-              ))}
-            </div>
-          )}
+                  <button
+                    type="button"
+                    className={styles.sidebarRow}
+                    onClick={() => handleSelect(ext.manifest.id)}
+                    tabIndex={open ? 0 : -1}
+                    title={ext.manifest.description}
+                  >
+                    <span className={styles.sidebarSpecimen}>№{String(idx + 1).padStart(2, '0')}</span>
+                    <span className={styles.sidebarIcon}>
+                      <ExtensionIcon ext={ext} />
+                    </span>
+                    <span className={styles.sidebarLabel}>
+                      <span className={styles.sidebarName}>{ext.manifest.name}</span>
+                      {ext.manifest.latin && (
+                        <span className={styles.sidebarLatin}>{ext.manifest.latin}</span>
+                      )}
+                    </span>
+                  </button>
+                  {ext.SettingsView && (
+                    <button
+                      type="button"
+                      className={clsx(styles.sidebarCog, showingSettings && styles.sidebarCogActive)}
+                      onClick={(e) => handleCog(ext, e)}
+                      title={showingSettings ? 'Hide settings' : 'Settings'}
+                      aria-label={`${ext.manifest.name} settings`}
+                      aria-pressed={showingSettings}
+                      tabIndex={open ? 0 : -1}
+                    >
+                      <CogIcon />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+            {extensions.length === 0 && (
+              <div className={styles.sidebarEmpty}>No extensions</div>
+            )}
+          </aside>
+
+          <div className={clsx(styles.mainPane, mode === 'settings' && styles.mainPaneSettings)}>{renderMain()}</div>
         </div>
       </div>
     </>
