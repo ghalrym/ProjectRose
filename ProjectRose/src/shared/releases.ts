@@ -9,6 +9,19 @@ export interface ReleaseEntry {
 
 export const RELEASES: ReleaseEntry[] = [
   {
+    version: '1.5.0',
+    tag: null,
+    date: null,
+    title: 'Account sign-in, Concrete CMS, and compression-toast fix',
+    unreleased: true,
+    highlights: [
+      'Account sign-in flow connects to a hosted server for API access — no manual provider-key entry required',
+      'Bottom dock button can be repositioned to your preferred spot',
+      'New Concrete CMS extension available in the in-app discovery page',
+      'Fix: chat compression toast no longer cycles — clicking Compress now hides the toast and the reported context usage reflects the post-compression view'
+    ]
+  },
+  {
     version: '1.4.0',
     tag: null,
     date: null,
