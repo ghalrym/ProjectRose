@@ -37,10 +37,13 @@ exports.PageView = PageView;
   writeFileSync(join(extDir, 'renderer.js'), rendererCode)
 }
 
+// Settings → Extensions tab: install form is on the page directly. Fill the
+// URL field, stage the fake extension on disk, click INSTALL. The mocked IPC
+// handler returns ok and the renderer re-lists, picking up the staged
+// extension as newly installed.
 async function installViaUrlForm(win: Page, stage: () => void): Promise<void> {
   await win.getByRole('button', { name: 'Settings', exact: true }).click()
   await win.getByRole('button', { name: /^№\d+\s+Extensions/ }).click()
-  await win.getByRole('button', { name: 'Manage', exact: true }).click()
   await win.waitForTimeout(500)
   stage()
   await win.getByPlaceholder(/github\.com/).fill('https://example.test/repo.git')
@@ -53,11 +56,11 @@ async function openAppBoard(win: Page): Promise<void> {
   await expect(win.getByRole('dialog', { name: 'Apps' })).toBeVisible({ timeout: 5000 })
 }
 
-// Returns the AppsDrawer card whose accessible name contains the given text.
-// Cards have an accessible name like "№02 RS Editor".
-function appCard(win: Page, label: RegExp | string) {
+// Returns the AppsDrawer sidebar entry whose accessible name contains the
+// given text. Sidebar buttons follow the pattern "№XX <name>".
+function sidebarEntry(win: Page, label: RegExp | string) {
   const re = typeof label === 'string' ? new RegExp(label) : label
-  return win.getByRole('dialog', { name: 'Apps' }).getByRole('button').filter({ hasText: re })
+  return win.getByRole('dialog', { name: 'Apps' }).getByRole('button', { name: re })
 }
 
 // ── Tests ─────────────────────────────────────────────────────
@@ -69,67 +72,19 @@ test.describe('App Board', () => {
       await openProject(app, win, dir)
       await openAppBoard(win)
       await expect(win.getByText('App Board', { exact: true })).toBeVisible()
-      await expect(win.getByPlaceholder(/Search apps/)).toBeVisible()
       await screenshot(win, 'app-board--default')
     })
-  })
 
-  test.describe('built-in apps', () => {
-    test('shows the built-in Editor as a card', async ({ app, win }) => {
+    test('drawer with no extensions shows the empty state', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await openAppBoard(win)
-
-      const card = appCard(win, /Editor/).first()
-      await expect(card).toBeVisible()
-      await expect(card).toContainText('Editor')
-      await expect(card).toContainText('Rosa scriptoris')
-    })
-
-    test('clicking the Editor card launches the editor view', async ({ app, win }) => {
-      const dir = createSeedProject()
-      await openProject(app, win, dir)
-      await openAppBoard(win)
-
-      await appCard(win, /Editor/).first().click()
-
-      // Editor view shows the FileActions toolbar (Open Folder/Open/New/Save)
-      await expect(win.getByRole('button', { name: 'Open Folder' })).toBeVisible({ timeout: 5000 })
-      await expect(win.getByRole('button', { name: 'Save' })).toBeVisible()
-    })
-  })
-
-  test.describe('search', () => {
-    test('search filters cards by query', async ({ app, win }) => {
-      const dir = createSeedProject()
-      await openProject(app, win, dir)
-      await openAppBoard(win)
-
-      const search = win.getByPlaceholder(/Search apps/)
-      await search.fill('edit')
-      await expect(appCard(win, /Editor/)).toBeVisible()
-
-      await search.fill('zzznomatch')
-      await expect(appCard(win, /Editor/)).not.toBeVisible()
-      await expect(win.getByText(/No apps match/)).toBeVisible()
-    })
-
-    test('clearing the query restores the full grid', async ({ app, win }) => {
-      const dir = createSeedProject()
-      await openProject(app, win, dir)
-      await openAppBoard(win)
-
-      const search = win.getByPlaceholder(/Search apps/)
-      await search.fill('zzznomatch')
-      await expect(win.getByText(/No apps match/)).toBeVisible()
-
-      await search.fill('')
-      await expect(appCard(win, /Editor/)).toBeVisible()
+      await expect(win.getByText(/No extensions installed/)).toBeVisible({ timeout: 5000 })
     })
   })
 
   test.describe('extensions on the board', () => {
-    test('installed extension appears as an app card', async ({ app, win }) => {
+    test('installed extension appears in the drawer sidebar', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
@@ -137,11 +92,11 @@ test.describe('App Board', () => {
       await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-boardtest', 'Board Test'))
 
       await openAppBoard(win)
-      await expect(appCard(win, /Board Test/)).toBeVisible()
+      await expect(sidebarEntry(win, /^№\d+.*Board Test/)).toBeVisible({ timeout: 5000 })
       await screenshot(win, 'app-board--with-extension')
     })
 
-    test('clicking an extension card launches its page view', async ({ app, win }) => {
+    test('selecting an extension renders its page view in the main pane', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
@@ -149,7 +104,7 @@ test.describe('App Board', () => {
       await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-launchtest', 'Launch Test'))
 
       await openAppBoard(win)
-      await appCard(win, /Launch Test/).click()
+      await sidebarEntry(win, /^№\d+.*Launch Test/).click()
 
       await expect(win.locator('[data-testid="rose-launchtest-page"]')).toBeVisible({ timeout: 5000 })
     })

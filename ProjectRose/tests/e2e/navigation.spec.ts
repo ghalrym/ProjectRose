@@ -24,14 +24,6 @@ test.describe('Navigation', () => {
     await screenshot(win, 'chat--view')
   })
 
-  test('navigate to editor view via apps drawer', async ({ win }) => {
-    await win.getByRole('button', { name: 'Open apps' }).click()
-    await win.getByRole('button', { name: /Editor/ }).first().click()
-    // Editor view exposes the FileActions toolbar (Open Folder/Save).
-    await expect(win.getByRole('button', { name: 'Open Folder' })).toBeVisible({ timeout: 5000 })
-    await screenshot(win, 'editor--view')
-  })
-
   test('navigate to settings view via dock shortcut', async ({ win }) => {
     // On the chat view the dock shortcut button is labeled "Settings"
     await win.getByRole('button', { name: 'Settings', exact: true }).click()

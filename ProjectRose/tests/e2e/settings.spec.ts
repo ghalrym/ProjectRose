@@ -46,10 +46,10 @@ test.describe('Settings View', () => {
     await expect(sidebar.getByText(/№05/)).toBeVisible()
   })
 
-  test('navigate to Extensions tab expands it and shows Manage', async ({ win }) => {
+  test('navigate to Extensions tab shows the install panel', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Extensions/ }).click()
-    await win.waitForTimeout(300)
-    await expect(win.getByRole('button', { name: 'Manage', exact: true })).toBeVisible()
+    await expect(win.getByText('INSTALL FROM GIT')).toBeVisible({ timeout: 5000 })
+    await expect(win.getByPlaceholder(/github\.com/)).toBeVisible()
     await screenshot(win, 'settings--extensions')
   })
 
@@ -86,8 +86,8 @@ test.describe('Settings View', () => {
 
   test('expanding a provider card shows its fields', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Providers$/ }).click()
-    // Click the Anthropic provider card header (second by spec order: Ollama, Anthropic, …)
-    await win.locator('button[class*="providerCardHeader"]').nth(1).click()
+    // Spec order: ProjectRose (0), Ollama (1), Anthropic (2), OpenAI (3), Bedrock (4), OpenAI-compatible (5).
+    await win.locator('button[class*="providerCardHeader"]').nth(2).click()
     await expect(win.getByText('API KEY', { exact: true })).toBeVisible({ timeout: 3000 })
     await expect(win.getByRole('button', { name: 'VERIFY & SAVE' })).toBeVisible()
     await expect(win.getByRole('button', { name: 'CLEAR' })).toBeVisible()
@@ -97,11 +97,11 @@ test.describe('Settings View', () => {
   test('only one provider card can be open at a time', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Providers$/ }).click()
     const cards = win.locator('button[class*="providerCardHeader"]')
-    // Open Anthropic card (second)
-    await cards.nth(1).click()
+    // Open Anthropic card (index 2 — ProjectRose, Ollama, Anthropic, …)
+    await cards.nth(2).click()
     await expect(win.getByText('API KEY', { exact: true })).toBeVisible({ timeout: 3000 })
     // Open OpenAI card — Anthropic should close
-    await cards.nth(2).click()
+    await cards.nth(3).click()
     await expect(win.getByText('VERIFY & SAVE')).toBeVisible({ timeout: 3000 })
     // Only one set of provider fields should be visible
     await expect(win.locator('[class*="providerCardBody"]')).toHaveCount(1, { timeout: 3000 })
@@ -111,14 +111,14 @@ test.describe('Settings View', () => {
 
   test('expanded provider shows MODELS divider and add button', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Providers$/ }).click()
-    await win.locator('button[class*="providerCardHeader"]').nth(1).click() // Anthropic
+    await win.locator('button[class*="providerCardHeader"]').nth(2).click() // Anthropic (ProjectRose, Ollama, Anthropic, …)
     await expect(win.getByText('MODELS', { exact: true })).toBeVisible({ timeout: 3000 })
     await expect(win.getByRole('button', { name: /\+ ADD MODEL/ })).toBeVisible()
   })
 
   test('adding a model adds a row to the provider', async ({ win }) => {
     await win.getByRole('button', { name: /^№\d+\s+Providers$/ }).click()
-    await win.locator('button[class*="providerCardHeader"]').nth(1).click() // Anthropic
+    await win.locator('button[class*="providerCardHeader"]').nth(2).click() // Anthropic (ProjectRose, Ollama, Anthropic, …)
     await win.getByRole('button', { name: /\+ ADD MODEL/ }).click()
     await expect(win.locator('[class*="providerModelRow"]')).toBeVisible({ timeout: 3000 })
     await screenshot(win, 'settings--provider-model-added')

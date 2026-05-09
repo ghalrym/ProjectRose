@@ -43,18 +43,17 @@ exports.SettingsView = SettingsView;
   writeFileSync(join(extDir, 'renderer.js'), rendererCode)
 }
 
-// Open the dock Settings shortcut, expand the Extensions sidebar item, click
-// Manage to open the install panel, wait for the (empty) installed list to
-// load, stage the extension on disk, then submit the URL form. The mocked
-// IPC handler returns ok and the renderer re-lists, picking up the staged
-// extension as newly installed.
+// Open the dock Settings shortcut, expand the Extensions sidebar item, wait
+// for the install form (now rendered directly on the Extensions page — no
+// separate Manage tab anymore), stage the extension on disk, then submit the
+// URL form. The mocked IPC handler returns ok and the renderer re-lists,
+// picking up the staged extension as newly installed.
 async function installViaUrlForm(
   win: import('playwright').Page,
   stage: () => void
 ): Promise<void> {
   await win.getByRole('button', { name: 'Settings', exact: true }).click()
   await win.getByRole('button', { name: /^№\d+\s+Extensions/ }).click()
-  await win.getByRole('button', { name: 'Manage', exact: true }).click()
   await win.waitForTimeout(500)
   stage()
   await win.getByPlaceholder(/github\.com/).fill('https://example.test/repo.git')
@@ -69,7 +68,6 @@ test.describe('Extension System', () => {
       await openProject(app, win, dir)
       await win.getByRole('button', { name: 'Settings', exact: true }).click()
       await win.getByRole('button', { name: /^№\d+\s+Extensions/ }).click()
-      await win.getByRole('button', { name: 'Manage', exact: true }).click()
       await expect(win.getByText('INSTALL FROM GIT')).toBeVisible({ timeout: 5000 })
       await expect(win.getByPlaceholder(/github\.com/)).toBeVisible()
       await screenshot(win, 'extensions--empty')
@@ -105,29 +103,31 @@ test.describe('Extension System', () => {
   })
 
   test.describe('settings panel', () => {
-    test('installed extension with globalSettings appears in settings sidebar', async ({ app, win }) => {
+    test('installed extension with globalSettings exposes a cog button in the apps drawer', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
 
       await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-settingstest', 'Settings Test'))
 
-      // After install we're on the Extensions submenu's Manage page; the
-      // submenu auto-expands so the extension's settings entry is visible.
-      await expect(win.getByRole('button', { name: /Settings Test/ })).toBeVisible({ timeout: 5000 })
+      // Extension settings are accessed via the per-extension cog button in
+      // the AppsDrawer sidebar (no longer a SettingsView sidebar entry).
+      await win.getByRole('button', { name: 'Open apps' }).click()
+      await expect(win.getByRole('button', { name: 'Settings Test settings', exact: true })).toBeVisible({ timeout: 5000 })
       await screenshot(win, 'extensions--settings-sidebar')
     })
 
-    test('clicking extension settings sidebar item renders SettingsView', async ({ app, win }) => {
+    test('clicking the cog button renders SettingsView in the main pane', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
 
       await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-settingspanel', 'Panel Test'))
 
-      await win.getByRole('button', { name: /Panel Test/ }).click()
+      await win.getByRole('button', { name: 'Open apps' }).click()
+      await win.getByRole('button', { name: 'Panel Test settings', exact: true }).click()
 
-      // The extension's SettingsView should render
+      // The extension's SettingsView should render in the main pane
       await expect(win.locator('[data-testid="rose-settingspanel-settings"]')).toBeVisible({ timeout: 5000 })
       await screenshot(win, 'extensions--settings-panel')
     })
@@ -160,7 +160,10 @@ test.describe('Extension System', () => {
       await win.getByRole('button', { name: 'Uninstall', exact: true }).click()
       await win.waitForTimeout(500)
 
-      await expect(win.getByText(/No extensions installed/)).toBeVisible({ timeout: 3000 })
+      // Two elements match this text after uninstall: the ExtensionsTab inline
+      // empty state and the AppsDrawer's emptyTitle. Scope to the ExtensionsTab
+      // copy by anchoring on the rest of its sentence.
+      await expect(win.getByText(/No extensions installed\. Switch to Discover/)).toBeVisible({ timeout: 3000 })
       await screenshot(win, 'extensions--uninstalled')
     })
   })
