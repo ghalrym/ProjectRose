@@ -65,17 +65,21 @@
   background: var(--color-bg-secondary);
 }
 
-/* Full-width chat mode: carve a half-circle out of the input bar's
-   bottom-center so the dock FAB peeks through it (Venn-style).
+/* Full-width chat mode: reserve bottom padding under the input bar so
+   the FAB cluster (which pokes ~58px up from the dock) doesn't overlap
+   the input. The padding scales with the cluster's intrusion past the
+   chat panel's left boundary (the 300px session sidebar), matching the
+   FAB-aware padding used by the split layout in App.module.css.
 
-   Horizontal alignment: the FAB lives on the BottomDock at window-center
-   (left: 50% of the full window). The input bar, however, sits in the
-   chat panel which is offset right of the 300px session sidebar — so its
-   own 50% lands 150px right of the FAB. Shift the gradient's center by
-   −150px (half the sidebar width) to put the notch directly under the
-   FAB. If ChatView's sidebar column ever changes, update both. */
+   Cluster geometry (window-relative):
+     center = 50vw + offsetX
+     left   = center − 36px (FAB radius)
+     right  = center + 44px (settings satellite far edge)
+
+   Chat panel covers [300px, 100vw] in full-width mode; intrusion depth
+   from the left boundary is cluster_right − 300 = 50vw + offsetX − 256. */
 .inputAreaNotched {
-  padding-bottom: 60px;
+  padding-bottom: clamp(0px, calc(50vw + var(--fab-offset-x, 0px) - 256px), 60px);
 }
 
 .textarea {

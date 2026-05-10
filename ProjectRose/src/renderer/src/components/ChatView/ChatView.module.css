@@ -9,3 +9,16 @@
 .chatViewFullWidth {
   grid-template-columns: 300px 1fr;
 }
+
+/* ── FAB-aware bottom shelf for the SessionSidebar (left column) ──
+   The sidebar spans [0, 300px]. When the FAB cluster's left edge slides
+   past 300px into the sidebar, reserve bottom padding equal to the
+   intrusion depth (capped at the cluster's ~60px protrusion) so list
+   items don't sit behind the cluster.
+
+   Cluster geometry (worst-case, accounts for satellite flipping side):
+     left = 50vw + offsetX − 44px
+   Intrusion depth = 300 − cluster_left = 344 − 50vw − offsetX */
+.chatView > :first-child {
+  padding-bottom: clamp(0px, calc(344px - 50vw - var(--fab-offset-x, 0px)), 60px);
+}

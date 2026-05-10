@@ -120,10 +120,11 @@
 /* ── Settings satellite (Venn-overlap on bottom-right of FAB) ── */
 .settingsFab {
   /* FAB is 72px @ top:-58px, centered at left:50%. Its center is at (50%, -22px).
-     Place the settings circle's center on the FAB edge at 45° down-right
-     (≈ +25.5px on each axis) for a clean Venn-style overlap. */
+     Place the settings circle's center on the FAB edge at 45° toward whichever
+     side the cluster trails (default down-right; flips to down-left when
+     --fab-satellite-x is set to -26px) for a clean Venn-style overlap. */
   position: absolute;
-  left: calc(50% + 26px + var(--fab-offset-x, 0px));
+  left: calc(50% + var(--fab-satellite-x, 26px) + var(--fab-offset-x, 0px));
   top: 4px;
   transform: translate(-50%, -50%);
   width: 36px;

@@ -57,19 +57,23 @@
 
    Cluster geometry (window-relative):
      center = 50vw + offsetX
-     left   = center − 36px   (FAB radius)
-     right  = center + 44px   (settings satellite far edge)
+     The settings satellite trails toward screen-center (right of FAB
+     when offsetX ≥ 0, left of FAB when offsetX < 0), so the cluster's
+     outer extent on either side is at most 44px from the FAB center.
+     We use that worst case for both bounds:
+     left  = center − 44px
+     right = center + 44px
 
    Split-layout columns:
      left column (viewArea):  x ∈ [0,           100vw − 400px]
      right column (ChatPanel): x ∈ [100vw − 400px, 100vw]
 
    Intrusion depths simplify to:
-     left  : 50vw − offsetX − 364px
+     left  : 50vw − offsetX − 356px
      right : offsetX − 50vw + 444px
 */
 .mainContent:not(.mainContentChat) > .viewArea {
-  padding-bottom: clamp(0px, calc(50vw - var(--fab-offset-x, 0px) - 364px), 60px);
+  padding-bottom: clamp(0px, calc(50vw - var(--fab-offset-x, 0px) - 356px), 60px);
 }
 
 .mainContent:not(.mainContentChat) > :nth-child(2) {

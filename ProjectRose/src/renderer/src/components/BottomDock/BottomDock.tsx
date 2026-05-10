@@ -61,8 +61,13 @@ export function BottomDock(): JSX.Element {
 
   // Publish the offset on the document root so siblings of the dock
   // (the view area / chat panel grid columns) can react to FAB position.
+  // Also publish which side the settings satellite sits on: it flips to
+  // the inner side of the FAB (away from the nearer screen edge), so
+  // the FAB itself sits closest to the edge and the satellite trails
+  // toward the screen center.
   useEffect(() => {
     document.documentElement.style.setProperty('--fab-offset-x', `${offsetX}px`)
+    document.documentElement.style.setProperty('--fab-satellite-x', offsetX > 0 ? '-26px' : '26px')
   }, [offsetX])
 
   const dockRef = useRef<HTMLDivElement>(null)
@@ -85,10 +90,12 @@ export function BottomDock(): JSX.Element {
     const dock = dockRef.current
     if (!dock) return
     const half = dock.clientWidth / 2
-    // FAB is 72px wide; settings extends ~44px right of FAB center.
-    // Clamp so the cluster stays visible on both edges.
-    const min = -half + 40
-    const max = half - 50
+    // The settings satellite sits on the inner side of the FAB (away from
+    // the nearer edge), so when the cluster is dragged toward an edge the
+    // FAB itself is the outermost element — 36px from the FAB center to
+    // the FAB edge. Clamp symmetrically with a 6px visual margin.
+    const min = -half + 42
+    const max = half - 42
     const next = Math.max(min, Math.min(max, info.startOffset + dx))
     setOffsetX(next)
   }
