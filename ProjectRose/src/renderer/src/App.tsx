@@ -269,14 +269,14 @@ function App(): JSX.Element {
           />
         </div>
       )}
-      <main className={`${styles.mainContent} ${activeView === 'chat' ? styles.mainContentChat : ''}`}>
+      <main className={`${styles.mainContent} ${activeView === 'chat' ? styles.mainContentChat : ''} ${activeView === 'settings' ? styles.mainContentSettings : ''}`}>
         <div className={styles.viewArea}>
           {activeView === 'editor' && <EditorView />}
           {activeView === 'chat' && <ChatView />}
           {activeView === 'settings' && <SettingsView />}
           {activeView === 'account' && <AccountView />}
         </div>
-        {activeView !== 'chat' && <ChatPanel />}
+        {activeView !== 'chat' && activeView !== 'settings' && <ChatPanel />}
       </main>
       <AppsDrawer />
       <BottomDock />

@@ -42,6 +42,10 @@
   grid-template-columns: 1fr;
 }
 
+.mainContentSettings {
+  grid-template-columns: 1fr;
+}
+
 .viewArea {
   display: flex;
   overflow: hidden;
@@ -72,11 +76,11 @@
      left  : 50vw − offsetX − 356px
      right : offsetX − 50vw + 444px
 */
-.mainContent:not(.mainContentChat) > .viewArea {
+.mainContent:not(.mainContentChat):not(.mainContentSettings) > .viewArea {
   padding-bottom: clamp(0px, calc(50vw - var(--fab-offset-x, 0px) - 356px), 60px);
 }
 
-.mainContent:not(.mainContentChat) > :nth-child(2) {
+.mainContent:not(.mainContentChat):not(.mainContentSettings) > :nth-child(2) {
   padding-bottom: clamp(0px, calc(var(--fab-offset-x, 0px) - 50vw + 444px), 60px);
 }
 

@@ -20,6 +20,8 @@ export const RELEASES: ReleaseEntry[] = [
       'Your sign-in is saved securely on your device',
       'New Concrete CMS extension in the in-app discovery page',
       'Bottom dock button can be repositioned to your preferred spot',
+      'Settings page now spans the full window — the chat panel hides while you\'re in Settings to give settings more room',
+      'Dock settings cog flips to the inner side of the main button when you drag it toward an edge, so the button itself stays closest to the screen edge',
       'App Board got a refresh — lighter background and a divider under the title for a cleaner look',
       'Extension settings pages have proper spacing so text no longer hugs the edge',
       'Fix: the compression toast no longer keeps reappearing after you click Compress'
