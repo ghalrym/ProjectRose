@@ -10,7 +10,7 @@ export const BUILTIN_CATALOG: CatalogEntry[] = [
   {
     id: 'rose-bond',
     name: 'Bond',
-    description: 'Control Bond Bridge smart-home devices: fans, fireplaces, shades, generics. Multi-bridge, IR/RF learn, scenes, rooms, AI tool calls.',
+    description: 'Toggle Bond Bridge smart-home devices on/off. Multi-bridge, IR/RF learn, scenes, rooms, AI tool calls.',
     author: 'ProjectRose',
     repoUrl: 'https://github.com/RoseAgent/projectrose-bond.git'
   },
