@@ -68,6 +68,101 @@ export type ProviderKeys = {
   bedrock?: { region: string; accessKeyId: string; secretAccessKey: string }
 }
 
+// SSE chunk patcher for the projectrose Responses endpoint. Tracks the
+// output_index assigned to each item by response.output_item.added events,
+// then back-fills the field on response.function_call_arguments.delta events
+// (which the backend currently emits without it). Also injects the required
+// status: "completed" on response.output_item.done events for function_call
+// items. Returns the line unchanged if it isn't a data line we know about.
+function patchProjectroseSseLine(
+  line: string,
+  itemIdToOutputIndex: Map<string, number>
+): string {
+  const trailing = line.match(/\r?\n$/)?.[0] ?? ''
+  const content = trailing ? line.slice(0, -trailing.length) : line
+  if (!content.startsWith('data:')) return line
+
+  const jsonText = content.slice('data:'.length).replace(/^ /, '')
+  if (jsonText === '' || jsonText === '[DONE]') return line
+
+  let obj: Record<string, unknown>
+  try {
+    obj = JSON.parse(jsonText) as Record<string, unknown>
+  } catch {
+    return line
+  }
+
+  if (
+    obj.type === 'response.output_item.added' &&
+    typeof obj.output_index === 'number'
+  ) {
+    const item = obj.item as { id?: unknown } | undefined
+    if (item && typeof item.id === 'string') {
+      itemIdToOutputIndex.set(item.id, obj.output_index)
+    }
+  }
+
+  let mutated = false
+  if (
+    obj.type === 'response.function_call_arguments.delta' &&
+    obj.output_index === undefined &&
+    typeof obj.item_id === 'string'
+  ) {
+    const idx = itemIdToOutputIndex.get(obj.item_id)
+    if (typeof idx === 'number') {
+      obj.output_index = idx
+      mutated = true
+    }
+  }
+
+  if (obj.type === 'response.output_item.done') {
+    const item = obj.item as { type?: unknown; status?: unknown } | undefined
+    if (item && item.type === 'function_call' && item.status === undefined) {
+      item.status = 'completed'
+      mutated = true
+    }
+  }
+
+  if (!mutated) return line
+  return `data: ${JSON.stringify(obj)}${trailing}`
+}
+
+const patchProjectroseResponsesFetch: typeof fetch = async (input, init) => {
+  const response = await globalThis.fetch(input, init)
+  if (!response.body) return response
+  const contentType = response.headers.get('content-type') ?? ''
+  if (!contentType.includes('text/event-stream')) return response
+
+  const itemIdToOutputIndex = new Map<string, number>()
+  const decoder = new TextDecoder()
+  const encoder = new TextEncoder()
+  let buffer = ''
+
+  const transform = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      buffer += decoder.decode(chunk, { stream: true })
+      let newlineIdx: number
+      while ((newlineIdx = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, newlineIdx + 1)
+        buffer = buffer.slice(newlineIdx + 1)
+        controller.enqueue(encoder.encode(patchProjectroseSseLine(line, itemIdToOutputIndex)))
+      }
+    },
+    flush(controller) {
+      if (buffer.length > 0) {
+        controller.enqueue(encoder.encode(patchProjectroseSseLine(buffer, itemIdToOutputIndex)))
+        buffer = ''
+      }
+    }
+  })
+
+  return new Response(response.body.pipeThrough(transform), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  })
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function resolveModel(
   model: ModelConfig,
@@ -148,7 +243,16 @@ export async function resolveModel(
       const token = session?.token ?? ''
       const provider = createOpenAI({
         apiKey: token,
-        baseURL: `${WEB_BASE_URL}/api/openai`
+        baseURL: `${WEB_BASE_URL}/api/openai`,
+        // Workaround for the managed Responses endpoint: its SSE stream omits
+        // two fields that @ai-sdk/openai 3.x strictly validates, so tool calls
+        // never reach the SDK's `tool-call` emit path:
+        //   1. `output_index` on response.function_call_arguments.delta
+        //   2. `status: "completed"` on response.output_item.done items of
+        //       type function_call
+        // Until the backend is fixed, rewrite each SSE event on the way in
+        // and fill the missing fields before the SDK parses the chunk.
+        fetch: patchProjectroseResponsesFetch
       })
       // Explicit .responses() — hits /api/openai/responses. The bare provider()
       // call resolves to the same thing in @ai-sdk/openai 3.x but explicit
