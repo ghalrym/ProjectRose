@@ -74,6 +74,27 @@ export function BottomDock(): JSX.Element {
   const dragRef = useRef<{ startX: number; startOffset: number; moved: boolean } | null>(null)
   const justDraggedRef = useRef(false)
 
+  // If the window shrinks, an offsetX that was valid for the previous size
+  // may now place the cluster off-screen. Re-clamp on every dock resize
+  // (and once on mount, in case the persisted value is out of range for
+  // the current window size).
+  useEffect(() => {
+    const dock = dockRef.current
+    if (!dock) return
+    const reclamp = (): void => {
+      const half = dock.clientWidth / 2
+      const min = -half + 42
+      const max = half - 42
+      const current = useDockPositionStore.getState().offsetX
+      const clamped = Math.max(min, Math.min(max, current))
+      if (clamped !== current) setOffsetX(clamped)
+    }
+    reclamp()
+    const observer = new ResizeObserver(reclamp)
+    observer.observe(dock)
+    return () => observer.disconnect()
+  }, [setOffsetX])
+
   const onFabPointerDown = (e: React.PointerEvent<HTMLButtonElement>): void => {
     if (e.button !== 0) return
     e.currentTarget.setPointerCapture(e.pointerId)
