@@ -139,3 +139,34 @@ export async function getAuthStatus(): Promise<AuthStatus> {
   if (!session) return { loggedIn: false, email: '', name: '', avatar: '' }
   return { loggedIn: true, email: session.user.email, name: session.user.name, avatar: session.user.avatar }
 }
+
+export interface UsageInfo {
+  plan: string
+  plan_budget_usd: number
+  month_cost_usd: number
+  month_remaining_usd: number
+  pct: number
+  over_budget: boolean
+}
+
+export type UsageResult =
+  | { ok: true; usage: UsageInfo }
+  | { ok: false; error: string }
+
+export async function fetchUsage(): Promise<UsageResult> {
+  const session = await loadSession()
+  if (!session) return { ok: false, error: 'Not signed in' }
+  try {
+    const res = await fetch(`${WEB_BASE_URL}/api/usage/check`, {
+      headers: { Authorization: `Bearer ${session.token}` },
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      return { ok: false, error: `Usage check failed (${res.status})${body ? `: ${body}` : ''}` }
+    }
+    const usage = await res.json() as UsageInfo
+    return { ok: true, usage }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Network error' }
+  }
+}

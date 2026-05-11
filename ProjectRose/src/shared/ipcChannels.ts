@@ -101,6 +101,7 @@ export const IPC = {
   AUTH_LOGOUT: 'auth:logout',
   AUTH_CANCEL: 'auth:cancel',
   AUTH_GET_STATUS: 'auth:getStatus',
+  AUTH_GET_USAGE: 'auth:getUsage',
   AUTH_CHANGED: 'auth:changed',
   AUTH_PAIRING_PENDING: 'auth:pairingPending',
 

@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
-import { openAuthWindow, handleLogout, getAuthStatus, cancelPairing } from '../lib/authHandler'
+import { openAuthWindow, handleLogout, getAuthStatus, cancelPairing, fetchUsage } from '../lib/authHandler'
 
 export function registerAuthHandlers(): void {
   ipcMain.handle(IPC.AUTH_LOGIN, async () => {
@@ -24,5 +24,9 @@ export function registerAuthHandlers(): void {
 
   ipcMain.handle(IPC.AUTH_GET_STATUS, async () => {
     return getAuthStatus()
+  })
+
+  ipcMain.handle(IPC.AUTH_GET_USAGE, async () => {
+    return fetchUsage()
   })
 }

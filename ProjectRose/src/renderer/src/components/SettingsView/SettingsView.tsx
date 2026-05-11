@@ -262,6 +262,92 @@ function KeyInput({ value, placeholder, onChange, type = 'password' }: {
   )
 }
 
+interface UsageInfo {
+  plan: string
+  plan_budget_usd: number
+  month_cost_usd: number
+  month_remaining_usd: number
+  pct: number
+  over_budget: boolean
+}
+
+function UsageBar({ usage, loading, error, onRefresh }: {
+  usage: UsageInfo | null
+  loading: boolean
+  error: string
+  onRefresh: () => void
+}): JSX.Element {
+  const fillPct = usage ? Math.max(0, Math.min(100, usage.pct)) : 0
+  const fillColor = usage?.over_budget
+    ? 'var(--color-error)'
+    : fillPct >= 80
+      ? 'var(--color-unsaved)'
+      : 'var(--color-saved)'
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+        <span style={{ fontSize: 9, letterSpacing: 1.4, color: 'var(--color-text-muted)', fontWeight: 500 }}>
+          MONTHLY USAGE{usage ? ` · ${usage.plan.toUpperCase()}` : ''}
+        </span>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            color: 'var(--color-text-muted)',
+            cursor: loading ? 'default' : 'pointer',
+            fontSize: 9,
+            letterSpacing: 1.4,
+            fontFamily: 'inherit',
+            fontWeight: 500,
+            opacity: loading ? 0.5 : 1,
+          }}
+        >
+          {loading ? 'LOADING…' : '↻ REFRESH'}
+        </button>
+      </div>
+      <div
+        style={{
+          height: 6,
+          background: 'var(--color-bg-secondary)',
+          borderRadius: 3,
+          overflow: 'hidden',
+          marginBottom: 6,
+        }}
+      >
+        <div
+          style={{
+            height: '100%',
+            width: `${fillPct}%`,
+            background: fillColor,
+            transition: 'width 240ms ease',
+          }}
+        />
+      </div>
+      {usage ? (
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--color-text-muted)' }}>
+          <span style={{ color: usage.over_budget ? 'var(--color-error)' : 'var(--color-text-primary)' }}>
+            ${usage.month_cost_usd.toFixed(2)} of ${usage.plan_budget_usd.toFixed(2)}
+          </span>
+          <span>
+            {usage.over_budget
+              ? 'over budget'
+              : `${usage.pct.toFixed(1)}% · $${usage.month_remaining_usd.toFixed(2)} left`}
+          </span>
+        </div>
+      ) : error ? (
+        <div style={{ fontSize: 11, color: 'var(--color-error)' }}>{error}</div>
+      ) : loading ? (
+        <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Loading usage…</div>
+      ) : null}
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────
@@ -306,6 +392,32 @@ export function SettingsView(): JSX.Element {
   const [prMode, setPrMode] = useState<'idle' | 'pending'>('idle')
   const [prPairingUrl, setPrPairingUrl] = useState('')
   const [prError, setPrError] = useState('')
+  const [prUsage, setPrUsage] = useState<{
+    plan: string
+    plan_budget_usd: number
+    month_cost_usd: number
+    month_remaining_usd: number
+    pct: number
+    over_budget: boolean
+  } | null>(null)
+  const [prUsageLoading, setPrUsageLoading] = useState(false)
+  const [prUsageError, setPrUsageError] = useState('')
+
+  const loadProjectRoseUsage = useCallback(async () => {
+    setPrUsageLoading(true)
+    setPrUsageError('')
+    try {
+      const result = await window.api.auth.getUsage()
+      if (result.ok) {
+        setPrUsage(result.usage)
+      } else {
+        setPrUsage(null)
+        setPrUsageError(result.error)
+      }
+    } finally {
+      setPrUsageLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -323,6 +435,18 @@ export function SettingsView(): JSX.Element {
     })
     return () => { cancelled = true; offChanged(); offPending() }
   }, [])
+
+  useEffect(() => {
+    if (expandedProvider !== 'projectrose' || !prAccount.loggedIn) return
+    loadProjectRoseUsage()
+  }, [expandedProvider, prAccount.loggedIn, loadProjectRoseUsage])
+
+  useEffect(() => {
+    if (!prAccount.loggedIn) {
+      setPrUsage(null)
+      setPrUsageError('')
+    }
+  }, [prAccount.loggedIn])
 
   async function projectroseSignIn(): Promise<void> {
     setPrError('')
@@ -887,6 +1011,12 @@ export function SettingsView(): JSX.Element {
                                 {prAccount.email}
                               </div>
                             )}
+                            <UsageBar
+                              usage={prUsage}
+                              loading={prUsageLoading}
+                              error={prUsageError}
+                              onRefresh={loadProjectRoseUsage}
+                            />
                           </>
                         ) : prMode === 'pending' ? (
                           <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
