@@ -13,7 +13,8 @@ import {
   handleEditFile,
   handleListDirectory,
   handleGrep,
-  handleRunCommand
+  handleRunCommand,
+  handleSearchWeb
 } from './toolHandlers'
 import type { ExtensionToolEntry, ExtensionToolCtx } from '../../shared/extension-types'
 import type { Message } from '../../shared/roseModelTypes'
@@ -430,6 +431,14 @@ function buildCoreTools(projectRoot: string, emit: EmitFn, toolCtx: ExtensionToo
           ]
         }
       }
+    }),
+    search_web: tool({
+      description: 'Search the web for up-to-date information. Use when the user asks about current events, documentation, libraries, or anything that may have changed since the model was trained. Returns the search API response as JSON containing result titles, URLs, and snippets.',
+      inputSchema: z.object({
+        query: z.string().describe('The search query — natural language is fine'),
+        numResults: z.number().optional().describe('Maximum number of results to return (server picks a default if omitted)')
+      }),
+      execute: wrapExecute('search_web', handleSearchWeb, projectRoot, emit, toolCtx, hookCtx)
     }),
   }
 }

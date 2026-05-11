@@ -12,7 +12,7 @@ const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { disabledTools: [], disabledP
 
 export const CORE_TOOL_NAMES = new Set([
   'read_file', 'write_file', 'edit_file', 'list_directory', 'grep', 'run_command', 'ask_user',
-  'create_subagents', 'explore',
+  'create_subagents', 'explore', 'search_web',
 ])
 
 const CORE_TOOL_META = [
@@ -25,6 +25,7 @@ const CORE_TOOL_META = [
   { name: 'ask_user', displayName: 'Ask User', description: 'Pause generation to ask the user a clarifying question', type: 'core' as const },
   { name: 'create_subagents', displayName: 'Subagents', description: 'Spawn one or more subagents to run focused tasks in parallel', type: 'core' as const },
   { name: 'explore', displayName: 'Explore', description: 'Decompose a topic into parallel read-only sub-queries and return a combined report', type: 'core' as const },
+  { name: 'search_web', displayName: 'Web Search', description: 'Search the web via the ProjectRose search API', type: 'core' as const },
 ]
 
 export async function readProjectSettings(rootPath: string): Promise<ProjectSettings> {

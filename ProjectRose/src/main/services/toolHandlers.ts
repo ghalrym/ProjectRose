@@ -5,6 +5,8 @@ import { platform } from 'os'
 import { BrowserWindow } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
 import { lspRequest } from './lspManager'
+import { loadSession } from '../lib/session'
+import { WEB_BASE_URL } from '../lib/webConfig'
 
 const modifiedFiles: string[] = []
 let _activeProjectRoot: string | null = null
@@ -228,5 +230,33 @@ export async function handleGrep(input: Record<string, unknown>, projectRoot: st
   return results.length === 200
     ? lines.join('\n') + '\n[truncated at 200 matches]'
     : lines.join('\n')
+}
+
+export async function handleSearchWeb(input: Record<string, unknown>): Promise<string> {
+  const session = await loadSession()
+  if (!session?.token) {
+    return 'Error: web search requires an active ProjectRose subscription. Ask the user to sign in.'
+  }
+
+  const body: Record<string, unknown> = { query: String(input.query ?? '') }
+  if (typeof input.numResults === 'number') body.numResults = input.numResults
+
+  const res = await fetch(`${WEB_BASE_URL}/api/search`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.token}`
+    },
+    body: JSON.stringify(body)
+  })
+
+  const text = await res.text()
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      return 'Error: web search requires an active ProjectRose subscription.'
+    }
+    return `Error: search failed (${res.status}): ${text}`
+  }
+  return text
 }
 

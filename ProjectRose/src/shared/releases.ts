@@ -9,6 +9,17 @@ export interface ReleaseEntry {
 
 export const RELEASES: ReleaseEntry[] = [
   {
+    version: '1.5.1',
+    tag: null,
+    date: null,
+    title: 'Web search built into the agent',
+    unreleased: true,
+    highlights: [
+      'Agent can now search the web with a new built-in search_web tool, powered by the ProjectRose search API',
+      'Toggle Web Search on or off per project from Settings → Tools'
+    ]
+  },
+  {
     version: '1.5.0',
     tag: null,
     date: null,
