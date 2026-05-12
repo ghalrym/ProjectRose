@@ -1,3 +1,9 @@
+// Screenshot result shape — duplicated from llmClient.ts so chatSession.ts
+// does not import from llmClient (which would form a cycle).
+export type ScreenshotResult =
+  | { ok: true; dataUrl: string; mode: 'screen' | 'webcam'; sourceLabel: string | null }
+  | { ok: false; reason: string }
+
 /**
  * A `ChatSession` owns all state whose lifetime equals a single chat turn:
  * the abort controller, the pending ask-user table, the pending screenshot
@@ -5,8 +11,8 @@
  * budgets. Construct one at the start of a turn, dispose it in `finally`.
  *
  * Slices move each piece onto the session one at a time; today the
- * `pendingAskUser` table lives here, while `pendingScreenshots`,
- * `modifiedFiles`, and `turnBudget` remain at module scope and will follow.
+ * `pendingAskUser` and `pendingScreenshots` tables live here, while
+ * `modifiedFiles` and `turnBudget` remain at module scope and will follow.
  */
 export class ChatSession {
   readonly sessionId: string
@@ -17,6 +23,11 @@ export class ChatSession {
   // pushes a resolver here when it emits the question to the renderer; the
   // renderer's reply is routed back here via the IPC handler.
   readonly pendingAskUser = new Map<string, (answer: string) => void>()
+
+  // Pending screenshot resolvers — keyed by toolCallId. The `screenshot`
+  // tool pushes a resolver here when it emits the capture request to the
+  // renderer; the renderer's result is routed back here via the IPC handler.
+  readonly pendingScreenshots = new Map<string, (result: ScreenshotResult) => void>()
 
   constructor(args: { sessionId: string; rootPath: string }) {
     this.sessionId = args.sessionId
@@ -50,12 +61,39 @@ export class ChatSession {
   }
 
   /**
+   * Look up a pending screenshot resolver and fulfil it. No-op if the id is
+   * not pending (the request was already resolved or cancelled).
+   */
+  resolveScreenshot(toolCallId: string, result: ScreenshotResult): void {
+    const resolve = this.pendingScreenshots.get(toolCallId)
+    if (!resolve) return
+    this.pendingScreenshots.delete(toolCallId)
+    resolve(result)
+  }
+
+  /**
+   * Cancel every pending screenshot capture with
+   * `{ ok: false, reason: 'cancelled' }` so the tool execute body unblocks
+   * and the turn unwinds. This closes a leak in the prior code where
+   * cancelling a chat aborted the controller but left screenshot resolvers
+   * dangling forever (the module-level `cancelAllScreenshotRequests` was
+   * never wired in).
+   */
+  cancelPendingScreenshots(): void {
+    for (const resolve of this.pendingScreenshots.values()) {
+      resolve({ ok: false, reason: 'cancelled' })
+    }
+    this.pendingScreenshots.clear()
+  }
+
+  /**
    * Cancel the turn: abort the controller and reject any pending
    * cross-process resolvers owned by this session.
    */
   cancel(): void {
     this.abortController.abort()
     this.cancelPendingAskUser()
+    this.cancelPendingScreenshots()
   }
 
   /**
@@ -65,5 +103,6 @@ export class ChatSession {
    */
   dispose(): void {
     this.cancelPendingAskUser()
+    this.cancelPendingScreenshots()
   }
 }

@@ -50,12 +50,14 @@ function App(): JSX.Element {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bridge: when the agent invokes the `screenshot` tool, capture a frame from
-  // the active share stream and send it back to main.
+  // the active share stream and send it back to main. The sessionId rides on
+  // the request from main so the result can be routed back to the same
+  // ChatSession; the renderer doesn't need to know about session stores.
   useEffect(() => {
-    return window.api.onAiCaptureScreenshot(async ({ requestId }) => {
+    return window.api.onAiCaptureScreenshot(async ({ requestId, sessionId }) => {
       const share = useScreenWebcamShare.getState()
       if (share.mode === 'off') {
-        await window.api.aiCaptureScreenshotResult(requestId, {
+        await window.api.aiCaptureScreenshotResult(sessionId, requestId, {
           ok: false,
           reason: 'The user is not currently sharing a screen, window, or camera. Ask them to enable screen-share or camera in the chat composer first.'
         })
@@ -63,13 +65,13 @@ function App(): JSX.Element {
       }
       const frame = await share.captureFrame()
       if (!frame) {
-        await window.api.aiCaptureScreenshotResult(requestId, {
+        await window.api.aiCaptureScreenshotResult(sessionId, requestId, {
           ok: false,
           reason: 'Capture failed (stream not ready).'
         })
         return
       }
-      await window.api.aiCaptureScreenshotResult(requestId, {
+      await window.api.aiCaptureScreenshotResult(sessionId, requestId, {
         ok: true,
         dataUrl: frame.dataUrl,
         mode: frame.kind,

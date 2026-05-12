@@ -24,6 +24,7 @@ import { fireThoughtHook, fireMessageHook, fireTokenHook, fireToolCallHook } fro
 import { loadSession } from '../lib/session'
 import { WEB_BASE_URL } from '../lib/webConfig'
 import { sessionRegistry } from './sessionRegistry'
+import type { ScreenshotResult } from './chatSession'
 
 function notifyRenderer(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -33,23 +34,10 @@ function notifyRenderer(channel: string, payload: unknown): void {
   }
 }
 
-// Screenshot tool — pending captures keyed by toolCallId. The renderer
-// runs the actual MediaStream capture and posts the result back.
-export type ScreenshotResult =
-  | { ok: true; dataUrl: string; mode: 'screen' | 'webcam'; sourceLabel: string | null }
-  | { ok: false; reason: string }
-
-const pendingScreenshots = new Map<string, (result: ScreenshotResult) => void>()
-
-export function resolveScreenshotRequest(requestId: string, result: ScreenshotResult): void {
-  pendingScreenshots.get(requestId)?.(result)
-  pendingScreenshots.delete(requestId)
-}
-
-export function cancelAllScreenshotRequests(): void {
-  for (const resolve of pendingScreenshots.values()) resolve({ ok: false, reason: 'cancelled' })
-  pendingScreenshots.clear()
-}
+// Screenshot tool result shape — declared on the session module so it sits
+// next to the pending-screenshots Map that owns it; re-exported here for
+// callers that historically imported it from llmClient.
+export type { ScreenshotResult } from './chatSession'
 
 export type ProviderKeys = {
   anthropic: string
@@ -391,9 +379,20 @@ function buildCoreTools(projectRoot: string, emit: EmitFn, toolCtx: ExtensionToo
       execute: async (_input, options): Promise<string> => {
         const id = options.toolCallId
         emit(IPC.AI_TOOL_CALL_START, { id, name: 'screenshot', params: {} })
+        const session = sessionRegistry.get(toolCtx.sessionId)
+        const cancelled: ScreenshotResult = { ok: false, reason: 'cancelled' }
+        if (!session) {
+          // No registered session — no current path reaches this branch.
+          // Return the cancelled sentinel rather than hang forever.
+          emit(IPC.AI_TOOL_CALL_END, { id, result: cancelled.reason, error: true })
+          return JSON.stringify(cancelled)
+        }
         const result = await new Promise<ScreenshotResult>((resolve) => {
-          pendingScreenshots.set(id, resolve)
-          emit(IPC.AI_CAPTURE_SCREENSHOT, { requestId: id })
+          session.pendingScreenshots.set(id, resolve)
+          // sessionId rides along so the renderer can echo it back unchanged
+          // on AI_CAPTURE_SCREENSHOT_RESULT — no need for the renderer to
+          // reach into a sessions store.
+          emit(IPC.AI_CAPTURE_SCREENSHOT, { requestId: id, sessionId: session.sessionId })
         })
         if (!result.ok) {
           emit(IPC.AI_TOOL_CALL_END, { id, result: result.reason, error: true })

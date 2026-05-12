@@ -1,8 +1,8 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
 import { chat, buildAgentMd, cancelActiveChat, compressToolNoise, getContextStatus } from '../services/aiService'
-import { resolveScreenshotRequest, type ScreenshotResult } from '../services/llmClient'
 import { sessionRegistry } from '../services/sessionRegistry'
+import type { ScreenshotResult } from '../services/chatSession'
 import type { Message } from '../../shared/roseModelTypes'
 
 export function registerAiHandlers(): void {
@@ -58,8 +58,10 @@ export function registerAiHandlers(): void {
 
   ipcMain.handle(
     IPC.AI_CAPTURE_SCREENSHOT_RESULT,
-    (_event, payload: { requestId: string; result: ScreenshotResult }) => {
-      resolveScreenshotRequest(payload.requestId, payload.result)
+    (_event, payload: { sessionId: string; requestId: string; result: ScreenshotResult }) => {
+      // Route by sessionId so two simultaneous sessions cannot resolve each
+      // other's captures. No-op if the session is gone.
+      sessionRegistry.get(payload.sessionId)?.resolveScreenshot(payload.requestId, payload.result)
     }
   )
 }

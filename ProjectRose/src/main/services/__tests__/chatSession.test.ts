@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ChatSession } from '../chatSession'
+import { ChatSession, type ScreenshotResult } from '../chatSession'
 
 describe('ChatSession.pendingAskUser', () => {
   it('starts with an empty pendingAskUser map', () => {
@@ -63,5 +63,75 @@ describe('ChatSession.pendingAskUser', () => {
 
     b.resolveAskUserQuestion('q', 'from-b')
     await expect(bAnswer).resolves.toBe('from-b')
+  })
+})
+
+describe('ChatSession.pendingScreenshots', () => {
+  const okResult: ScreenshotResult = {
+    ok: true,
+    dataUrl: 'data:image/jpeg;base64,xx',
+    mode: 'screen',
+    sourceLabel: 'Display 1',
+  }
+
+  it('starts with an empty pendingScreenshots map', () => {
+    const s = new ChatSession({ sessionId: 's1', rootPath: '/proj' })
+    expect(s.pendingScreenshots.size).toBe(0)
+  })
+
+  it('resolves a pending screenshot by toolCallId and removes it from the map', async () => {
+    const s = new ChatSession({ sessionId: 's1', rootPath: '/proj' })
+    const result = new Promise<ScreenshotResult>((resolve) => {
+      s.pendingScreenshots.set('r1', resolve)
+    })
+    s.resolveScreenshot('r1', okResult)
+    await expect(result).resolves.toEqual(okResult)
+    expect(s.pendingScreenshots.has('r1')).toBe(false)
+  })
+
+  it('resolveScreenshot for an unknown id is a no-op', () => {
+    const s = new ChatSession({ sessionId: 's1', rootPath: '/proj' })
+    expect(() => s.resolveScreenshot('nope', okResult)).not.toThrow()
+    expect(s.pendingScreenshots.size).toBe(0)
+  })
+
+  it('cancelPendingScreenshots resolves every pending entry with the cancelled sentinel', async () => {
+    const s = new ChatSession({ sessionId: 's1', rootPath: '/proj' })
+    const a = new Promise<ScreenshotResult>((resolve) => s.pendingScreenshots.set('r1', resolve))
+    const b = new Promise<ScreenshotResult>((resolve) => s.pendingScreenshots.set('r2', resolve))
+    s.cancelPendingScreenshots()
+    await expect(a).resolves.toEqual({ ok: false, reason: 'cancelled' })
+    await expect(b).resolves.toEqual({ ok: false, reason: 'cancelled' })
+    expect(s.pendingScreenshots.size).toBe(0)
+  })
+
+  it('cancel() cancels pending screenshots — closes the prior leak', async () => {
+    const s = new ChatSession({ sessionId: 's1', rootPath: '/proj' })
+    const result = new Promise<ScreenshotResult>((resolve) => s.pendingScreenshots.set('r1', resolve))
+    s.cancel()
+    await expect(result).resolves.toEqual({ ok: false, reason: 'cancelled' })
+  })
+
+  it('dispose() cancels any in-flight screenshot promise', async () => {
+    const s = new ChatSession({ sessionId: 's1', rootPath: '/proj' })
+    const result = new Promise<ScreenshotResult>((resolve) => s.pendingScreenshots.set('r1', resolve))
+    s.dispose()
+    await expect(result).resolves.toEqual({ ok: false, reason: 'cancelled' })
+    expect(s.pendingScreenshots.size).toBe(0)
+  })
+
+  it('two parallel sessions do not see each other pending screenshot entries', async () => {
+    const a = new ChatSession({ sessionId: 'a', rootPath: '/proj' })
+    const b = new ChatSession({ sessionId: 'b', rootPath: '/proj' })
+
+    const aResult = new Promise<ScreenshotResult>((resolve) => a.pendingScreenshots.set('r', resolve))
+    const bResult = new Promise<ScreenshotResult>((resolve) => b.pendingScreenshots.set('r', resolve))
+
+    a.resolveScreenshot('r', okResult)
+    await expect(aResult).resolves.toEqual(okResult)
+    expect(b.pendingScreenshots.has('r')).toBe(true)
+
+    b.resolveScreenshot('r', { ok: false, reason: 'b-failed' })
+    await expect(bResult).resolves.toEqual({ ok: false, reason: 'b-failed' })
   })
 })
