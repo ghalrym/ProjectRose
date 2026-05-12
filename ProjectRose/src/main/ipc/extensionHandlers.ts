@@ -18,6 +18,7 @@ import {
   formatManifestIssues,
   type ManifestValidationIssue
 } from '../../shared/extension-manifest-validator'
+import { buildContext, type HostExtensionSurface } from '../extensions/buildContext'
 
 function getExtensionsDir(rootPath: string): string {
   return prPath(rootPath, 'extensions')
@@ -235,7 +236,7 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
     const wrapper = new Function('module', 'exports', 'require', '__dirname', '__filename', code)
     wrapper(mod, mod.exports, hostedRequire, dirname(mainPath), mainPath)
 
-    const ctx: ExtensionMainContext = {
+    const host: HostExtensionSurface = {
       rootPath,
       getSettings: async () => readSettings(rootPath) as unknown as Record<string, unknown>,
       updateSettings: async (patch: Record<string, unknown>) => {
@@ -282,6 +283,12 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
       openAgentSession: ({ systemPrompt }: { systemPrompt: string }) =>
         createAgentSession({ rootPath, systemPrompt, ownerKey: key })
     }
+
+    const ctx: ExtensionMainContext = buildContext({
+      extensionId: id,
+      manifest: manifestForHooks,
+      host
+    })
 
     const register = mod.exports['register'] as ((ctx: ExtensionMainContext) => (() => void) | void) | undefined
     const cleanup = register?.(ctx)
