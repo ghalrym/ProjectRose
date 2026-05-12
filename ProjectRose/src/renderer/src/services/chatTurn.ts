@@ -33,6 +33,12 @@ function newUserMsgId(): string {
   return `msg-u-${++userMsgCounter}`
 }
 
+// Set by cancelGeneration() so the catch below can tell a user-initiated abort
+// apart from an upstream error whose message happens to contain "abort". Without
+// this, any error mentioning "abort" (e.g. "Request was aborted by client" from
+// a failed Bedrock stream) gets silently swallowed and the user sees nothing.
+let userCancelled = false
+
 export async function sendMessage(): Promise<void> {
   const { inputValue } = useChatUIStore.getState()
   const trimmed = inputValue.trim()
@@ -41,6 +47,8 @@ export async function sendMessage(): Promise<void> {
 
   const rootPath = useProjectStore.getState().rootPath
   if (!rootPath) return
+
+  userCancelled = false
 
   // Snapshot API messages before adding the new user message
   const includeThinking = useSettingsStore.getState().includeThinkingInContext
@@ -119,7 +127,33 @@ export async function sendMessage(): Promise<void> {
 
     setTimeout(() => {
       cleanup()
-      useChatTimelineStore.getState().settleTurn({ modelDisplay: response.modelDisplay })
+      // A "successful" response with zero content and no streamed events
+      // (no token, tool call, ask_user, thinking, etc.) means the model
+      // accepted the request, returned nothing, and the SDK did not raise.
+      // We've seen this when a non-vision model is given an image attachment
+      // upstream — the request 200s with an empty stream. Without this
+      // check the user sees nothing and assumes the app is broken.
+      const finalState = useChatTimelineStore.getState()
+      const lastMsg = finalState.messages[finalState.messages.length - 1]
+      const emptyResponse =
+        response.content === '' &&
+        response.modifiedFiles.length === 0 &&
+        lastMsg?.id === userMsg.id
+      if (emptyResponse) {
+        const hasAttachment = (userMsg.attachments?.length ?? 0) > 0
+        const isManaged = useSettingsStore.getState().hostMode === 'projectrose'
+        let hint = ''
+        if (hasAttachment) {
+          hint = isManaged
+            ? ' Server image support is coming soon — if you want to use screen share you will need a vision-capable local model for now.'
+            : ' The selected model may not support image input — try a vision-capable model, or stop sharing your screen/camera.'
+        }
+        finalState.errorCleanup({
+          errorContent: `Error: The model returned an empty response.${hint}`,
+        })
+      } else {
+        finalState.settleTurn({ modelDisplay: response.modelDisplay })
+      }
       useSessionsStore.getState().touchSession(sessionId)
       // Re-read meta so the persisted updatedAt matches what touchSession set.
       const updatedMeta =
@@ -137,13 +171,15 @@ export async function sendMessage(): Promise<void> {
       }
     }, POST_RESOLUTION_DEFER_MS)
   } catch (err) {
+    // Capture the flag now — by the time the setTimeout fires, another
+    // sendMessage call could theoretically have reset it.
+    const wasUserCancelled = userCancelled
     // Defer the same way as the success path so streaming events that arrived
     // before the error can still land on the right placeholder.
     setTimeout(() => {
       cleanup()
       const isAbort =
-        err instanceof Error &&
-        (err.name === 'AbortError' || err.message.toLowerCase().includes('abort'))
+        wasUserCancelled || (err instanceof Error && err.name === 'AbortError')
       if (isAbort) {
         useChatTimelineStore.getState().abortCleanup()
       } else {
@@ -156,6 +192,7 @@ export async function sendMessage(): Promise<void> {
 }
 
 export async function cancelGeneration(): Promise<void> {
+  userCancelled = true
   await window.api.aiCancelGeneration()
 }
 

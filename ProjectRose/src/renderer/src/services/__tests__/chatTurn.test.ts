@@ -296,12 +296,122 @@ describe('chatTurn', () => {
       expect(errorMsg).toBeUndefined()
     })
 
-    it('routes errors whose message contains "abort" through abortCleanup', async () => {
+    it('shows an error bubble when the model returns an empty response with no streamed output', async () => {
+      // Regression: when a non-vision model accepts an image attachment, the
+      // upstream stream often completes "successfully" with empty content
+      // and zero streamed events. Previously settleTurn ran but had nothing
+      // to seal, leaving the user with a silent failure.
       vi.useFakeTimers()
-      api.aiChat.mockRejectedValueOnce(new Error('Request was aborted by client'))
-      useChatUIStore.getState().setInputValue('cancel me too')
+      useSettingsStore.setState({ hostMode: 'self' })
+      api.aiChat.mockResolvedValueOnce({ content: '', modifiedFiles: [], modelDisplay: 'minimax' })
+      captureFrame.mockResolvedValue({
+        kind: 'screen',
+        dataUrl: 'data:image/jpeg;base64,xxx',
+        mimeType: 'image/jpeg',
+      })
+      useChatUIStore.getState().setInputValue('look at this')
 
       const promise = sendMessage()
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(250)
+      await promise
+
+      const timeline = useChatTimelineStore.getState()
+      expect(timeline.isLoading).toBe(false)
+      const errorMsg = timeline.messages.find(
+        (m) => m.role === 'assistant' && (m as AssistantMessage).isError
+      )
+      expect(errorMsg).toBeDefined()
+      expect((errorMsg as AssistantMessage).content).toContain('empty response')
+      // Self-hosted hint should fire because an attachment was present
+      expect((errorMsg as AssistantMessage).content).toContain('vision-capable model')
+    })
+
+    it('uses a managed-service-specific hint when an empty response comes back from the managed endpoint', async () => {
+      vi.useFakeTimers()
+      useSettingsStore.setState({ hostMode: 'projectrose' })
+      api.aiChat.mockResolvedValueOnce({ content: '', modifiedFiles: [], modelDisplay: 'managed' })
+      captureFrame.mockResolvedValue({
+        kind: 'screen',
+        dataUrl: 'data:image/jpeg;base64,xxx',
+        mimeType: 'image/jpeg',
+      })
+      useChatUIStore.getState().setInputValue('look at this')
+
+      const promise = sendMessage()
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(250)
+      await promise
+
+      const errorMsg = useChatTimelineStore
+        .getState()
+        .messages.find((m) => m.role === 'assistant' && (m as AssistantMessage).isError)
+      expect(errorMsg).toBeDefined()
+      expect((errorMsg as AssistantMessage).content).toContain('Server image support is coming soon')
+      expect((errorMsg as AssistantMessage).content).toContain('vision-capable local model')
+    })
+
+    it('does not flag an empty response as an error when content streamed via tokens', async () => {
+      // A real reply that arrives via streaming tokens leaves response.content
+      // empty on the IPC resolve path (the renderer accumulates from
+      // onAiToken), so we must not treat that as an empty response.
+      vi.useFakeTimers()
+      api.aiChat.mockImplementationOnce(async () => {
+        // Simulate a token landing during the request
+        useChatTimelineStore.getState().appendToken({ token: 'hi there' })
+        return { content: '', modifiedFiles: [], modelDisplay: 'gpt' }
+      })
+      useChatUIStore.getState().setInputValue('hello')
+
+      const promise = sendMessage()
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(250)
+      await promise
+
+      const errorMsg = useChatTimelineStore
+        .getState()
+        .messages.find((m) => m.role === 'assistant' && (m as AssistantMessage).isError)
+      expect(errorMsg).toBeUndefined()
+    })
+
+    it('surfaces errors whose message merely contains "abort" instead of swallowing them', async () => {
+      // Regression: an upstream error like "Request was aborted by client"
+      // used to be misclassified as a user cancel and silently dropped.
+      vi.useFakeTimers()
+      api.aiChat.mockRejectedValueOnce(new Error('Request was aborted by client'))
+      useChatUIStore.getState().setInputValue('upstream blew up')
+
+      const promise = sendMessage()
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(250)
+      await promise
+
+      const errorMsg = useChatTimelineStore
+        .getState()
+        .messages.find((m) => m.role === 'assistant' && (m as AssistantMessage).isError)
+      expect(errorMsg).toBeDefined()
+      expect(errorMsg?.content).toContain('Error: Request was aborted by client')
+    })
+
+    it('routes an explicit cancelGeneration through abortCleanup even if the error message lacks "abort"', async () => {
+      vi.useFakeTimers()
+      // Pending aiChat: don't resolve/reject until the test triggers it,
+      // so cancelGeneration runs while the turn is still in flight.
+      let rejectAiChat: (err: Error) => void = () => {}
+      api.aiChat.mockReturnValueOnce(
+        new Promise((_, reject) => {
+          rejectAiChat = reject
+        })
+      )
+      useChatUIStore.getState().setInputValue('cancel me explicitly')
+
+      const promise = sendMessage()
+      await vi.advanceTimersByTimeAsync(0)
+      // User clicks cancel mid-turn; flag is set, then the upstream rejects
+      // with a non-abort-looking message (the kind of thing an aborted SSE
+      // stream often produces).
+      await cancelGeneration()
+      rejectAiChat(new Error('stream interrupted'))
       await vi.advanceTimersByTimeAsync(0)
       await vi.advanceTimersByTimeAsync(250)
       await promise
