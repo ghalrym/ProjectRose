@@ -1,11 +1,23 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import type { InstalledExtension } from '../../../../shared/extension-types'
+import type { ExtensionManifest, InstalledExtension } from '../../../../shared/extension-types'
+import {
+  capabilityLabels,
+  CAPABILITY_KEYS,
+  type Capability
+} from '../../../../shared/extension-contract'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { loadDynamicExtensions } from '../../extensions/registry'
 import { BUILTIN_CATALOG, type CatalogEntry } from '../../extensions/builtinCatalog'
 import styles from './SettingsView.module.css'
 
 type ExtensionPane = 'discover' | 'installed'
+
+interface PendingPreview {
+  token: string
+  manifest: ExtensionManifest
+  /** Friendly source description for the dialog ("disk: /path" or "git: url"). */
+  source: string
+}
 
 export function ExtensionsTab(): JSX.Element {
   const [installed, setInstalled] = useState<InstalledExtension[]>([])
@@ -15,6 +27,8 @@ export function ExtensionsTab(): JSX.Element {
   const [gitUrl, setGitUrl] = useState('')
   const [installError, setInstallError] = useState<string | null>(null)
   const [activePane, setActivePane] = useState<ExtensionPane>('discover')
+  const [pendingPreview, setPendingPreview] = useState<PendingPreview | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   const rootPath = useProjectStore((s) => s.rootPath)
 
@@ -37,13 +51,21 @@ export function ExtensionsTab(): JSX.Element {
     await loadDynamicExtensions(rootPath)
   }, [rootPath])
 
-  const installFromUrl = useCallback(async (url: string): Promise<{ ok: boolean; error?: string }> => {
+  // Preview an install from a URL: clones into a temp dir on the host,
+  // returns the manifest + a token. The user then confirms (build + move
+  // into place) or cancels (delete temp dir).
+  const previewFromUrl = useCallback(async (
+    url: string,
+    sourceLabel: string
+  ): Promise<{ ok: boolean; error?: string }> => {
     if (!rootPath) return { ok: false, error: 'No project open' }
-    const result = await window.api.extension.installFromGit(rootPath, url)
-    if (!result.ok) return { ok: false, error: result.error ?? 'Install failed' }
-    await finalizeInstall()
+    const result = await window.api.extension.installPreviewFromGit(rootPath, url)
+    if (!result.ok || !result.token || !result.manifest) {
+      return { ok: false, error: result.error ?? 'Install failed' }
+    }
+    setPendingPreview({ token: result.token, manifest: result.manifest, source: sourceLabel })
     return { ok: true }
-  }, [rootPath, finalizeInstall])
+  }, [rootPath])
 
   const handleInstallFromGit = useCallback(async () => {
     const url = gitUrl.trim()
@@ -54,15 +76,14 @@ export function ExtensionsTab(): JSX.Element {
     setInstallingUrl(true)
     setInstallError(null)
     try {
-      const result = await installFromUrl(url)
+      const result = await previewFromUrl(url, `git: ${url}`)
       if (!result.ok) setInstallError(result.error ?? 'Install failed')
-      else setGitUrl('')
     } catch (err) {
       setInstallError((err as Error).message ?? 'Install failed')
     } finally {
       setInstallingUrl(false)
     }
-  }, [gitUrl, installFromUrl])
+  }, [gitUrl, previewFromUrl])
 
   const handleInstallFromDisk = useCallback(async () => {
     if (!rootPath || installingDisk) return
@@ -73,33 +94,65 @@ export function ExtensionsTab(): JSX.Element {
 
     setInstallingDisk(true)
     try {
-      const result = await window.api.extension.installFromDisk(rootPath, folder)
-      if (!result.ok) {
+      const result = await window.api.extension.installPreviewFromDisk(rootPath, folder)
+      if (!result.ok || !result.token || !result.manifest) {
         setInstallError(result.error ?? 'Install failed')
         return
       }
-      await finalizeInstall()
-      setActivePane('installed')
-      if (result.warning) setInstallError(result.warning)
+      setPendingPreview({ token: result.token, manifest: result.manifest, source: `disk: ${folder}` })
     } catch (err) {
       setInstallError((err as Error).message ?? 'Install failed')
     } finally {
       setInstallingDisk(false)
     }
-  }, [rootPath, installingDisk, finalizeInstall])
+  }, [rootPath, installingDisk])
 
   const handleInstallFromCatalog = useCallback(async (entry: CatalogEntry) => {
     setInstallError(null)
     setInstallingIds((prev) => { const next = new Set(prev); next.add(entry.id); return next })
     try {
-      const result = await installFromUrl(entry.repoUrl)
+      const result = await previewFromUrl(entry.repoUrl, `${entry.name} (${entry.repoUrl})`)
       if (!result.ok) setInstallError(`${entry.name}: ${result.error ?? 'Install failed'}`)
     } catch (err) {
       setInstallError(`${entry.name}: ${(err as Error).message ?? 'Install failed'}`)
     } finally {
       setInstallingIds((prev) => { const next = new Set(prev); next.delete(entry.id); return next })
     }
-  }, [installFromUrl])
+  }, [previewFromUrl])
+
+  const handleConfirmPreview = useCallback(async () => {
+    if (!pendingPreview || confirming) return
+    setConfirming(true)
+    setInstallError(null)
+    try {
+      const result = await window.api.extension.installConfirm(pendingPreview.token)
+      if (!result.ok) {
+        setInstallError(result.error ?? 'Install failed')
+        return
+      }
+      await finalizeInstall()
+      setActivePane('installed')
+      setGitUrl('')
+      setPendingPreview(null)
+      if (result.warning) setInstallError(result.warning)
+    } catch (err) {
+      setInstallError((err as Error).message ?? 'Install failed')
+    } finally {
+      setConfirming(false)
+    }
+  }, [pendingPreview, confirming, finalizeInstall])
+
+  const handleCancelPreview = useCallback(async () => {
+    if (!pendingPreview) return
+    const token = pendingPreview.token
+    setPendingPreview(null)
+    try {
+      await window.api.extension.installCancel(token)
+    } catch {
+      // Cleanup is best-effort; the host also handles orphan temp dirs on
+      // next install of the same id.
+    }
+  }, [pendingPreview])
 
   const handleUninstall = useCallback(async (ext: InstalledExtension) => {
     if (!rootPath) return
@@ -122,6 +175,15 @@ export function ExtensionsTab(): JSX.Element {
   return (
     <section className={styles.section}>
       <div className={styles.sectionTitle}>Extensions</div>
+
+      {pendingPreview && (
+        <InstallPreviewDialog
+          preview={pendingPreview}
+          confirming={confirming}
+          onConfirm={handleConfirmPreview}
+          onCancel={handleCancelPreview}
+        />
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {!rootPath && (
@@ -413,6 +475,157 @@ function ExtensionRow({ name, description, version, author, enabled, onToggle, o
         <button type="button" className={styles.refreshBtn} onClick={onUninstall}>
           Uninstall
         </button>
+      </div>
+    </div>
+  )
+}
+
+interface InstallPreviewDialogProps {
+  preview: PendingPreview
+  confirming: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+// Lists the capabilities declared in the manifest's `provides` block.
+// Order is the contract module's CAPABILITY_KEYS order — UI shouldn't have
+// its own opinion about what comes first; the contract owns that.
+function summarizeCapabilities(manifest: ExtensionManifest): string[] {
+  const provides = manifest.provides ?? {}
+  const lines: string[] = []
+  for (const cap of CAPABILITY_KEYS) {
+    if (!provides[cap as Capability]) continue
+    let label = capabilityLabels[cap as Capability]
+    if (cap === 'agentTools') {
+      const count = provides.tools?.length ?? 0
+      if (count > 0) label = `${label} (${count})`
+    } else if (cap === 'chatHooks') {
+      const count = provides.hooks?.length ?? 0
+      if (count > 0) label = `${label} (${count})`
+    }
+    lines.push(label)
+  }
+  if (provides.systemPrompt) {
+    lines.push('Append an extension system prompt')
+  }
+  return lines
+}
+
+function InstallPreviewDialog({ preview, confirming, onConfirm, onCancel }: InstallPreviewDialogProps): JSX.Element {
+  const { manifest, source } = preview
+  const capabilities = summarizeCapabilities(manifest)
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.45)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Install ${manifest.name}`}
+    >
+      <div
+        style={{
+          background: 'var(--color-bg-primary)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-md, 6px)',
+          padding: 20,
+          maxWidth: 520,
+          width: 'calc(100% - 32px)',
+          maxHeight: '80vh',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 11, letterSpacing: '1px', fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-secondary)' }}>
+            INSTALL EXTENSION
+          </span>
+          <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+            {manifest.name}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+            {manifest.description}
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: 'var(--font-family-mono)', marginTop: 4 }}>
+            v{manifest.version} · {manifest.author} · {source}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontSize: 11, letterSpacing: '1px', fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-secondary)' }}>
+            THIS EXTENSION WILL BE ABLE TO
+          </span>
+          {capabilities.length === 0 ? (
+            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+              (No capabilities declared — extension is inert.)
+            </span>
+          ) : (
+            <ul style={{
+              margin: 0,
+              padding: 0,
+              listStyle: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}>
+              {capabilities.map((line) => (
+                <li key={line} style={{ fontSize: 12, color: 'var(--color-text-primary)', display: 'flex', gap: 8 }}>
+                  <span style={{ color: 'var(--color-text-muted)' }}>•</span>
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+          <button
+            type="button"
+            disabled={confirming}
+            onClick={onCancel}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 'var(--radius-sm, 4px)',
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-bg-secondary)',
+              color: 'var(--color-text-primary)',
+              cursor: confirming ? 'not-allowed' : 'pointer',
+              fontSize: 11,
+              letterSpacing: '1px',
+              fontFamily: 'var(--font-family-mono)',
+              opacity: confirming ? 0.5 : 1,
+            }}
+          >
+            CANCEL
+          </button>
+          <button
+            type="button"
+            disabled={confirming}
+            onClick={onConfirm}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 'var(--radius-sm, 4px)',
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-bg-secondary)',
+              color: confirming ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
+              cursor: confirming ? 'not-allowed' : 'pointer',
+              fontSize: 11,
+              letterSpacing: '1px',
+              fontFamily: 'var(--font-family-mono)',
+              opacity: confirming ? 0.5 : 1,
+            }}
+          >
+            {confirming ? 'INSTALLING…' : 'INSTALL'}
+          </button>
+        </div>
       </div>
     </div>
   )

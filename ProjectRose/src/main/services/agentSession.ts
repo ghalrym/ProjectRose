@@ -1,10 +1,8 @@
 import type { Message } from '../../shared/roseModelTypes'
+import type { AgentSession } from '../../shared/extension-agent-session'
 import { runAgentOnce } from './aiService'
 
-export interface AgentSession {
-  send: (text: string) => Promise<string>
-  close: () => void
-}
+export type { AgentSession }
 
 const openSessions = new Map<string, Set<AgentSession>>()
 

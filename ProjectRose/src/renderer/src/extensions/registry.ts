@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import type { ExtensionManifest } from '../../../shared/extension-types'
+import { legacyViewIdAliases } from '../../../shared/extension-contract'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface RendererExtension {
@@ -20,20 +21,18 @@ export function subscribeToExtensionsChange(cb: () => void): () => void {
   return () => { _changeListeners.delete(cb) }
 }
 
-const VIEW_ID_MIGRATIONS: Record<string, string> = {
-  discord: 'rose-discord',
-  email: 'rose-email',
-  git: 'rose-git',
-  docker: 'rose-docker',
-  heartbeat: 'rose-heartbeat'
-}
+// The legacy viewId map now lives on the contract module
+// (`legacyViewIdAliases`). The renderer just consults it here. New
+// extensions get id-equals-viewId for free; this table only services
+// projects upgraded from a pre-namespaced install. See the contract
+// module for the documented retirement plan.
 
 export function migrateViewId(viewId: string): string {
-  return VIEW_ID_MIGRATIONS[viewId] ?? viewId
+  return legacyViewIdAliases[viewId] ?? viewId
 }
 
 export function getExtensionByViewId(viewId: string): RendererExtension | undefined {
-  const id = VIEW_ID_MIGRATIONS[viewId] ?? viewId
+  const id = legacyViewIdAliases[viewId] ?? viewId
   return DYNAMIC_EXTENSIONS.find((e) => e.manifest.id === id)
 }
 

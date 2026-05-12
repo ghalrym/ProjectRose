@@ -8,11 +8,22 @@ import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
 import { readSettings, writeSettings, registerSensitiveExtensionFields } from './settingsHandlers'
 import { runAgentOnce } from '../services/aiService'
-import { registerHooks as registerExtensionHooks, unregisterHooks as unregisterExtensionHooks } from '../services/extensionHooks'
+import {
+  registerHooks as registerExtensionHooks,
+  unregisterHooks as unregisterExtensionHooks,
+  hookPipeline
+} from '../services/extensionHooks'
 import { create as createAgentSession, closeAllForOwner as closeAgentSessionsForOwner } from '../services/agentSession'
-import type { AgentSession } from '../services/agentSession'
-import type { ChatHook } from '../../shared/extensionHooks'
+import type { ChatHook, HookType } from '../../shared/extensionHooks'
 import type { InstalledExtension, ExtensionManifest, ExtensionToolEntry } from '../../shared/extension-types'
+import type { ExtensionMainContext } from '../../shared/extension-contract'
+import {
+  validateManifest,
+  formatManifestIssues,
+  type ManifestValidationIssue
+} from '../../shared/extension-manifest-validator'
+import { buildContext, type HostExtensionSurface } from '../extensions/buildContext'
+import { reconcileToolCatalog } from '../extensions/reconcileToolCatalog'
 
 function getExtensionsDir(rootPath: string): string {
   return prPath(rootPath, 'extensions')
@@ -22,13 +33,56 @@ async function ensureExtensionsDir(rootPath: string): Promise<void> {
   await mkdir(getExtensionsDir(rootPath), { recursive: true })
 }
 
-async function readManifest(extensionPath: string): Promise<ExtensionManifest | null> {
+interface ManifestReadOk {
+  ok: true
+  manifest: ExtensionManifest
+  warnings: ManifestValidationIssue[]
+}
+
+interface ManifestReadFail {
+  ok: false
+  /** `parse` = no manifest / unreadable JSON; `validate` = parsed but invalid. */
+  reason: 'parse' | 'validate'
+  errors: ManifestValidationIssue[]
+}
+
+async function readManifestStrict(extensionPath: string): Promise<ManifestReadOk | ManifestReadFail> {
+  let parsed: unknown
   try {
     const raw = await readFile(join(extensionPath, 'rose-extension.json'), 'utf-8')
-    return JSON.parse(raw) as ExtensionManifest
+    parsed = JSON.parse(raw)
   } catch {
-    return null
+    return { ok: false, reason: 'parse', errors: [{ path: '', message: 'rose-extension.json is missing or not valid JSON' }] }
   }
+  const result = validateManifest(parsed)
+  if (!result.ok) {
+    return { ok: false, reason: 'validate', errors: result.errors }
+  }
+  return { ok: true, manifest: result.manifest, warnings: result.warnings }
+}
+
+// Best-effort manifest read for listing flows that pre-date strict validation.
+// Returns null on any failure (parse OR validate); callers that need error
+// detail should use `readManifestStrict` directly.
+async function readManifest(extensionPath: string): Promise<ExtensionManifest | null> {
+  const r = await readManifestStrict(extensionPath)
+  return r.ok ? r.manifest : null
+}
+
+function broadcastStatus(text: string, tone: 'info' | 'success' | 'error' | 'warning'): void {
+  const payload = { text, tone, durationMs: 6000 }
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(IPC.STATUS_NOTIFY, payload)
+  }
+}
+
+// Surface manifest warnings (e.g. unknown capability keys) to the renderer
+// status bar so the user sees them, without blocking install or load.
+function reportManifestWarnings(extensionId: string, warnings: ManifestValidationIssue[]): void {
+  if (warnings.length === 0) return
+  const summary = formatManifestIssues(warnings)
+  console.warn(`[rose-ext] manifest warnings for ${extensionId}: ${summary}`)
+  broadcastStatus(`Extension "${extensionId}" manifest: ${summary}`, 'warning')
 }
 
 async function readEnabledState(rootPath: string, id: string): Promise<boolean> {
@@ -150,55 +204,69 @@ export function getRegisteredExtensionTools(rootPath: string, enabledIds: string
   return enabledIds.flatMap((id) => extensionToolsRegistry.get(`${rootPath}/${id}`) ?? [])
 }
 
-interface ExtensionMainContext {
-  rootPath: string
-  getSettings: () => Promise<Record<string, unknown>>
-  updateSettings: (patch: Record<string, unknown>) => Promise<void>
-  broadcast: (channel: string, data: unknown) => void
-  // Surface a transient message in the renderer's bottom status bar.
-  notifyStatus: (text: string, opts?: { tone?: 'info' | 'success' | 'error' | 'warning'; durationMs?: number }) => void
-  registerTools: (tools: ExtensionToolEntry[]) => void
-  // Mark settings keys as sensitive so they're stored in userData/settings.json
-  // instead of the project repo config (where they could be committed).
-  registerSensitiveFields: (keys: string[]) => void
-  runBackgroundAgent: (prompt: string, systemPrompt: string) => Promise<string>
-  // Register chat hooks. Hooks fire only for the user-visible main chat;
-  // they do NOT fire inside runBackgroundAgent or openAgentSession.send.
-  registerHooks: (hooks: ChatHook[]) => void
-  // Open a multi-turn agent session. Each session keeps its own message
-  // history; subsequent send() calls reuse it. Hooks do not fire during
-  // these calls.
-  openAgentSession: (opts: { systemPrompt: string }) => AgentSession
+class HookCatalogDriftError extends Error {
+  constructor(public readonly extensionId: string, message: string) {
+    super(`${extensionId}: ${message}`)
+    this.name = 'HookCatalogDriftError'
+  }
+}
+
+// Compare the hook types the manifest declared in `provides.hooks[]` against
+// what actually got registered at runtime. Strict: any drift fails the load
+// (#37 flipped this from warning-only to enforcement).
+function reconcileHookCatalog(id: string, key: string, manifest: ExtensionManifest): void {
+  const declared = (manifest.provides.hooks ?? []).map((h) => h.type as HookType)
+  if (declared.length === 0) return
+  const missing = hookPipeline.declaredButNotRegistered(key, declared)
+  const undeclared = hookPipeline.registeredButNotDeclared(key, declared)
+  const lines: string[] = []
+  if (missing.length > 0) {
+    lines.push(`manifest declared hooks not registered: ${missing.join(', ')}`)
+  }
+  if (undeclared.length > 0) {
+    lines.push(`registered hooks not declared in manifest provides.hooks[]: ${undeclared.join(', ')}`)
+  }
+  if (lines.length > 0) throw new HookCatalogDriftError(id, lines.join('; '))
 }
 
 function loadExtensionMainModule(rootPath: string, id: string): void {
   const key = `${rootPath}/${id}`
   if (loadedMains.has(key)) return
 
-  const mainPath = join(getExtensionsDir(rootPath), id, 'main.js')
+  const installDir = join(getExtensionsDir(rootPath), id)
+  const mainPath = join(installDir, 'main.js')
   if (!existsSync(mainPath)) return
+
+  // Validate the manifest BEFORE evaluating any extension code. A malformed
+  // manifest means we can't trust the capability set the extension is asking
+  // for, so we refuse to load instead of half-running it.
+  const manifestRead = readManifestSyncStrict(installDir)
+  if (!manifestRead.ok) {
+    const summary = formatManifestIssues(manifestRead.errors)
+    console.error(`[rose-ext] refusing to load ${id}: manifest invalid — ${summary}`)
+    broadcastStatus(`Extension "${id}" failed to load: ${summary}`, 'error')
+    return
+  }
+  reportManifestWarnings(id, manifestRead.warnings)
+  const manifestForHooks = manifestRead.manifest
 
   try {
     const code = readFileSync(mainPath, 'utf-8')
     const extRequire = createRequire(mainPath)
-    const hostExports: Record<string, unknown> = {
-      '@main/ipc/settingsHandlers': { readSettings, writeSettings }
-    }
-    const hostedRequire: NodeJS.Require = ((spec: string) => {
-      if (spec in hostExports) return hostExports[spec]
-      return extRequire(spec)
-    }) as NodeJS.Require
+    // Sandbox tightening (#31): the host no longer hands extensions an
+    // escape hatch into its own internal modules. Anything an extension
+    // needs goes through `ctx`. Any leftover `require('@main/...')` style
+    // import inside an extension will now resolve through the normal
+    // node module resolver and fail loudly, which is what we want — it
+    // tells the author to migrate to the contract.
+    const hostedRequire: NodeJS.Require = ((spec: string) => extRequire(spec)) as NodeJS.Require
     Object.assign(hostedRequire, extRequire)
     const mod: { exports: Record<string, unknown> } = { exports: {} }
     // eslint-disable-next-line no-new-func
     const wrapper = new Function('module', 'exports', 'require', '__dirname', '__filename', code)
     wrapper(mod, mod.exports, hostedRequire, dirname(mainPath), mainPath)
 
-    // Pull manifest fields needed for chat-hook attribution (extension chip
-     // in the renderer). Read here so we don't disk-hit on every hook fire.
-    const manifestForHooks = readManifestSync(join(getExtensionsDir(rootPath), id))
-
-    const ctx: ExtensionMainContext = {
+    const host: HostExtensionSurface = {
       rootPath,
       getSettings: async () => readSettings(rootPath) as unknown as Record<string, unknown>,
       updateSettings: async (patch: Record<string, unknown>) => {
@@ -239,20 +307,47 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
             extensionIcon: manifestForHooks?.icon,
             rootPath
           },
-          hooks
+          hooks,
+          manifestForHooks?.provides.hooks
         )
       },
       openAgentSession: ({ systemPrompt }: { systemPrompt: string }) =>
         createAgentSession({ rootPath, systemPrompt, ownerKey: key })
     }
 
+    const ctx: ExtensionMainContext = buildContext({
+      extensionId: id,
+      manifest: manifestForHooks,
+      host
+    })
+
     const register = mod.exports['register'] as ((ctx: ExtensionMainContext) => (() => void) | void) | undefined
     const cleanup = register?.(ctx)
     loadedMains.set(key, typeof cleanup === 'function' ? cleanup : () => {})
+
+    // Strict-mode reconciliation (#37): the manifest's declared tool and
+    // hook catalogs must match what `register(ctx)` actually wired into
+    // the runtime registries. Either side of any drift fails the load
+    // and unwinds the partial registration — the user sees the failure
+    // in the status bar, the extension's main module is not retained,
+    // and `getRegisteredExtensionTools` will not surface its tools to
+    // the agent.
+    try {
+      reconcileToolCatalog(id, manifestForHooks, extensionToolsRegistry.get(key) ?? [])
+      reconcileHookCatalog(id, key, manifestForHooks)
+    } catch (reconcileErr) {
+      const detail = (reconcileErr as Error).message
+      console.error(`[rose-ext] refusing to load ${id}: ${detail}`)
+      broadcastStatus(`Extension "${id}" failed to load: ${detail}`, 'error')
+      unloadExtensionMainModule(rootPath, id)
+    }
   } catch (err) {
+    const detail = (err as Error).message ?? String(err)
     console.error(`[rose-ext] Failed to load main module for ${id}:`, err)
+    broadcastStatus(`Extension "${id}" failed to load: ${detail}`, 'error')
   }
 }
+
 
 function unloadExtensionMainModule(rootPath: string, id: string): void {
   const key = `${rootPath}/${id}`
@@ -266,13 +361,33 @@ function unloadExtensionMainModule(rootPath: string, id: string): void {
   closeAgentSessionsForOwner(key)
 }
 
-function readManifestSync(extensionPath: string): ExtensionManifest | null {
+interface ManifestReadSyncOk {
+  ok: true
+  manifest: ExtensionManifest
+  warnings: ManifestValidationIssue[]
+}
+interface ManifestReadSyncFail {
+  ok: false
+  reason: 'parse' | 'validate'
+  errors: ManifestValidationIssue[]
+}
+
+function readManifestSyncStrict(extensionPath: string): ManifestReadSyncOk | ManifestReadSyncFail {
+  let parsed: unknown
   try {
     const raw = readFileSync(join(extensionPath, 'rose-extension.json'), 'utf-8')
-    return JSON.parse(raw) as ExtensionManifest
+    parsed = JSON.parse(raw)
   } catch {
-    return null
+    return { ok: false, reason: 'parse', errors: [{ path: '', message: 'rose-extension.json is missing or not valid JSON' }] }
   }
+  const result = validateManifest(parsed)
+  if (!result.ok) return { ok: false, reason: 'validate', errors: result.errors }
+  return { ok: true, manifest: result.manifest, warnings: result.warnings }
+}
+
+function readManifestSync(extensionPath: string): ExtensionManifest | null {
+  const r = readManifestSyncStrict(extensionPath)
+  return r.ok ? r.manifest : null
 }
 
 export async function listInstalledExtensions(rootPath: string): Promise<InstalledExtension[]> {
@@ -297,6 +412,45 @@ export async function listInstalledExtensions(rootPath: string): Promise<Install
   return results
 }
 
+// Pending installs awaiting user confirmation. Keyed by a per-install token
+// returned to the renderer; the renderer echoes the token back on
+// installConfirm / installCancel. Limits scope of the temp dir to the
+// install dialog's lifetime.
+interface PendingInstall {
+  rootPath: string
+  tmpDir: string
+  manifest: ExtensionManifest
+  createdAt: number
+}
+
+const pendingInstalls = new Map<string, PendingInstall>()
+
+function newInstallToken(): string {
+  // Plenty of entropy for an install-dialog lifetime; no need for crypto.
+  return `inst_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+async function finalizePendingInstall(pending: PendingInstall): Promise<{
+  destDir: string
+  manifest: ExtensionManifest
+  warning?: string
+}> {
+  const { rootPath, tmpDir, manifest } = pending
+  const extensionsDir = getExtensionsDir(rootPath)
+  await buildExtension(tmpDir)
+  const destDir = join(extensionsDir, manifest.id)
+  if (existsSync(destDir)) {
+    unloadExtensionMainModule(rootPath, manifest.id)
+    await rm(destDir, { recursive: true, force: true })
+  }
+  await rename(tmpDir, destDir)
+  await applyDefaultDisabledTools(rootPath, manifest)
+  const warning = hasInstalledBundle(destDir)
+    ? undefined
+    : 'Installed, but no main.js or renderer.js was found. Run the extension\'s build (e.g. npm run build) and reinstall.'
+  return { destDir, manifest, warning }
+}
+
 export function registerExtensionHandlers(): void {
   ipcMain.handle(IPC.EXTENSION_LIST, async (_event, rootPath: string) => {
     if (!rootPath) return { installed: [] }
@@ -316,8 +470,16 @@ export function registerExtensionHandlers(): void {
     try {
       await cloneRepo(trimmedUrl, tmpDir)
 
-      const manifest = await readManifest(tmpDir)
-      if (!manifest) throw new Error('Invalid extension: repository is missing rose-extension.json')
+      const manifestRead = await readManifestStrict(tmpDir)
+      if (!manifestRead.ok) {
+        const detail = formatManifestIssues(manifestRead.errors)
+        const intro = manifestRead.reason === 'parse'
+          ? 'Invalid extension: repository is missing rose-extension.json'
+          : 'Invalid extension manifest'
+        throw new Error(`${intro} (${detail})`)
+      }
+      const manifest = manifestRead.manifest
+      reportManifestWarnings(manifest.id, manifestRead.warnings)
 
       await buildExtension(tmpDir)
 
@@ -359,9 +521,13 @@ export function registerExtensionHandlers(): void {
       return { ok: false, error: 'Cannot install from a folder inside the extensions directory' }
     }
 
-    const manifestSource = await readManifest(absSource)
-    if (!manifestSource) {
-      return { ok: false, error: 'Folder is missing rose-extension.json' }
+    const manifestSourceRead = await readManifestStrict(absSource)
+    if (!manifestSourceRead.ok) {
+      const detail = formatManifestIssues(manifestSourceRead.errors)
+      const message = manifestSourceRead.reason === 'parse'
+        ? 'Folder is missing rose-extension.json'
+        : `Manifest is invalid: ${detail}`
+      return { ok: false, error: message }
     }
 
     const tmpDir = join(extensionsDir, `_install_${Date.now()}`)
@@ -369,8 +535,15 @@ export function registerExtensionHandlers(): void {
       await copyLocalSource(absSource, tmpDir)
 
       // Re-validate the manifest from the copy to avoid TOCTOU surprises
-      const manifest = await readManifest(tmpDir)
-      if (!manifest) throw new Error('Copied source is missing rose-extension.json')
+      const manifestRead = await readManifestStrict(tmpDir)
+      if (!manifestRead.ok) {
+        const detail = formatManifestIssues(manifestRead.errors)
+        throw new Error(manifestRead.reason === 'parse'
+          ? 'Copied source is missing rose-extension.json'
+          : `Copied manifest is invalid: ${detail}`)
+      }
+      const manifest = manifestRead.manifest
+      reportManifestWarnings(manifest.id, manifestRead.warnings)
 
       await buildExtension(tmpDir)
 
@@ -391,6 +564,123 @@ export function registerExtensionHandlers(): void {
       await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
       return { ok: false, error: (err as Error).message }
     }
+  })
+
+  // Preview install from a Git URL. Clones into a temp directory and reads
+  // the manifest WITHOUT building or moving it into place. The renderer
+  // shows the capability summary to the user, then calls installConfirm or
+  // installCancel.
+  ipcMain.handle(IPC.EXTENSION_INSTALL_PREVIEW_FROM_GIT, async (_event, rootPath: string, url: string) => {
+    if (!rootPath) return { ok: false, error: 'No project open' }
+    const trimmedUrl = String(url ?? '').trim()
+    if (!trimmedUrl) return { ok: false, error: 'Repository URL is required' }
+
+    await ensureExtensionsDir(rootPath)
+    const extensionsDir = getExtensionsDir(rootPath)
+    const tmpDir = join(extensionsDir, `_clone_${Date.now()}`)
+
+    try {
+      await cloneRepo(trimmedUrl, tmpDir)
+      const manifestRead = await readManifestStrict(tmpDir)
+      if (!manifestRead.ok) {
+        await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+        const detail = formatManifestIssues(manifestRead.errors)
+        const intro = manifestRead.reason === 'parse'
+          ? 'Invalid extension: repository is missing rose-extension.json'
+          : 'Invalid extension manifest'
+        return { ok: false, error: `${intro} (${detail})` }
+      }
+      const manifest = manifestRead.manifest
+      reportManifestWarnings(manifest.id, manifestRead.warnings)
+      const token = newInstallToken()
+      pendingInstalls.set(token, { rootPath, tmpDir, manifest, createdAt: Date.now() })
+      return { ok: true, token, manifest }
+    } catch (err) {
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+      return { ok: false, error: (err as Error).message }
+    }
+  })
+
+  // Preview install from a local folder. Copies into a temp directory under
+  // the project's extensions dir (so the rename step on confirm is on the
+  // same volume) and reads the manifest WITHOUT building or moving it into
+  // place.
+  ipcMain.handle(IPC.EXTENSION_INSTALL_PREVIEW_FROM_DISK, async (_event, rootPath: string, sourcePath: string) => {
+    if (!rootPath) return { ok: false, error: 'No project open' }
+    const trimmed = String(sourcePath ?? '').trim()
+    if (!trimmed) return { ok: false, error: 'Source folder is required' }
+
+    const absSource = resolvePath(trimmed)
+    let st: Awaited<ReturnType<typeof stat>>
+    try {
+      st = await stat(absSource)
+    } catch {
+      return { ok: false, error: `Folder does not exist: ${absSource}` }
+    }
+    if (!st.isDirectory()) return { ok: false, error: 'Source path is not a directory' }
+
+    await ensureExtensionsDir(rootPath)
+    const extensionsDir = getExtensionsDir(rootPath)
+    const absExtensionsDir = resolvePath(extensionsDir)
+    if (absSource === absExtensionsDir || absSource.startsWith(absExtensionsDir + (process.platform === 'win32' ? '\\' : '/'))) {
+      return { ok: false, error: 'Cannot install from a folder inside the extensions directory' }
+    }
+
+    const manifestSourceRead = await readManifestStrict(absSource)
+    if (!manifestSourceRead.ok) {
+      const detail = formatManifestIssues(manifestSourceRead.errors)
+      const message = manifestSourceRead.reason === 'parse'
+        ? 'Folder is missing rose-extension.json'
+        : `Manifest is invalid: ${detail}`
+      return { ok: false, error: message }
+    }
+
+    const tmpDir = join(extensionsDir, `_install_${Date.now()}`)
+    try {
+      await copyLocalSource(absSource, tmpDir)
+      const manifestRead = await readManifestStrict(tmpDir)
+      if (!manifestRead.ok) {
+        await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+        const detail = formatManifestIssues(manifestRead.errors)
+        return {
+          ok: false,
+          error: manifestRead.reason === 'parse'
+            ? 'Copied source is missing rose-extension.json'
+            : `Copied manifest is invalid: ${detail}`
+        }
+      }
+      const manifest = manifestRead.manifest
+      reportManifestWarnings(manifest.id, manifestRead.warnings)
+      const token = newInstallToken()
+      pendingInstalls.set(token, { rootPath, tmpDir, manifest, createdAt: Date.now() })
+      return { ok: true, token, manifest }
+    } catch (err) {
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+      return { ok: false, error: (err as Error).message }
+    }
+  })
+
+  // Build + move-into-place the pending install identified by token.
+  ipcMain.handle(IPC.EXTENSION_INSTALL_CONFIRM, async (_event, token: string) => {
+    const pending = pendingInstalls.get(token)
+    if (!pending) return { ok: false, error: 'Install session expired or unknown' }
+    pendingInstalls.delete(token)
+    try {
+      const { manifest, warning } = await finalizePendingInstall(pending)
+      return { ok: true, manifest, warning }
+    } catch (err) {
+      await rm(pending.tmpDir, { recursive: true, force: true }).catch(() => {})
+      return { ok: false, error: (err as Error).message }
+    }
+  })
+
+  // Delete the temp dir for a previewed-but-not-confirmed install.
+  ipcMain.handle(IPC.EXTENSION_INSTALL_CANCEL, async (_event, token: string) => {
+    const pending = pendingInstalls.get(token)
+    if (!pending) return { ok: true }
+    pendingInstalls.delete(token)
+    await rm(pending.tmpDir, { recursive: true, force: true }).catch(() => {})
+    return { ok: true }
   })
 
   ipcMain.handle(IPC.EXTENSION_UNINSTALL, async (_event, rootPath: string, id: string) => {

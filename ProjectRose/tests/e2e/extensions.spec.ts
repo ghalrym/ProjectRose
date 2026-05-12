@@ -5,12 +5,31 @@ import { screenshot } from './fixtures/screenshot'
 import { mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
-// Replace the install-from-git IPC handler with a no-op that returns success.
-// The actual extension files are staged from the test process via stageFakeExtension.
+// Stub out the two-step install IPCs so the renderer's INSTALL button:
+//   1) installPreviewFromGit -> returns a fake token + the manifest the test
+//      will stage on disk (no real git clone),
+//   2) installConfirm        -> returns ok (no real build/move).
+// After installConfirm the renderer re-fetches via extension:list, which goes
+// to the real handler and reads whatever stageFakeExtension wrote to disk.
 async function mockInstallHandler(app: ElectronApplication): Promise<void> {
   await app.evaluate(({ ipcMain }) => {
-    ipcMain.removeHandler('extension:installFromGit')
+    for (const channel of ['extension:installFromGit', 'extension:installPreviewFromGit', 'extension:installConfirm']) {
+      try { ipcMain.removeHandler(channel) } catch { /* not registered */ }
+    }
     ipcMain.handle('extension:installFromGit', async () => ({ ok: true }))
+    ipcMain.handle('extension:installPreviewFromGit', async () => ({
+      ok: true,
+      token: 'test-token',
+      manifest: {
+        id: 'rose-preview-stub',
+        name: 'Preview Stub',
+        version: '0.1.0',
+        description: 'Stub manifest returned by mocked preview IPC',
+        author: 'Test',
+        provides: { pageView: true }
+      }
+    }))
+    ipcMain.handle('extension:installConfirm', async () => ({ ok: true }))
   })
 }
 
@@ -46,7 +65,9 @@ exports.SettingsView = SettingsView;
 // Open the dock Settings shortcut, expand the Extensions sidebar item, wait
 // for the install form (now rendered directly on the Extensions page — no
 // separate Manage tab anymore), stage the extension on disk, then submit the
-// URL form. The mocked IPC handler returns ok and the renderer re-lists,
+// URL form. The mocked preview IPC returns ok + a token so the renderer
+// shows the install confirmation dialog; we click its INSTALL button to
+// finalize. After confirm, the renderer re-fetches via extension:list,
 // picking up the staged extension as newly installed.
 async function installViaUrlForm(
   win: import('playwright').Page,
@@ -58,6 +79,11 @@ async function installViaUrlForm(
   stage()
   await win.getByPlaceholder(/github\.com/).fill('https://example.test/repo.git')
   await win.getByRole('button', { name: /^INSTALL$/ }).first().click()
+  // The mocked preview IPC opens an install-confirmation dialog. Click its
+  // INSTALL button (scoped to the dialog so it can't match the URL form's).
+  const dialog = win.getByRole('dialog', { name: /^Install / })
+  await dialog.waitFor({ state: 'visible', timeout: 5000 })
+  await dialog.getByRole('button', { name: /^INSTALL$/ }).click()
   await win.waitForTimeout(1500)
 }
 

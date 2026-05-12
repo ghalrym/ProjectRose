@@ -48,6 +48,37 @@ export interface ChatHook {
   type: HookType
   handler: (event: HookEvent) => Promise<HookResult | void> | HookResult | void
   allowMultiple?: boolean
+  /**
+   * Optional firing order. Lower priority fires first. Hooks default to `100`.
+   * Hooks with equal priority fire in registration order (the host preserves
+   * the order each extension's `registerHooks(...)` call established, and
+   * extensions register in the host's load order).
+   */
+  priority?: number
+}
+
+/**
+ * Per-hook-type injection policy declared on the manifest.
+ *
+ * - `'first-wins'` — the first hook that returns `{ inject: '...' }` for a
+ *   given event ends the dispatch. This is the historical behaviour and the
+ *   default for hooks that don't declare a policy.
+ * - `'all'` — every matching hook is allowed to inject, up to each
+ *   extension's per-turn budget (`MAX_INJECTIONS_PER_TURN_WHEN_ALLOW_MULTIPLE`
+ *   when `allowMultiple: true`, else 1). The host concatenates the injection
+ *   strings with double-newline separators.
+ */
+export type HookInjectionPolicy = 'first-wins' | 'all'
+
+/**
+ * Manifest declaration of a chat hook the extension provides. Lives at
+ * `manifest.provides.hooks[]`. Optional — extensions that omit the
+ * declaration get today's defaults (`first-wins`, priority `100`).
+ */
+export interface ChatHookManifestEntry {
+  type: HookType
+  injectionPolicy?: HookInjectionPolicy
+  priority?: number
 }
 
 export interface InjectionRecord {
@@ -58,3 +89,9 @@ export interface InjectionRecord {
 }
 
 export const MAX_INJECTIONS_PER_TURN_WHEN_ALLOW_MULTIPLE = 5
+
+/** Default firing-order priority for hooks that don't declare one. */
+export const DEFAULT_HOOK_PRIORITY = 100
+
+/** Default injection policy for hook types not listed in `provides.hooks[]`. */
+export const DEFAULT_INJECTION_POLICY: HookInjectionPolicy = 'first-wins'
