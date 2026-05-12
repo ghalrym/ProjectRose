@@ -10,9 +10,9 @@ import { readSettings, writeSettings, registerSensitiveExtensionFields } from '.
 import { runAgentOnce } from '../services/aiService'
 import { registerHooks as registerExtensionHooks, unregisterHooks as unregisterExtensionHooks } from '../services/extensionHooks'
 import { create as createAgentSession, closeAllForOwner as closeAgentSessionsForOwner } from '../services/agentSession'
-import type { AgentSession } from '../services/agentSession'
 import type { ChatHook } from '../../shared/extensionHooks'
 import type { InstalledExtension, ExtensionManifest, ExtensionToolEntry } from '../../shared/extension-types'
+import type { ExtensionMainContext } from '../../shared/extension-contract'
 
 function getExtensionsDir(rootPath: string): string {
   return prPath(rootPath, 'extensions')
@@ -148,27 +148,6 @@ const extensionToolsRegistry = new Map<string, ExtensionToolEntry[]>()
 
 export function getRegisteredExtensionTools(rootPath: string, enabledIds: string[]): ExtensionToolEntry[] {
   return enabledIds.flatMap((id) => extensionToolsRegistry.get(`${rootPath}/${id}`) ?? [])
-}
-
-interface ExtensionMainContext {
-  rootPath: string
-  getSettings: () => Promise<Record<string, unknown>>
-  updateSettings: (patch: Record<string, unknown>) => Promise<void>
-  broadcast: (channel: string, data: unknown) => void
-  // Surface a transient message in the renderer's bottom status bar.
-  notifyStatus: (text: string, opts?: { tone?: 'info' | 'success' | 'error' | 'warning'; durationMs?: number }) => void
-  registerTools: (tools: ExtensionToolEntry[]) => void
-  // Mark settings keys as sensitive so they're stored in userData/settings.json
-  // instead of the project repo config (where they could be committed).
-  registerSensitiveFields: (keys: string[]) => void
-  runBackgroundAgent: (prompt: string, systemPrompt: string) => Promise<string>
-  // Register chat hooks. Hooks fire only for the user-visible main chat;
-  // they do NOT fire inside runBackgroundAgent or openAgentSession.send.
-  registerHooks: (hooks: ChatHook[]) => void
-  // Open a multi-turn agent session. Each session keeps its own message
-  // history; subsequent send() calls reuse it. Hooks do not fire during
-  // these calls.
-  openAgentSession: (opts: { systemPrompt: string }) => AgentSession
 }
 
 function loadExtensionMainModule(rootPath: string, id: string): void {
