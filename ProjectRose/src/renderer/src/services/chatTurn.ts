@@ -198,7 +198,9 @@ export async function cancelGeneration(): Promise<void> {
 
 export async function answerAskUser(questionId: string, answer: string): Promise<void> {
   useChatTimelineStore.getState().applyAnswer({ questionId, answer })
-  await window.api.aiAskUserResponse(questionId, answer)
+  const sessionId = useSessionsStore.getState().currentSessionId
+  if (!sessionId) return
+  await window.api.aiAskUserResponse(sessionId, questionId, answer)
 }
 
 export async function refreshContextStatus(rootPath: string): Promise<void> {

@@ -431,7 +431,8 @@ describe('chatTurn', () => {
   })
 
   describe('answerAskUser', () => {
-    it('writes the answer to the timeline AND notifies the main process', async () => {
+    it('writes the answer to the timeline AND notifies the main process with the active sessionId', async () => {
+      useSessionsStore.setState({ currentSessionId: 'sess-1' })
       useChatTimelineStore.getState().appendAskUser({
         questionId: 'q1',
         question: 'q?',
@@ -442,7 +443,18 @@ describe('chatTurn', () => {
         .getState()
         .messages.find((m) => m.role === 'ask_user')
       expect((ask as { answer?: string } | undefined)?.answer).toBe('Yes')
-      expect(api.aiAskUserResponse).toHaveBeenCalledWith('q1', 'Yes')
+      expect(api.aiAskUserResponse).toHaveBeenCalledWith('sess-1', 'q1', 'Yes')
+    })
+
+    it('does not call the main process when there is no active session', async () => {
+      useSessionsStore.setState({ currentSessionId: null })
+      useChatTimelineStore.getState().appendAskUser({
+        questionId: 'q1',
+        question: 'q?',
+        options: [],
+      })
+      await answerAskUser('q1', 'Yes')
+      expect(api.aiAskUserResponse).not.toHaveBeenCalled()
     })
   })
 

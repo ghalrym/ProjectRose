@@ -23,6 +23,7 @@ import type { InjectionRecord } from '../../shared/extensionHooks'
 import { fireThoughtHook, fireMessageHook, fireTokenHook, fireToolCallHook } from './extensionHooks'
 import { loadSession } from '../lib/session'
 import { WEB_BASE_URL } from '../lib/webConfig'
+import { sessionRegistry } from './sessionRegistry'
 
 function notifyRenderer(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -30,19 +31,6 @@ function notifyRenderer(channel: string, payload: unknown): void {
       win.webContents.send(channel, payload)
     }
   }
-}
-
-// Ask-user pending promises — keyed by toolCallId
-const pendingAskUser = new Map<string, (answer: string) => void>()
-
-export function resolveAskUserQuestion(questionId: string, answer: string): void {
-  pendingAskUser.get(questionId)?.(answer)
-  pendingAskUser.delete(questionId)
-}
-
-export function cancelAllAskUserQuestions(): void {
-  for (const resolve of pendingAskUser.values()) resolve('[cancelled]')
-  pendingAskUser.clear()
 }
 
 // Screenshot tool — pending captures keyed by toolCallId. The renderer
@@ -384,8 +372,15 @@ function buildCoreTools(projectRoot: string, emit: EmitFn, toolCtx: ExtensionToo
       }),
       execute: async (input, options) => {
         const id = options.toolCallId
+        const session = sessionRegistry.get(toolCtx.sessionId)
+        if (!session) {
+          // No registered session — happens only if the tool runs outside a
+          // ChatSession-managed turn (no current path does this). Return
+          // the cancelled sentinel rather than hang forever.
+          return '[cancelled]'
+        }
         return new Promise<string>((resolve) => {
-          pendingAskUser.set(id, resolve)
+          session.pendingAskUser.set(id, resolve)
           emit(IPC.AI_ASK_USER, { questionId: id, question: input.question, options: input.options ?? [] })
         })
       }

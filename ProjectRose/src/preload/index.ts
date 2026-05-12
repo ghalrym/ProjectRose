@@ -257,8 +257,8 @@ const api = {
     return () => { ipcRenderer.removeListener(IPC.AI_ASK_USER, handler) }
   },
 
-  aiAskUserResponse: (questionId: string, answer: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.AI_ASK_USER_RESPONSE, { questionId, answer }),
+  aiAskUserResponse: (sessionId: string, questionId: string, answer: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.AI_ASK_USER_RESPONSE, { sessionId, questionId, answer }),
 
   onAiInjectedMessage: (callback: (data: { extensionId: string; extensionName: string; extensionIcon?: string; content: string }) => void): (() => void) => {
     const handler = (_e: unknown, data: { extensionId: string; extensionName: string; extensionIcon?: string; content: string }): void => callback(data)
