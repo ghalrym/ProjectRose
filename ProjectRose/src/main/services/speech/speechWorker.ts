@@ -1,5 +1,5 @@
 import { workerData, parentPort } from 'worker_threads'
-import { initCacheDir as initWhisperCache, transcribe, setModel as setWhisperModel } from './whisperService'
+import { initCacheDir as initWhisperCache, transcribeWav, setModel as setWhisperModel } from './transcriptionEngine'
 import { initCacheDir as initSpeakerCache, embed } from './speakerService'
 import { webmToWav, cleanupWav } from './audioService'
 
@@ -52,11 +52,13 @@ function drain(): void {
 }
 
 async function runJob({ jobId, audioBuffer, whisperModel }: ChunkJob): Promise<void> {
+  setWhisperModel(whisperModel)
+  // The worker keeps its own webm->wav step because it also needs the wav
+  // for the speaker-embedding model (a single conversion serves both).
   let wavPath: string | null = null
   try {
-    setWhisperModel(whisperModel)
     wavPath = await webmToWav(audioBuffer)
-    const text = await transcribe(wavPath)
+    const text = await transcribeWav(wavPath)
     if (!text) {
       parentPort!.postMessage({ type: 'result', jobId, text: null, embedding: null })
       return

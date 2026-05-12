@@ -1,5 +1,5 @@
 import path from 'path'
-import { readWavAsPCM } from './audioService'
+import { readWavAsPCM, webmToWav, cleanupWav } from './audioService'
 
 type TranscriptionPipeline = (
   input: Float32Array,
@@ -41,9 +41,9 @@ async function getPipeline(): Promise<TranscriptionPipeline> {
 }
 
 // ~-40 dBFS. Silence and ambient noise sit well below this; normal speech well above.
-const SILENCE_RMS_THRESHOLD = 0.01
+export const SILENCE_RMS_THRESHOLD = 0.01
 
-function rms(pcm: Float32Array): number {
+export function rms(pcm: Float32Array): number {
   let sum = 0
   for (let i = 0; i < pcm.length; i++) sum += pcm[i] * pcm[i]
   return Math.sqrt(sum / pcm.length)
@@ -60,18 +60,22 @@ const HALLUCINATION_PATTERNS: RegExp[] = [
   /^[\s.,!?]+$/,                                // punctuation only
 ]
 
-function isSilentOrHallucination(text: string): boolean {
+export function isSilentOrHallucination(text: string): boolean {
   const t = text.trim()
   if (t.length === 0) return true
   if (t.length <= 2) return true                // single char / emoji artifact
   return HALLUCINATION_PATTERNS.some((p) => p.test(t))
 }
 
-export async function transcribe(wavPath: string): Promise<string> {
+/**
+ * Transcribe a wav file at `wavPath`. Returns the transcribed text, or an
+ * empty string if the audio was silence or whisper hallucinated.
+ */
+export async function transcribeWav(wavPath: string): Promise<string> {
   const pipe = await getPipeline()
   const pcm = readWavAsPCM(wavPath)
 
-  // Gate on energy — don't send silence to Whisper at all
+  // Gate on energy — don't send silence to Whisper at all.
   if (rms(pcm) < SILENCE_RMS_THRESHOLD) return ''
 
   const result = await pipe(pcm, { sampling_rate: 16000 })
@@ -79,4 +83,19 @@ export async function transcribe(wavPath: string): Promise<string> {
 
   if (isSilentOrHallucination(text)) return ''
   return text
+}
+
+/**
+ * Transcribe a webm audio buffer end-to-end: convert to wav, run whisper,
+ * filter silence and hallucinations. This is the entry point both the
+ * one-shot chat-input path and the streaming session path call.
+ */
+export async function transcribe(audioBuffer: ArrayBuffer): Promise<string> {
+  let wavPath: string | null = null
+  try {
+    wavPath = await webmToWav(audioBuffer)
+    return await transcribeWav(wavPath)
+  } finally {
+    if (wavPath) cleanupWav(wavPath)
+  }
 }
