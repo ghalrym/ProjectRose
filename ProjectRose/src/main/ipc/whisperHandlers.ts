@@ -1,13 +1,16 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
 import { readSettings } from './settingsHandlers'
-import { transcribe } from '../services/speech/whisperService'
+import { transcribe, setModel } from '../services/speech/whisperService'
 import { webmToWav, cleanupWav, saveRecording } from '../services/speech/audioService'
 
 export function registerWhisperHandlers(): void {
   ipcMain.handle(IPC.WHISPER_TRANSCRIBE, async (_event, audioBuffer: ArrayBuffer) => {
     let wavPath: string | null = null
     try {
+      const settings = await readSettings()
+      setModel(settings.whisperModel)
+
       wavPath = await webmToWav(audioBuffer)
       const text = await transcribe(wavPath)
 

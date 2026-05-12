@@ -6,21 +6,35 @@ type TranscriptionPipeline = (
   opts: { sampling_rate: number }
 ) => Promise<{ text: string }>
 
+const DEFAULT_WHISPER_MODEL = 'Xenova/whisper-tiny.en'
+
 let _pipeline: TranscriptionPipeline | null = null
+let _pipelineModelId: string | null = null
+let _currentModelId = DEFAULT_WHISPER_MODEL
 let _cacheDir = ''
 
 export function initCacheDir(dir: string): void { _cacheDir = dir }
 
+export function setModel(modelId: string): void {
+  const next = modelId || DEFAULT_WHISPER_MODEL
+  if (next === _currentModelId) return
+  _currentModelId = next
+  // Drop the cached pipeline so the next transcription reloads the new model.
+  _pipeline = null
+  _pipelineModelId = null
+}
+
 async function getPipeline(): Promise<TranscriptionPipeline> {
-  if (_pipeline) return _pipeline
+  if (_pipeline && _pipelineModelId === _currentModelId) return _pipeline
 
   const { pipeline, env } = await import('@huggingface/transformers')
   env.cacheDir = path.join(_cacheDir, 'hf-models')
 
-  console.log('[Speech] Loading Whisper model (first use — may take a moment)...')
-  _pipeline = (await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+  console.log(`[Speech] Loading Whisper model ${_currentModelId} (first use — may take a moment)...`)
+  _pipeline = (await pipeline('automatic-speech-recognition', _currentModelId, {
     dtype: 'q8'
   })) as unknown as TranscriptionPipeline
+  _pipelineModelId = _currentModelId
   console.log('[Speech] Whisper ready')
 
   return _pipeline

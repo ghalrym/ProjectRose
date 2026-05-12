@@ -12,6 +12,7 @@ interface SettingsState {
   roseSpeechSpeakerId: number | null
   activeListeningSetupComplete: boolean
   activeListeningDraftSeconds: number
+  whisperModel: string
   models: ModelConfig[]
   defaultModelId: string
   providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string } }
@@ -44,6 +45,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   roseSpeechSpeakerId: null,
   activeListeningSetupComplete: false,
   activeListeningDraftSeconds: 8,
+  whisperModel: 'Xenova/whisper-tiny.en',
   models: [],
   defaultModelId: '',
   providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' } },

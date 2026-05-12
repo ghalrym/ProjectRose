@@ -2,6 +2,7 @@ import { Worker } from 'worker_threads'
 import { app, BrowserWindow } from 'electron'
 import path from 'path'
 import { IPC } from '../../../shared/ipcChannels'
+import { readSettings } from '../../ipc/settingsHandlers'
 import { saveRecording } from './audioService'
 import { identify } from './speakerService'
 import * as db from './speechDB'
@@ -104,12 +105,15 @@ export async function processChunk(
   const jobId = nextJobId++
   pendingJobs.set(jobId, { sessionId, projectPath, audioBuffer })
 
+  const settings = await readSettings()
+
   // Send a copy to the worker so we keep the original for saveRecording
   getWorker().postMessage({
     type: 'processChunk',
     jobId,
     sessionId,
     audioBuffer: audioBuffer.slice(0),
-    projectPath
+    projectPath,
+    whisperModel: settings.whisperModel
   })
 }

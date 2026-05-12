@@ -1,6 +1,6 @@
 import { workerData, parentPort } from 'worker_threads'
 import path from 'path'
-import { initCacheDir as initWhisperCache, transcribe } from './whisperService'
+import { initCacheDir as initWhisperCache, transcribe, setModel as setWhisperModel } from './whisperService'
 import { initCacheDir as initSpeakerCache, embed } from './speakerService'
 import { webmToWav, cleanupWav } from './audioService'
 
@@ -16,6 +16,7 @@ interface ChunkJob {
   sessionId: number
   audioBuffer: ArrayBuffer
   projectPath: string
+  whisperModel: string
 }
 
 const queue: ChunkJob[] = []
@@ -33,7 +34,8 @@ parentPort!.on('message', (msg: { type: string } & ChunkJob) => {
     jobId: msg.jobId,
     sessionId: msg.sessionId,
     audioBuffer: msg.audioBuffer,
-    projectPath: msg.projectPath
+    projectPath: msg.projectPath,
+    whisperModel: msg.whisperModel
   })
 
   if (!busy) drain()
@@ -48,9 +50,10 @@ function drain(): void {
     .finally(() => drain())
 }
 
-async function runJob({ jobId, sessionId, audioBuffer, projectPath }: ChunkJob): Promise<void> {
+async function runJob({ jobId, sessionId, audioBuffer, projectPath, whisperModel }: ChunkJob): Promise<void> {
   let wavPath: string | null = null
   try {
+    setWhisperModel(whisperModel)
     wavPath = await webmToWav(audioBuffer)
     const text = await transcribe(wavPath)
     if (!text) {

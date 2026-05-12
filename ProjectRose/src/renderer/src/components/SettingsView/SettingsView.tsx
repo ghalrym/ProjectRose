@@ -354,7 +354,7 @@ function UsageBar({ usage, loading, error, onRefresh }: {
 
 export function SettingsView(): JSX.Element {
   const {
-    micDeviceId, userName, agentName, activeListeningDraftSeconds,
+    micDeviceId, userName, agentName, activeListeningDraftSeconds, whisperModel,
     models, defaultModelId, providerKeys, router,
     includeThinkingInContext, agentStartsExpanded, compressionThresholdPct,
     ollamaBaseUrl, openaiCompatBaseUrl, openaiCompatApiKey,
@@ -876,6 +876,24 @@ export function SettingsView(): JSX.Element {
                 }
               }}
             />
+          </div>
+          <div className={styles.settingRow}>
+            <div className={styles.settingInfo}>
+              <div className={styles.settingLabel}>Speech-to-text model</div>
+              <div className={styles.settingDesc}>
+                Larger models transcribe more accurately but use more CPU. The new model downloads on its first use (~40 MB to ~1.5 GB depending on size) and is cached after.
+              </div>
+            </div>
+            <select
+              className={styles.select}
+              value={whisperModel}
+              onChange={(e) => update({ whisperModel: e.target.value })}
+            >
+              <option value="Xenova/whisper-tiny.en">Tiny (English) — fastest, ~40 MB</option>
+              <option value="Xenova/whisper-base.en">Base (English) — ~150 MB</option>
+              <option value="Xenova/whisper-small.en">Small (English) — recommended, ~500 MB</option>
+              <option value="Xenova/whisper-medium.en">Medium (English) — best quality, ~1.5 GB</option>
+            </select>
           </div>
         </section>
 
