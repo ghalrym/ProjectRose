@@ -52,6 +52,26 @@ export {
   formatManifestIssues
 } from './extension-manifest-validator'
 
+// --- User-facing capability copy -------------------------------------------
+// Single source of truth for the human-readable description of each
+// capability. The install dialog renders these so the user sees what an
+// extension is asking for before accepting. Keep entries terse and
+// action-oriented; this is permission copy, not documentation.
+import type { Capability as _Capability } from './extension-manifest-validator'
+
+export const capabilityLabels: Readonly<Record<_Capability, string>> = Object.freeze({
+  pageView: 'Show a panel in the sidebar',
+  main: 'Run main-process code',
+  projectSettings: 'Read/write project-scoped settings',
+  globalSettings: 'Read/write global settings',
+  agentTools: 'Register agent tools',
+  chatHooks: 'Modify chat behavior (hooks)',
+  agentSession: 'Open additional agent sessions',
+  backgroundAgent: 'Run scheduled background tasks',
+  notifyStatus: 'Show status notifications',
+  broadcast: 'Broadcast IPC events'
+})
+
 // --- Agent session ---------------------------------------------------------
 // Note: this re-exports only the type. The session implementation lives in
 // the host (`src/main/services/agentSession.ts`) and is constructed by the

@@ -398,6 +398,45 @@ export async function listInstalledExtensions(rootPath: string): Promise<Install
   return results
 }
 
+// Pending installs awaiting user confirmation. Keyed by a per-install token
+// returned to the renderer; the renderer echoes the token back on
+// installConfirm / installCancel. Limits scope of the temp dir to the
+// install dialog's lifetime.
+interface PendingInstall {
+  rootPath: string
+  tmpDir: string
+  manifest: ExtensionManifest
+  createdAt: number
+}
+
+const pendingInstalls = new Map<string, PendingInstall>()
+
+function newInstallToken(): string {
+  // Plenty of entropy for an install-dialog lifetime; no need for crypto.
+  return `inst_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+async function finalizePendingInstall(pending: PendingInstall): Promise<{
+  destDir: string
+  manifest: ExtensionManifest
+  warning?: string
+}> {
+  const { rootPath, tmpDir, manifest } = pending
+  const extensionsDir = getExtensionsDir(rootPath)
+  await buildExtension(tmpDir)
+  const destDir = join(extensionsDir, manifest.id)
+  if (existsSync(destDir)) {
+    unloadExtensionMainModule(rootPath, manifest.id)
+    await rm(destDir, { recursive: true, force: true })
+  }
+  await rename(tmpDir, destDir)
+  await applyDefaultDisabledTools(rootPath, manifest)
+  const warning = hasInstalledBundle(destDir)
+    ? undefined
+    : 'Installed, but no main.js or renderer.js was found. Run the extension\'s build (e.g. npm run build) and reinstall.'
+  return { destDir, manifest, warning }
+}
+
 export function registerExtensionHandlers(): void {
   ipcMain.handle(IPC.EXTENSION_LIST, async (_event, rootPath: string) => {
     if (!rootPath) return { installed: [] }
@@ -511,6 +550,123 @@ export function registerExtensionHandlers(): void {
       await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
       return { ok: false, error: (err as Error).message }
     }
+  })
+
+  // Preview install from a Git URL. Clones into a temp directory and reads
+  // the manifest WITHOUT building or moving it into place. The renderer
+  // shows the capability summary to the user, then calls installConfirm or
+  // installCancel.
+  ipcMain.handle(IPC.EXTENSION_INSTALL_PREVIEW_FROM_GIT, async (_event, rootPath: string, url: string) => {
+    if (!rootPath) return { ok: false, error: 'No project open' }
+    const trimmedUrl = String(url ?? '').trim()
+    if (!trimmedUrl) return { ok: false, error: 'Repository URL is required' }
+
+    await ensureExtensionsDir(rootPath)
+    const extensionsDir = getExtensionsDir(rootPath)
+    const tmpDir = join(extensionsDir, `_clone_${Date.now()}`)
+
+    try {
+      await cloneRepo(trimmedUrl, tmpDir)
+      const manifestRead = await readManifestStrict(tmpDir)
+      if (!manifestRead.ok) {
+        await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+        const detail = formatManifestIssues(manifestRead.errors)
+        const intro = manifestRead.reason === 'parse'
+          ? 'Invalid extension: repository is missing rose-extension.json'
+          : 'Invalid extension manifest'
+        return { ok: false, error: `${intro} (${detail})` }
+      }
+      const manifest = manifestRead.manifest
+      reportManifestWarnings(manifest.id, manifestRead.warnings)
+      const token = newInstallToken()
+      pendingInstalls.set(token, { rootPath, tmpDir, manifest, createdAt: Date.now() })
+      return { ok: true, token, manifest }
+    } catch (err) {
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+      return { ok: false, error: (err as Error).message }
+    }
+  })
+
+  // Preview install from a local folder. Copies into a temp directory under
+  // the project's extensions dir (so the rename step on confirm is on the
+  // same volume) and reads the manifest WITHOUT building or moving it into
+  // place.
+  ipcMain.handle(IPC.EXTENSION_INSTALL_PREVIEW_FROM_DISK, async (_event, rootPath: string, sourcePath: string) => {
+    if (!rootPath) return { ok: false, error: 'No project open' }
+    const trimmed = String(sourcePath ?? '').trim()
+    if (!trimmed) return { ok: false, error: 'Source folder is required' }
+
+    const absSource = resolvePath(trimmed)
+    let st: Awaited<ReturnType<typeof stat>>
+    try {
+      st = await stat(absSource)
+    } catch {
+      return { ok: false, error: `Folder does not exist: ${absSource}` }
+    }
+    if (!st.isDirectory()) return { ok: false, error: 'Source path is not a directory' }
+
+    await ensureExtensionsDir(rootPath)
+    const extensionsDir = getExtensionsDir(rootPath)
+    const absExtensionsDir = resolvePath(extensionsDir)
+    if (absSource === absExtensionsDir || absSource.startsWith(absExtensionsDir + (process.platform === 'win32' ? '\\' : '/'))) {
+      return { ok: false, error: 'Cannot install from a folder inside the extensions directory' }
+    }
+
+    const manifestSourceRead = await readManifestStrict(absSource)
+    if (!manifestSourceRead.ok) {
+      const detail = formatManifestIssues(manifestSourceRead.errors)
+      const message = manifestSourceRead.reason === 'parse'
+        ? 'Folder is missing rose-extension.json'
+        : `Manifest is invalid: ${detail}`
+      return { ok: false, error: message }
+    }
+
+    const tmpDir = join(extensionsDir, `_install_${Date.now()}`)
+    try {
+      await copyLocalSource(absSource, tmpDir)
+      const manifestRead = await readManifestStrict(tmpDir)
+      if (!manifestRead.ok) {
+        await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+        const detail = formatManifestIssues(manifestRead.errors)
+        return {
+          ok: false,
+          error: manifestRead.reason === 'parse'
+            ? 'Copied source is missing rose-extension.json'
+            : `Copied manifest is invalid: ${detail}`
+        }
+      }
+      const manifest = manifestRead.manifest
+      reportManifestWarnings(manifest.id, manifestRead.warnings)
+      const token = newInstallToken()
+      pendingInstalls.set(token, { rootPath, tmpDir, manifest, createdAt: Date.now() })
+      return { ok: true, token, manifest }
+    } catch (err) {
+      await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+      return { ok: false, error: (err as Error).message }
+    }
+  })
+
+  // Build + move-into-place the pending install identified by token.
+  ipcMain.handle(IPC.EXTENSION_INSTALL_CONFIRM, async (_event, token: string) => {
+    const pending = pendingInstalls.get(token)
+    if (!pending) return { ok: false, error: 'Install session expired or unknown' }
+    pendingInstalls.delete(token)
+    try {
+      const { manifest, warning } = await finalizePendingInstall(pending)
+      return { ok: true, manifest, warning }
+    } catch (err) {
+      await rm(pending.tmpDir, { recursive: true, force: true }).catch(() => {})
+      return { ok: false, error: (err as Error).message }
+    }
+  })
+
+  // Delete the temp dir for a previewed-but-not-confirmed install.
+  ipcMain.handle(IPC.EXTENSION_INSTALL_CANCEL, async (_event, token: string) => {
+    const pending = pendingInstalls.get(token)
+    if (!pending) return { ok: true }
+    pendingInstalls.delete(token)
+    await rm(pending.tmpDir, { recursive: true, force: true }).catch(() => {})
+    return { ok: true }
   })
 
   ipcMain.handle(IPC.EXTENSION_UNINSTALL, async (_event, rootPath: string, id: string) => {
