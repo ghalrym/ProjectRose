@@ -547,9 +547,14 @@ export async function streamChat(params: {
 
   const fireBoundary = async (kind: 'thought' | 'message', content: string): Promise<void> => {
     if (!hookCtx || !params.collectInjections || content.length === 0) return
+    // Injection budget lives on the ChatSession — look it up by sessionId.
+    // No registered session means we're outside a turn (no current path
+    // reaches this branch), in which case skip injecting.
+    const session = sessionRegistry.get(params.sessionId)
+    if (!session) return
     const rec = kind === 'thought'
-      ? await fireThoughtHook(content, hookCtx.turnId, hookCtx.rootPath)
-      : await fireMessageHook(content, hookCtx.turnId, hookCtx.rootPath)
+      ? await fireThoughtHook(content, hookCtx.turnId, hookCtx.rootPath, session)
+      : await fireMessageHook(content, hookCtx.turnId, hookCtx.rootPath, session)
     if (rec) params.collectInjections(rec)
   }
 

@@ -15,7 +15,7 @@ import { listInstalledExtensions, getRegisteredExtensionTools } from '../ipc/ext
 import { buildRoseMd } from '../ipc/roseSetupHandlers'
 import { buildSubagentTools } from './subagentTools'
 import { buildSkillTools, getSessionSkillsPrompt } from './skillService'
-import { resetTurnBudgets, fireUserMessageHook } from './extensionHooks'
+import { fireUserMessageHook } from './extensionHooks'
 import { loadExtensionPrompts } from '../ipc/promptHandlers'
 import type { AgentContext, SubagentCounter } from './agentRunner'
 import type { InjectionRecord } from '../../shared/extensionHooks'
@@ -163,9 +163,8 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
   const session = new ChatSession({ sessionId, rootPath })
   sessionRegistry.register(session)
   const abortController = session.abortController
-  // New user message arrived — extension hooks get a fresh per-extension
-  // injection budget for this turn.
-  resetTurnBudgets()
+  // Extension hooks get a fresh per-extension injection budget for this
+  // turn automatically: a new ChatSession means a new empty `turnBudget`.
 
   try {
     const settings = await readSettings(rootPath)

@@ -164,3 +164,29 @@ describe('ChatSession.modifiedFiles', () => {
     expect(b.modifiedFiles).toEqual(['/proj/b.ts'])
   })
 })
+
+describe('ChatSession.turnBudget', () => {
+  it('starts as an empty map — a new session always sees an empty budget', () => {
+    const s = new ChatSession({ sessionId: 's1', rootPath: '/proj' })
+    expect(s.turnBudget.size).toBe(0)
+  })
+
+  it('two parallel sessions track per-extension budgets independently', () => {
+    const a = new ChatSession({ sessionId: 'a', rootPath: '/proj' })
+    const b = new ChatSession({ sessionId: 'b', rootPath: '/proj' })
+
+    a.turnBudget.set('ext.one', 1)
+    expect(a.turnBudget.get('ext.one')).toBe(1)
+    expect(b.turnBudget.get('ext.one')).toBeUndefined()
+  })
+
+  it('a new session has an empty budget regardless of what a prior session consumed', () => {
+    const prior = new ChatSession({ sessionId: 'prior', rootPath: '/proj' })
+    prior.turnBudget.set('ext.one', 1)
+    prior.turnBudget.set('ext.two', 3)
+    prior.dispose()
+
+    const next = new ChatSession({ sessionId: 'next', rootPath: '/proj' })
+    expect(next.turnBudget.size).toBe(0)
+  })
+})

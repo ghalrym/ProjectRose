@@ -7,12 +7,10 @@ export type ScreenshotResult =
 /**
  * A `ChatSession` owns all state whose lifetime equals a single chat turn:
  * the abort controller, the pending ask-user table, the pending screenshot
- * table, the per-turn `modifiedFiles` list, and the per-turn extension hook
- * budgets. Construct one at the start of a turn, dispose it in `finally`.
- *
- * Slices move each piece onto the session one at a time; today the
- * `pendingAskUser` and `pendingScreenshots` tables live here, while
- * `modifiedFiles` and `turnBudget` remain at module scope and will follow.
+ * table, the per-turn `modifiedFiles` list, and the per-extension
+ * injection budget. Construct one at the start of a turn, dispose it in
+ * `finally`. A fresh session implies all state is fresh — no cross-module
+ * "reset" calls are required.
  */
 export class ChatSession {
   readonly sessionId: string
@@ -35,6 +33,13 @@ export class ChatSession {
   // "modified files" UI. Per-turn lifetime — the array is empty at
   // construction time and is dropped with the session.
   readonly modifiedFiles: string[] = []
+
+  // Per-extension injection budget for the current user turn. Key =
+  // extensionId, value = number of injections used so far. Fresh per
+  // session, so a new user turn starts with an empty budget without any
+  // cross-module "reset" call. Read and incremented by `fireInjectingHooks`
+  // in `extensionHooks.ts`.
+  readonly turnBudget = new Map<string, number>()
 
   constructor(args: { sessionId: string; rootPath: string }) {
     this.sessionId = args.sessionId
