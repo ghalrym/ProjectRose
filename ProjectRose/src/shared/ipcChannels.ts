@@ -105,7 +105,12 @@ export const IPC = {
   AUTH_CHANGED: 'auth:changed',
   AUTH_PAIRING_PENDING: 'auth:pairingPending',
 
-  // Active Listening
+  // Speech / Active Listening — session lifecycle
+  SPEECH_OPEN_SESSION: 'speech:openSession',
+  SPEECH_SEND_CHUNK: 'speech:sendChunk',
+  SPEECH_CLOSE_SESSION: 'speech:closeSession',
+
+  // Speaker management + session history
   ACTIVE_LISTENING_LABEL_SPEAKER: 'activeSpeech:labelSpeaker',
   ACTIVE_LISTENING_TRAIN: 'activeSpeech:train',
   ACTIVE_LISTENING_TRAIN_STATUS: 'activeSpeech:trainStatus',
@@ -113,13 +118,8 @@ export const IPC = {
   ACTIVE_LISTENING_GET_SPEAKERS: 'activeSpeech:getSpeakers',
   ACTIVE_LISTENING_CREATE_SPEAKER: 'activeSpeech:createSpeaker',
   ACTIVE_LISTENING_ADD_SAMPLE: 'activeSpeech:addSample',
-  ACTIVE_LISTENING_CREATE_SESSION: 'activeSpeech:createSession',
-  ACTIVE_LISTENING_END_SESSION: 'activeSpeech:endSession',
   ACTIVE_LISTENING_GET_UTTERANCES: 'activeSpeech:getUtterances',
   ACTIVE_LISTENING_GET_SESSIONS: 'activeSpeech:getSessions',
-  ACTIVE_LISTENING_START_STREAM: 'activeSpeech:startStream',
-  ACTIVE_LISTENING_AUDIO_CHUNK: 'activeSpeech:audioChunk',
-  ACTIVE_LISTENING_STOP_STREAM: 'activeSpeech:stopStream',
   ACTIVE_LISTENING_UTTERANCE: 'activeSpeech:utterance',
 
   // Screen / window capture for chat share-screen

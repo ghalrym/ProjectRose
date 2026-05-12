@@ -34,10 +34,9 @@ export function useAudioStream({ enabled, sessionId, projectPath }: {
           const blob = new Blob(pieces, { type: recorder.mimeType || 'audio/webm' })
           try {
             const buf = await blob.arrayBuffer()
-            window.api.activeSpeech.sendAudioChunk({
+            window.api.activeSpeech.sendChunk({
               sessionId: sessionId!,
-              audioBuffer: buf,
-              projectPath: projectPath!
+              audioBuffer: buf
             })
           } catch { /* fire-and-forget */ }
         }

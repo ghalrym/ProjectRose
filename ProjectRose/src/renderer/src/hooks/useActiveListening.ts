@@ -70,15 +70,12 @@ export function useActiveListening(): void {
 
     ;(async () => {
       try {
-        const { id } = await window.api.activeSpeech.createSession({ projectPath: rootPath })
+        const { sessionId: id } = await window.api.activeSpeech.openSession({ projectPath: rootPath })
         if (!mounted) return
         capturedSessionId = id
         store.setSessionId(id)
         store.setViewingSession(id)
         store.setUtterances([])
-
-        await window.api.activeSpeech.startStream({ sessionId: id, projectPath: rootPath })
-        if (!mounted) return
 
         const speakers = await window.api.activeSpeech.getSpeakers(rootPath)
         if (mounted) store.setSpeakers(speakers)
@@ -131,8 +128,7 @@ export function useActiveListening(): void {
       useActiveListeningStore.getState().cancelDraft()
       const sid = capturedSessionId
       if (sid !== null) {
-        window.api.activeSpeech.stopStream({ sessionId: sid }).catch(() => {})
-        window.api.activeSpeech.endSession({ sessionId: sid, projectPath: rootPath }).catch(() => {})
+        window.api.activeSpeech.closeSession({ sessionId: sid, projectPath: rootPath }).catch(() => {})
       }
       useActiveListeningStore.getState().setSessionId(null)
     }

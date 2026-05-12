@@ -3,8 +3,12 @@ import { IPC } from '../../shared/ipcChannels'
 import * as speechDB from '../services/speech/speechDB'
 import { saveRecording, webmPathToWav, cleanupWav } from '../services/speech/audioService'
 import { train, getEmbedder, initCacheDir as initSpeakerCache } from '../services/speech/speakerService'
-import { SpeechSession } from '../services/speech/session'
 import { SpeechSessionRegistry } from '../services/speech/sessionRegistry'
+import {
+  openSpeechSession,
+  sendSpeechChunk,
+  closeSpeechSession
+} from '../services/speech/sessionLifecycle'
 
 // One registry per process. The IPC handlers are the only thing that holds
 // SpeechSessions by id.
@@ -132,24 +136,6 @@ export function registerActiveSpeechHandlers(): void {
   )
 
   ipcMain.handle(
-    IPC.ACTIVE_LISTENING_CREATE_SESSION,
-    (_event, payload: { projectPath: string; projectId?: string }) =>
-      speechDB.createSession(payload.projectPath, payload.projectId ?? null)
-  )
-
-  ipcMain.handle(
-    IPC.ACTIVE_LISTENING_END_SESSION,
-    async (_event, payload: { sessionId: number; projectPath: string }) => {
-      const session = sessionRegistry.get(payload.sessionId)
-      if (session) {
-        await session.close()
-        sessionRegistry.remove(payload.sessionId)
-      }
-      return speechDB.endSession(payload.projectPath, payload.sessionId)
-    }
-  )
-
-  ipcMain.handle(
     IPC.ACTIVE_LISTENING_GET_UTTERANCES,
     (_event, payload: { sessionId: number; projectPath: string }) =>
       speechDB.getUtterances(payload.projectPath, payload.sessionId)
@@ -160,36 +146,24 @@ export function registerActiveSpeechHandlers(): void {
     (_event, projectPath: string) => speechDB.getSessions(projectPath)
   )
 
+  // --- Session lifecycle (collapsed seam) ---
+
   ipcMain.handle(
-    IPC.ACTIVE_LISTENING_START_STREAM,
-    (_event, payload: { sessionId: number; projectPath: string }) => {
-      if (sessionRegistry.get(payload.sessionId)) return
-      const session = new SpeechSession({
-        sessionId: payload.sessionId,
-        projectPath: payload.projectPath
-      })
-      sessionRegistry.add(session)
-    }
+    IPC.SPEECH_OPEN_SESSION,
+    (_event, payload: { projectPath: string; projectId?: string }) =>
+      openSpeechSession(sessionRegistry, payload)
   )
 
   ipcMain.on(
-    IPC.ACTIVE_LISTENING_AUDIO_CHUNK,
-    (_event, payload: { sessionId: number; audioBuffer: ArrayBuffer; projectPath: string }) => {
-      const session = sessionRegistry.get(payload.sessionId)
-      if (!session) return
-      session.acceptChunk(payload.audioBuffer).catch(
-        (e) => console.error('[Speech] chunk error:', e)
-      )
+    IPC.SPEECH_SEND_CHUNK,
+    (_event, payload: { sessionId: number; audioBuffer: ArrayBuffer }) => {
+      sendSpeechChunk(sessionRegistry, payload)
     }
   )
 
   ipcMain.handle(
-    IPC.ACTIVE_LISTENING_STOP_STREAM,
-    async (_event, payload: { sessionId: number }) => {
-      const session = sessionRegistry.get(payload.sessionId)
-      if (!session) return
-      await session.close()
-      sessionRegistry.remove(payload.sessionId)
-    }
+    IPC.SPEECH_CLOSE_SESSION,
+    (_event, payload: { sessionId: number; projectPath: string }) =>
+      closeSpeechSession(sessionRegistry, payload)
   )
 }
