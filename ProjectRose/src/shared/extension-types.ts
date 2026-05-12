@@ -30,6 +30,16 @@ export interface ExtensionManifest {
     tools?: Array<{ name: string; displayName: string; description: string; defaultDisabled?: boolean }>
     // ctx.registerHooks(...) is available.
     chatHooks?: boolean
+    // Optional declaration of which hook types this extension provides and
+    // how the host should dispatch them. If absent, hooks default to
+    // `injectionPolicy: 'first-wins'` and `priority: 100`. When present,
+    // the host warns at load time if a declared hook type isn't actually
+    // registered, and if a runtime-registered hook's type isn't declared.
+    hooks?: Array<{
+      type: 'on_thought' | 'on_message' | 'on_tool_call' | 'on_user_message' | 'on_token'
+      injectionPolicy?: 'first-wins' | 'all'
+      priority?: number
+    }>
     // ctx.openAgentSession(...) is available.
     agentSession?: boolean
     // ctx.runBackgroundAgent(...) is available.

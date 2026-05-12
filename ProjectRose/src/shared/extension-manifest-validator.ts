@@ -38,7 +38,18 @@ export const CAPABILITY_KEYS = [
 export type Capability = (typeof CAPABILITY_KEYS)[number]
 
 /** Keys that live in `provides` but are not capability booleans. */
-const PROVIDES_NON_CAPABILITY_KEYS = new Set<string>(['tools', 'systemPrompt'])
+const PROVIDES_NON_CAPABILITY_KEYS = new Set<string>(['tools', 'systemPrompt', 'hooks'])
+
+/** Hook types the host recognises. Kept in sync with `HookType` in extensionHooks.ts. */
+const HOOK_TYPES = new Set<string>([
+  'on_thought',
+  'on_message',
+  'on_tool_call',
+  'on_user_message',
+  'on_token'
+])
+
+const INJECTION_POLICIES = new Set<string>(['first-wins', 'all'])
 
 export interface ManifestValidationIssue {
   /** Dotted path to the offending field, e.g. `provides.tools[0].name`. */
@@ -128,6 +139,8 @@ export function validateManifest(raw: unknown): ValidateManifestResult {
         }
       } else if (key === 'tools') {
         validateTools(value, errors)
+      } else if (key === 'hooks') {
+        validateHooks(value, errors)
       } else if (key === 'systemPrompt') {
         if (typeof value !== 'string' || value.length === 0) {
           errors.push({
@@ -181,6 +194,56 @@ function validateTools(value: unknown, errors: ManifestValidationIssue[]): void 
       errors.push({
         path: `${p}.defaultDisabled`,
         message: 'tool.defaultDisabled must be a boolean when present'
+      })
+    }
+  })
+}
+
+function validateHooks(value: unknown, errors: ManifestValidationIssue[]): void {
+  if (!Array.isArray(value)) {
+    errors.push({ path: 'provides.hooks', message: 'provides.hooks must be an array' })
+    return
+  }
+  const seen = new Set<string>()
+  value.forEach((entry, i) => {
+    const p = `provides.hooks[${i}]`
+    if (!isRecord(entry)) {
+      errors.push({ path: p, message: 'hook entry must be an object' })
+      return
+    }
+    if (!isNonEmptyString(entry.type)) {
+      errors.push({ path: `${p}.type`, message: 'hook.type must be a non-empty string' })
+    } else if (!HOOK_TYPES.has(entry.type)) {
+      errors.push({
+        path: `${p}.type`,
+        message: `hook.type "${entry.type}" is not a known hook type`
+      })
+    } else if (seen.has(entry.type)) {
+      errors.push({
+        path: `${p}.type`,
+        message: `duplicate hook declaration for type "${entry.type}"`
+      })
+    } else {
+      seen.add(entry.type)
+    }
+    if (
+      'injectionPolicy' in entry &&
+      entry.injectionPolicy !== undefined &&
+      (typeof entry.injectionPolicy !== 'string' || !INJECTION_POLICIES.has(entry.injectionPolicy))
+    ) {
+      errors.push({
+        path: `${p}.injectionPolicy`,
+        message: 'hook.injectionPolicy must be "first-wins" or "all" when present'
+      })
+    }
+    if (
+      'priority' in entry &&
+      entry.priority !== undefined &&
+      (typeof entry.priority !== 'number' || !Number.isFinite(entry.priority))
+    ) {
+      errors.push({
+        path: `${p}.priority`,
+        message: 'hook.priority must be a finite number when present'
       })
     }
   })

@@ -8,9 +8,13 @@ import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
 import { readSettings, writeSettings, registerSensitiveExtensionFields } from './settingsHandlers'
 import { runAgentOnce } from '../services/aiService'
-import { registerHooks as registerExtensionHooks, unregisterHooks as unregisterExtensionHooks } from '../services/extensionHooks'
+import {
+  registerHooks as registerExtensionHooks,
+  unregisterHooks as unregisterExtensionHooks,
+  hookPipeline
+} from '../services/extensionHooks'
 import { create as createAgentSession, closeAllForOwner as closeAgentSessionsForOwner } from '../services/agentSession'
-import type { ChatHook } from '../../shared/extensionHooks'
+import type { ChatHook, HookType } from '../../shared/extensionHooks'
 import type { InstalledExtension, ExtensionManifest, ExtensionToolEntry } from '../../shared/extension-types'
 import type { ExtensionMainContext } from '../../shared/extension-contract'
 import {
@@ -200,6 +204,26 @@ export function getRegisteredExtensionTools(rootPath: string, enabledIds: string
   return enabledIds.flatMap((id) => extensionToolsRegistry.get(`${rootPath}/${id}`) ?? [])
 }
 
+// Compare the hook types the manifest declared in `provides.hooks[]` against
+// what actually got registered at runtime. Warnings only — observability, not
+// enforcement. Mirrors the pattern reconcileToolCatalog uses for tools.
+function reconcileHookCatalog(id: string, key: string, manifest: ExtensionManifest): void {
+  const declared = (manifest.provides.hooks ?? []).map((h) => h.type as HookType)
+  if (declared.length === 0) return
+  const missing = hookPipeline.declaredButNotRegistered(key, declared)
+  const undeclared = hookPipeline.registeredButNotDeclared(key, declared)
+  if (missing.length > 0) {
+    console.warn(
+      `[rose-ext] ${id}: manifest declared hooks not registered: ${missing.join(', ')}`
+    )
+  }
+  if (undeclared.length > 0) {
+    console.warn(
+      `[rose-ext] ${id}: registered hooks not declared in manifest provides.hooks[]: ${undeclared.join(', ')}`
+    )
+  }
+}
+
 function loadExtensionMainModule(rootPath: string, id: string): void {
   const key = `${rootPath}/${id}`
   if (loadedMains.has(key)) return
@@ -278,7 +302,8 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
             extensionIcon: manifestForHooks?.icon,
             rootPath
           },
-          hooks
+          hooks,
+          manifestForHooks?.provides.hooks
         )
       },
       openAgentSession: ({ systemPrompt }: { systemPrompt: string }) =>
@@ -303,6 +328,7 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
     // to refusal once the catalog drift is cleaned up across all 12
     // extensions.
     reconcileToolCatalog(id, manifestForHooks, extensionToolsRegistry.get(key) ?? [])
+    reconcileHookCatalog(id, key, manifestForHooks)
   } catch (err) {
     console.error(`[rose-ext] Failed to load main module for ${id}:`, err)
   }

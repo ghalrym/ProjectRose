@@ -21,8 +21,10 @@ export type {
 // --- Chat hooks ------------------------------------------------------------
 export type {
   ChatHook,
+  ChatHookManifestEntry,
   HookType,
   HookEvent,
+  HookInjectionPolicy,
   ThoughtHookEvent,
   MessageHookEvent,
   TokenHookEvent,
@@ -32,7 +34,11 @@ export type {
   InjectionRecord
 } from './extensionHooks'
 
-export { MAX_INJECTIONS_PER_TURN_WHEN_ALLOW_MULTIPLE } from './extensionHooks'
+export {
+  MAX_INJECTIONS_PER_TURN_WHEN_ALLOW_MULTIPLE,
+  DEFAULT_HOOK_PRIORITY,
+  DEFAULT_INJECTION_POLICY
+} from './extensionHooks'
 
 // --- Manifest validator (host enforces this at install + load time) -------
 export type {

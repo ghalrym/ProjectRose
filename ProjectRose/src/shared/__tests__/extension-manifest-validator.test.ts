@@ -186,6 +186,82 @@ describe('extension-manifest-validator', () => {
       if (r.ok) return
       expect(r.errors.some((e) => e.path === 'provides.systemPrompt')).toBe(true)
     })
+
+    it('accepts well-formed provides.hooks[]', () => {
+      const m = base()
+      m.provides = {
+        main: true,
+        chatHooks: true,
+        hooks: [
+          { type: 'on_thought' },
+          { type: 'on_message', injectionPolicy: 'first-wins', priority: 50 },
+          { type: 'on_user_message', injectionPolicy: 'all' }
+        ]
+      }
+      const r = validateManifest(m)
+      expect(r.ok).toBe(true)
+    })
+
+    it('rejects non-array provides.hooks', () => {
+      const m = base()
+      m.provides = { main: true, chatHooks: true, hooks: { type: 'on_thought' } }
+      const r = validateManifest(m)
+      expect(r.ok).toBe(false)
+      if (r.ok) return
+      expect(r.errors.some((e) => e.path === 'provides.hooks')).toBe(true)
+    })
+
+    it('rejects unknown hook type', () => {
+      const m = base()
+      m.provides = {
+        main: true,
+        chatHooks: true,
+        hooks: [{ type: 'on_lunchtime' }]
+      }
+      const r = validateManifest(m)
+      expect(r.ok).toBe(false)
+      if (r.ok) return
+      expect(r.errors.some((e) => e.path === 'provides.hooks[0].type' && /not a known/.test(e.message))).toBe(true)
+    })
+
+    it('rejects duplicate hook type declarations', () => {
+      const m = base()
+      m.provides = {
+        main: true,
+        chatHooks: true,
+        hooks: [{ type: 'on_message' }, { type: 'on_message' }]
+      }
+      const r = validateManifest(m)
+      expect(r.ok).toBe(false)
+      if (r.ok) return
+      expect(r.errors.some((e) => /duplicate/.test(e.message))).toBe(true)
+    })
+
+    it('rejects invalid injectionPolicy', () => {
+      const m = base()
+      m.provides = {
+        main: true,
+        chatHooks: true,
+        hooks: [{ type: 'on_message', injectionPolicy: 'merge' }]
+      }
+      const r = validateManifest(m)
+      expect(r.ok).toBe(false)
+      if (r.ok) return
+      expect(r.errors.some((e) => e.path === 'provides.hooks[0].injectionPolicy')).toBe(true)
+    })
+
+    it('rejects non-number priority', () => {
+      const m = base()
+      m.provides = {
+        main: true,
+        chatHooks: true,
+        hooks: [{ type: 'on_message', priority: 'high' }]
+      }
+      const r = validateManifest(m)
+      expect(r.ok).toBe(false)
+      if (r.ok) return
+      expect(r.errors.some((e) => e.path === 'provides.hooks[0].priority')).toBe(true)
+    })
   })
 
   describe('forward-compat warnings (HITL: unknown capability => warning, not error)', () => {
