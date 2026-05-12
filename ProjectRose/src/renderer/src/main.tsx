@@ -20,7 +20,10 @@ import * as useStatusStore from './stores/useStatusStore'
 import * as useTerminalStore from './stores/useTerminalStore'
 import * as useThemeStore from './stores/useThemeStore'
 import * as useViewStore from './stores/useViewStore'
-import * as useChatStore from './stores/useChatStore'
+import * as useChatTimelineStore from './stores/useChatTimelineStore'
+import * as useChatUIStore from './stores/useChatUIStore'
+import * as useSessionsStore from './stores/useSessionsStore'
+import * as useCompressionStore from './stores/useCompressionStore'
 import App from './App'
 import './themes/global.css'
 import './themes/variables.css'
@@ -44,7 +47,10 @@ window.__rose__ = {
   '@renderer/stores/useTerminalStore': useTerminalStore,
   '@renderer/stores/useThemeStore': useThemeStore,
   '@renderer/stores/useViewStore': useViewStore,
-  '@renderer/stores/useChatStore': useChatStore,
+  '@renderer/stores/useChatTimelineStore': useChatTimelineStore,
+  '@renderer/stores/useChatUIStore': useChatUIStore,
+  '@renderer/stores/useSessionsStore': useSessionsStore,
+  '@renderer/stores/useCompressionStore': useCompressionStore,
 }
 
 createRoot(document.getElementById('root')!).render(

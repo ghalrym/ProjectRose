@@ -1,6 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
 import clsx from 'clsx'
-import { useChatStore, SessionMeta } from '../../stores/useChatStore'
+import { useSessionsStore } from '../../stores/useSessionsStore'
+import { useChatTimelineStore } from '../../stores/useChatTimelineStore'
+import { useChatUIStore } from '../../stores/useChatUIStore'
+import {
+  newSession,
+  switchSession,
+  renameSession,
+  deleteSession,
+} from '../../services/chatTurn'
+import type { SessionMeta } from '../../types/chatMessages'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useThemeStore } from '../../stores/useThemeStore'
@@ -16,11 +25,11 @@ function formatDate(ts: number): string {
 }
 
 export function SessionSidebar(): JSX.Element {
-  const sessions = useChatStore((s) => s.sessions)
-  const currentSessionId = useChatStore((s) => s.currentSessionId)
-  const messages = useChatStore((s) => s.messages)
-  const searchQuery = useChatStore((s) => s.searchQuery)
-  const { setSearchQuery, newSession, switchSession, renameSession, deleteSession } = useChatStore.getState()
+  const sessions = useSessionsStore((s) => s.sessions)
+  const currentSessionId = useSessionsStore((s) => s.currentSessionId)
+  const messages = useChatTimelineStore((s) => s.messages)
+  const searchQuery = useChatUIStore((s) => s.searchQuery)
+  const setSearchQuery = useChatUIStore((s) => s.setSearchQuery)
   const rootPath = useProjectStore((s) => s.rootPath)
   const agentName = useSettingsStore((s) => s.agentName)
   const defaultModelId = useSettingsStore((s) => s.defaultModelId)

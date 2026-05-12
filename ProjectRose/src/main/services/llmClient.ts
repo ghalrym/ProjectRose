@@ -684,13 +684,13 @@ export async function streamChat(params: {
 }
 
 
-// Renderer-shaped message: structural subset of useChatStore's ChatMessage.
+// Renderer-shaped message: structural subset of the renderer's ChatMessage union.
 // Defined here as Record<string, unknown> to avoid an import cycle with the
 // renderer module — fields are pulled out by name with runtime checks.
 type RendererMessage = Record<string, unknown>
 
-// Output shape sent to the LLM. Matches what useChatStore.sendMessage builds
-// from settled renderer messages (apiMessages).
+// Output shape sent to the LLM. Matches what the renderer's buildApiMessages
+// produces from settled renderer messages.
 export interface ApiShapeMessage {
   role: 'user' | 'assistant' | 'system'
   content: string

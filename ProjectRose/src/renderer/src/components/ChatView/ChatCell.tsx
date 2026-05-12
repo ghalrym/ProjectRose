@@ -1,5 +1,5 @@
 import { useState, type MouseEvent } from 'react'
-import type { UserMessage, AssistantMessage, ThinkingMessage } from '../../stores/useChatStore'
+import type { UserMessage, AssistantMessage, ThinkingMessage } from '../../types/chatMessages'
 import { useStatusStore } from '../../stores/useStatusStore'
 import clsx from 'clsx'
 import styles from './ChatCell.module.css'

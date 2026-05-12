@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
-import { useChatStore } from '../../stores/useChatStore'
+import { useChatTimelineStore } from '../../stores/useChatTimelineStore'
+import { useChatUIStore } from '../../stores/useChatUIStore'
+import { sendMessage, cancelGeneration } from '../../services/chatTurn'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useServiceStore } from '../../stores/useServiceStore'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
@@ -12,11 +14,9 @@ import styles from './ChatInput.module.css'
 type MicState = 'idle' | 'recording' | 'transcribing'
 
 export function ChatInput({ notched = false }: { notched?: boolean }): JSX.Element {
-  const inputValue = useChatStore((s) => s.inputValue)
-  const setInputValue = useChatStore((s) => s.setInputValue)
-  const sendMessage = useChatStore((s) => s.sendMessage)
-  const cancelGeneration = useChatStore((s) => s.cancelGeneration)
-  const isLoading = useChatStore((s) => s.isLoading)
+  const inputValue = useChatUIStore((s) => s.inputValue)
+  const setInputValue = useChatUIStore((s) => s.setInputValue)
+  const isLoading = useChatTimelineStore((s) => s.isLoading)
   const micDeviceId = useSettingsStore((s) => s.micDeviceId)
   const roseSpeechOnline = useServiceStore((s) => s.roseSpeech)
   const isDrafting = useActiveListeningStore((s) => s.isDrafting)
@@ -61,7 +61,7 @@ export function ChatInput({ notched = false }: { notched?: boolean }): JSX.Eleme
 
         recorder.onstop = async (): Promise<void> => {
           stream.getTracks().forEach((t) => t.stop())
-          useChatStore.getState().setIsRecording(false)
+          useChatUIStore.getState().setIsRecording(false)
           setMicState('transcribing')
           try {
             const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
@@ -81,7 +81,7 @@ export function ChatInput({ notched = false }: { notched?: boolean }): JSX.Eleme
         mediaRecorderRef.current = recorder
         recorder.start()
         setMicState('recording')
-        useChatStore.getState().setIsRecording(true)
+        useChatUIStore.getState().setIsRecording(true)
       } catch {
         // mic permission denied or unavailable
       }

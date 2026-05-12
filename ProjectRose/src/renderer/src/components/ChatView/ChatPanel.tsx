@@ -1,7 +1,13 @@
 import { useEffect, useRef } from 'react'
 import clsx from 'clsx'
-import { useChatStore } from '../../stores/useChatStore'
-import type { ChatMessage, ToolMessage, AskUserMessage, InjectedMessage } from '../../stores/useChatStore'
+import { useChatTimelineStore } from '../../stores/useChatTimelineStore'
+import { loadSessions } from '../../services/chatTurn'
+import type {
+  ChatMessage,
+  ToolMessage,
+  AskUserMessage,
+  InjectedMessage,
+} from '../../types/chatMessages'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
@@ -76,11 +82,10 @@ function groupMessages(messages: ChatMessage[]): RenderItem[] {
 }
 
 export function ChatPanel(): JSX.Element {
-  const messages = useChatStore((s) => s.messages)
-  const isLoading = useChatStore((s) => s.isLoading)
+  const messages = useChatTimelineStore((s) => s.messages)
+  const isLoading = useChatTimelineStore((s) => s.isLoading)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const rootPath = useProjectStore((s) => s.rootPath)
-  const loadSessions = useChatStore((s) => s.loadSessions)
   const mode = useActiveListeningStore((s) => s.mode)
   const isActive = useActiveListeningStore((s) => s.isActive)
   const setMode = useActiveListeningStore((s) => s.setMode)

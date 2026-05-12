@@ -1,14 +1,15 @@
-import { useChatStore, shouldShowCompressionToast } from '../../stores/useChatStore'
+import { useCompressionStore } from '../../stores/useCompressionStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { shouldShowCompressionToast } from '../../services/compressionToast'
+import { compressNow } from '../../services/chatTurn'
 import styles from './CompressionToast.module.css'
 
 export function CompressionToast(): JSX.Element | null {
-  const status = useChatStore((s) => s.contextStatus)
-  const dismissed = useChatStore((s) => s.compressionToastDismissed)
-  const isCompressing = useChatStore((s) => s.isCompressing)
-  const compressNow = useChatStore((s) => s.compressNow)
-  const dismiss = useChatStore((s) => s.dismissCompressionToast)
+  const status = useCompressionStore((s) => s.contextStatus)
+  const dismissed = useCompressionStore((s) => s.compressionToastDismissed)
+  const isCompressing = useCompressionStore((s) => s.isCompressing)
+  const dismiss = useCompressionStore((s) => s.dismissCompressionToast)
   const rootPath = useProjectStore((s) => s.rootPath)
   const tokenThresholdPct = useSettingsStore((s) => s.compressionThresholdPct)
 

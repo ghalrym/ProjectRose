@@ -107,7 +107,10 @@ export function MyView(): JSX.Element {
 ```ts
 import { useProjectStore }  from '@renderer/stores/useProjectStore'   // rootPath
 import { useSettingsStore } from '@renderer/stores/useSettingsStore'   // settings, update()
-import { useChatStore }     from '@renderer/stores/useChatStore'
+import { useChatTimelineStore } from '@renderer/stores/useChatTimelineStore'  // messages, streaming state
+import { useChatUIStore }   from '@renderer/stores/useChatUIStore'    // inputValue, isRecording, searchQuery
+import { useSessionsStore } from '@renderer/stores/useSessionsStore'  // sessions, currentSessionId
+import { useCompressionStore } from '@renderer/stores/useCompressionStore'  // contextStatus, compression snapshot
 import { useFileStore }     from '@renderer/stores/useFileStore'
 import { useThemeStore }    from '@renderer/stores/useThemeStore'
 import { useViewStore }     from '@renderer/stores/useViewStore'

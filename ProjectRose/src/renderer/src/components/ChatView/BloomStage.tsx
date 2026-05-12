@@ -1,8 +1,9 @@
 import clsx from 'clsx'
-import { useChatStore } from '../../stores/useChatStore'
+import { useChatTimelineStore } from '../../stores/useChatTimelineStore'
+import { useChatUIStore } from '../../stores/useChatUIStore'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import styles from './BloomStage.module.css'
-import type { AssistantMessage } from '../../stores/useChatStore'
+import type { AssistantMessage } from '../../types/chatMessages'
 
 const WAVE_HEIGHTS = [0.5, 0.9, 0.65, 1.0, 0.8, 0.45, 0.9, 0.7, 1.0, 0.55, 0.85, 0.6]
 const WAVEFORM_BARS = Array.from({ length: 48 }).map((_, i) => ({
@@ -11,11 +12,11 @@ const WAVEFORM_BARS = Array.from({ length: 48 }).map((_, i) => ({
 }))
 
 export function BloomStage(): JSX.Element {
-  const isLoading = useChatStore((s) => s.isLoading)
-  const isRecording = useChatStore((s) => s.isRecording)
+  const isLoading = useChatTimelineStore((s) => s.isLoading)
+  const isRecording = useChatUIStore((s) => s.isRecording)
   const isActiveListening = useActiveListeningStore((s) => s.isActive)
-  const messages = useChatStore((s) => s.messages)
-  const assistantPlaceholderId = useChatStore((s) => s.assistantPlaceholderId)
+  const messages = useChatTimelineStore((s) => s.messages)
+  const assistantPlaceholderId = useChatTimelineStore((s) => s.assistantPlaceholderId)
 
   const streamingMsg = (assistantPlaceholderId
     ? messages.find((m) => m.id === assistantPlaceholderId)

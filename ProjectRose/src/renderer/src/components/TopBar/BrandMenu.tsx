@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useFileStore } from '../../stores/useFileStore'
-import { useChatStore } from '../../stores/useChatStore'
+import { clearChatForProjectSwitch } from '../../services/chatTurn'
 import { RoseMark } from './RoseMark'
 import styles from './BrandMenu.module.css'
 
@@ -20,15 +20,7 @@ async function switchToProject(path: string): Promise<void> {
     activeFilePath: null,
     previousActiveFilePath: null
   })
-  useChatStore.setState({
-    messages: [],
-    currentSessionId: null,
-    sessions: [],
-    isLoading: false,
-    assistantPlaceholderId: null,
-    thinkingPlaceholderId: null,
-    pendingModelDisplay: null
-  })
+  clearChatForProjectSwitch()
 
   await useProjectStore.getState().openFolder(path)
 }

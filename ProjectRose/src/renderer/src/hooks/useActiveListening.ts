@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react'
 import { useActiveListeningStore } from '../stores/useActiveListeningStore'
 import { useSettingsStore } from '../stores/useSettingsStore'
 import { useProjectStore } from '../stores/useProjectStore'
-import { useChatStore } from '../stores/useChatStore'
+import { useChatUIStore } from '../stores/useChatUIStore'
+import { sendMessage } from '../services/chatTurn'
 import { useAudioStream } from './useAudioStream'
 
 export function useActiveListening(): void {
@@ -60,8 +61,8 @@ export function useActiveListening(): void {
         clearTimer()
         const text = draftTextRef.current.trim()
         if (text) {
-          useChatStore.getState().setInputValue(text)
-          useChatStore.getState().sendMessage()
+          useChatUIStore.getState().setInputValue(text)
+          sendMessage()
         }
         useActiveListeningStore.getState().completeDraft()
       }, seconds * 1000)

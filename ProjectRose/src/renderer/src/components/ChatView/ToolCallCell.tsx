@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ToolMessage } from '../../stores/useChatStore'
+import type { ToolMessage } from '../../types/chatMessages'
 import styles from './ToolCallCell.module.css'
 
 interface ToolCallCellProps {

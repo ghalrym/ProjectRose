@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { InjectedMessage } from '../../stores/useChatStore'
+import type { InjectedMessage } from '../../types/chatMessages'
 import styles from './InjectedCell.module.css'
 
 interface InjectedCellProps {

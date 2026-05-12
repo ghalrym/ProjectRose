@@ -377,7 +377,7 @@ function countToolSteps(messages: Array<Record<string, unknown>>): number {
 }
 
 // Convert renderer messages to api shape (user/assistant/system) for token
-// estimation. Mirrors useChatStore.sendMessage's filter so the count reflects
+// estimation. Mirrors renderer's buildApiMessages so the count reflects
 // what the model actually sees.
 function toApiShape(messages: Array<Record<string, unknown>>): Array<{ role: string; content: string }> {
   const out: Array<{ role: string; content: string }> = []
@@ -410,7 +410,7 @@ export async function getContextStatus(
     ? await getContextLength(model.provider, model.modelName, settings.ollamaBaseUrl)
     : 8192
 
-  // Mirror useChatStore.sendMessage's substitution: when a compression
+  // Mirror renderer's substituteCompressionSnapshot: when a compression
   // snapshot is present and the prefix it claims to replace is still intact,
   // count tokens/tool-steps against the post-compression view (what the LLM
   // actually sees). Otherwise fall back to raw — same fail-open the renderer
