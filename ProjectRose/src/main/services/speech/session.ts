@@ -8,6 +8,12 @@ import {
   type TranscriptionWorkerHandle,
   type TranscriptionResult
 } from './transcriptionWorkerHandle'
+import {
+  DraftAssembler,
+  type DraftEvent,
+  type DraftListener,
+  type DraftSettingsProvider
+} from './draftAssembler'
 
 export type SpeechSessionState = 'idle' | 'listening' | 'closing' | 'closed'
 
@@ -72,6 +78,17 @@ const defaultWhisperModelProvider: WhisperModelProvider = async () => {
   return settings.whisperModel
 }
 
+const defaultDraftSettingsProvider: DraftSettingsProvider = async () => {
+  // Deferred import — see note on defaultWhisperModelProvider.
+  const { readSettings } = await import('../../ipc/settingsHandlers')
+  const settings = await readSettings()
+  return {
+    agentName: settings.agentName,
+    roseSpeechSpeakerId: settings.roseSpeechSpeakerId,
+    activeListeningDraftSeconds: settings.activeListeningDraftSeconds
+  }
+}
+
 export interface SpeechSessionDeps {
   worker?: TranscriptionWorkerHandle
   db?: SpeechDB
@@ -79,6 +96,8 @@ export interface SpeechSessionDeps {
   saveRecording?: RecordingSink
   emit?: (channel: string, payload: unknown) => void
   whisperModel?: WhisperModelProvider
+  draftSettings?: DraftSettingsProvider
+  draftAssembler?: DraftAssembler
 }
 
 export interface SpeechSessionOptions {
@@ -108,6 +127,8 @@ export class SpeechSession {
   private saveRecording: RecordingSink
   private emit: (channel: string, payload: unknown) => void
   private whisperModelProvider: WhisperModelProvider
+  private draftAssembler: DraftAssembler
+  private draftListeners = new Set<DraftListener>()
 
   constructor(opts: SpeechSessionOptions, deps: SpeechSessionDeps = {}) {
     this.sessionId = opts.sessionId
@@ -118,6 +139,10 @@ export class SpeechSession {
     this.saveRecording = deps.saveRecording ?? saveRecording
     this.emit = deps.emit ?? emitToRenderer
     this.whisperModelProvider = deps.whisperModel ?? defaultWhisperModelProvider
+
+    this.draftAssembler = deps.draftAssembler
+      ?? new DraftAssembler({ settings: deps.draftSettings ?? defaultDraftSettingsProvider })
+    this.draftAssembler.onDraft((evt) => this.handleDraft(evt))
 
     // Pre-warm the worker so the first chunk doesn't pay for boot.
     this.worker.warmup()
@@ -134,6 +159,15 @@ export class SpeechSession {
   onUtterance(listener: UtteranceListener): () => void {
     this.listeners.add(listener)
     return () => { this.listeners.delete(listener) }
+  }
+
+  /**
+   * Subscribe to draft events (building / submitted / cancelled) produced
+   * by the session's internal DraftAssembler.
+   */
+  onDraft(listener: DraftListener): () => void {
+    this.draftListeners.add(listener)
+    return () => { this.draftListeners.delete(listener) }
   }
 
   /**
@@ -167,7 +201,9 @@ export class SpeechSession {
     // their utterances make it into the DB.
     await Promise.allSettled(Array.from(this.inflight))
 
+    this.draftAssembler.dispose()
     this.listeners.clear()
+    this.draftListeners.clear()
     this._state = 'closed'
   }
 
@@ -224,5 +260,19 @@ export class SpeechSession {
       try { l(evt) } catch (e) { console.error('[Speech] utterance listener threw:', e) }
     }
     this.emit(IPC.ACTIVE_LISTENING_UTTERANCE, { type: 'utterance', ...evt })
+
+    // Feed draft assembly. Fire-and-forget — the draft pipeline produces its
+    // own events; we don't want utterance persistence to wait on it.
+    this.draftAssembler.ingest(evt).catch((e) =>
+      console.error('[Speech] draft ingest failed:', e)
+    )
+  }
+
+  private handleDraft(evt: DraftEvent): void {
+    const payload = { sessionId: this.sessionId, ...evt }
+    for (const l of this.draftListeners) {
+      try { l(evt) } catch (e) { console.error('[Speech] draft listener threw:', e) }
+    }
+    this.emit(IPC.SPEECH_DRAFT, payload)
   }
 }

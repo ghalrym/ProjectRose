@@ -38,6 +38,10 @@ interface ActiveListeningState {
   cancelDraft: () => void
   completeDraft: () => void
   setDraftSecondsLeft: (n: number | null) => void
+  // Session-event-driven setters: the only way draft state should ever be
+  // updated as of speech-session PRD slice 3.
+  setDraft: (text: string, secondsLeft: number | null) => void
+  clearDraft: () => void
   reset: () => void
 }
 
@@ -71,5 +75,7 @@ export const useActiveListeningStore = create<ActiveListeningState>()((set) => (
   cancelDraft: () => set({ isDrafting: false, draftText: '', draftSecondsLeft: null }),
   completeDraft: () => set({ isDrafting: false, draftText: '', draftSecondsLeft: null }),
   setDraftSecondsLeft: (n) => set({ draftSecondsLeft: n }),
+  setDraft: (text, secondsLeft) => set({ isDrafting: true, draftText: text, draftSecondsLeft: secondsLeft }),
+  clearDraft: () => set({ isDrafting: false, draftText: '', draftSecondsLeft: null }),
   reset: () => set({ utterances: [], speakers: [], isDrafting: false, draftText: '', draftSecondsLeft: null, sessionId: null, viewingSessionId: null }),
 }))

@@ -159,6 +159,11 @@ const api = {
       const handler = (_e: unknown, evt: { sessionId: number; utterance_id: number; speaker_name: string | null; text: string }): void => callback(evt)
       ipcRenderer.on(IPC.ACTIVE_LISTENING_UTTERANCE, handler)
       return () => { ipcRenderer.removeListener(IPC.ACTIVE_LISTENING_UTTERANCE, handler) }
+    },
+    onDraft: (callback: (evt: { sessionId: number; status: 'building' | 'submitted' | 'cancelled'; text: string; secondsLeft: number | null }) => void): (() => void) => {
+      const handler = (_e: unknown, evt: { sessionId: number; status: 'building' | 'submitted' | 'cancelled'; text: string; secondsLeft: number | null }): void => callback(evt)
+      ipcRenderer.on(IPC.SPEECH_DRAFT, handler)
+      return () => { ipcRenderer.removeListener(IPC.SPEECH_DRAFT, handler) }
     }
   },
 

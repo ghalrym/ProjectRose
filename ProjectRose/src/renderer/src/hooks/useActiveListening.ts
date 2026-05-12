@@ -1,35 +1,23 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useActiveListeningStore } from '../stores/useActiveListeningStore'
-import { useSettingsStore } from '../stores/useSettingsStore'
 import { useProjectStore } from '../stores/useProjectStore'
 import { useChatUIStore } from '../stores/useChatUIStore'
 import { sendMessage } from '../services/chatTurn'
 import { useAudioStream } from './useAudioStream'
 
+/**
+ * Lifecycle hook that opens a speech session when active listening is
+ * toggled on, wires its utterance and draft events to the store, and
+ * fires `sendMessage` when the session reports an auto-submit.
+ *
+ * All draft-assembly state (wake word, countdown, accumulated text) is
+ * owned by the main-side SpeechSession + DraftAssembler. The renderer
+ * holds only what the UI renders.
+ */
 export function useActiveListening(): void {
   const isActive = useActiveListeningStore((s) => s.isActive)
   const sessionId = useActiveListeningStore((s) => s.sessionId)
-  const isDrafting = useActiveListeningStore((s) => s.isDrafting)
-  const draftText = useActiveListeningStore((s) => s.draftText)
   const rootPath = useProjectStore((s) => s.rootPath)
-  const agentName = useSettingsStore((s) => s.agentName)
-  const roseSpeechSpeakerId = useSettingsStore((s) => s.roseSpeechSpeakerId)
-  const draftSeconds = useSettingsStore((s) => s.activeListeningDraftSeconds)
-
-  // Keep mutable refs so utterance handler always has fresh values
-  const isDraftingRef = useRef(isDrafting)
-  const draftTextRef = useRef(draftText)
-  const agentNameRef = useRef(agentName)
-  const roseSpeechSpeakerIdRef = useRef(roseSpeechSpeakerId)
-  const draftSecondsRef = useRef(draftSeconds)
-  isDraftingRef.current = isDrafting
-  draftTextRef.current = draftText
-  agentNameRef.current = agentName
-  roseSpeechSpeakerIdRef.current = roseSpeechSpeakerId
-  draftSecondsRef.current = draftSeconds
-
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useAudioStream({ enabled: isActive, sessionId, projectPath: rootPath })
 
@@ -40,33 +28,7 @@ export function useActiveListening(): void {
     let mounted = true
     let capturedSessionId: number | null = null
     let utteranceCleanup: (() => void) | null = null
-
-    const clearTimer = (): void => {
-      if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
-      if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null }
-      store.setDraftSecondsLeft(null)
-    }
-
-    const startTimer = (): void => {
-      clearTimer()
-      const seconds = Math.max(1, Math.round(draftSecondsRef.current))
-      let count = seconds
-      store.setDraftSecondsLeft(count)
-      tickRef.current = setInterval(() => {
-        count--
-        store.setDraftSecondsLeft(count > 0 ? count : null)
-      }, 1000)
-      timerRef.current = setTimeout(() => {
-        if (!mounted) return
-        clearTimer()
-        const text = draftTextRef.current.trim()
-        if (text) {
-          useChatUIStore.getState().setInputValue(text)
-          sendMessage()
-        }
-        useActiveListeningStore.getState().completeDraft()
-      }, seconds * 1000)
-    }
+    let draftCleanup: (() => void) | null = null
 
     ;(async () => {
       try {
@@ -87,9 +49,7 @@ export function useActiveListening(): void {
           const viewingId = useActiveListeningStore.getState().viewingSessionId
           if (viewingId !== null && viewingId !== id) return
 
-          const enrolledId = roseSpeechSpeakerIdRef.current
           const evtSpeakerId = (evt as { speaker_id?: number | null }).speaker_id ?? null
-
           store.addUtterance({
             utteranceId: evt.utterance_id,
             speakerId: evtSpeakerId,
@@ -97,40 +57,36 @@ export function useActiveListening(): void {
             text: evt.text,
             timestamp: Date.now()
           })
+        })
 
-          // isUser: true when speaker is unidentified (could be anyone) or confirmed
-          // to be the enrolled user by ID. Only false when positively identified as
-          // someone else.
-          const isUser = evtSpeakerId === null
-            || enrolledId === null
-            || evtSpeakerId === enrolledId
-
-          const aName = agentNameRef.current
-          const hasWakeWord = Boolean(aName) && evt.text.toLowerCase().includes(aName.toLowerCase())
-
-          if (!isDraftingRef.current && isUser && hasWakeWord) {
-            store.startDraft(evt.text)
-            startTimer()
-          } else if (isDraftingRef.current && isUser) {
-            store.appendDraft(evt.text)
-            startTimer()
+        draftCleanup = window.api.activeSpeech.onDraft((evt) => {
+          if (!mounted || evt.sessionId !== id) return
+          const draftStore = useActiveListeningStore.getState()
+          if (evt.status === 'building') {
+            draftStore.setDraft(evt.text, evt.secondsLeft)
+          } else if (evt.status === 'submitted') {
+            useChatUIStore.getState().setInputValue(evt.text)
+            sendMessage()
+            draftStore.clearDraft()
+          } else {
+            draftStore.clearDraft()
           }
         })
       } catch {
-        // session creation or stream start failed silently
+        // session open failed silently
       }
     })()
 
     return () => {
       mounted = false
       utteranceCleanup?.()
-      clearTimer()
-      useActiveListeningStore.getState().cancelDraft()
+      draftCleanup?.()
       const sid = capturedSessionId
       if (sid !== null) {
         window.api.activeSpeech.closeSession({ sessionId: sid, projectPath: rootPath }).catch(() => {})
       }
       useActiveListeningStore.getState().setSessionId(null)
+      useActiveListeningStore.getState().clearDraft()
     }
-  }, [isActive, rootPath]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isActive, rootPath])
 }
