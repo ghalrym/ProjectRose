@@ -204,24 +204,29 @@ export function getRegisteredExtensionTools(rootPath: string, enabledIds: string
   return enabledIds.flatMap((id) => extensionToolsRegistry.get(`${rootPath}/${id}`) ?? [])
 }
 
+class HookCatalogDriftError extends Error {
+  constructor(public readonly extensionId: string, message: string) {
+    super(`${extensionId}: ${message}`)
+    this.name = 'HookCatalogDriftError'
+  }
+}
+
 // Compare the hook types the manifest declared in `provides.hooks[]` against
-// what actually got registered at runtime. Warnings only — observability, not
-// enforcement. Mirrors the pattern reconcileToolCatalog uses for tools.
+// what actually got registered at runtime. Strict: any drift fails the load
+// (#37 flipped this from warning-only to enforcement).
 function reconcileHookCatalog(id: string, key: string, manifest: ExtensionManifest): void {
   const declared = (manifest.provides.hooks ?? []).map((h) => h.type as HookType)
   if (declared.length === 0) return
   const missing = hookPipeline.declaredButNotRegistered(key, declared)
   const undeclared = hookPipeline.registeredButNotDeclared(key, declared)
+  const lines: string[] = []
   if (missing.length > 0) {
-    console.warn(
-      `[rose-ext] ${id}: manifest declared hooks not registered: ${missing.join(', ')}`
-    )
+    lines.push(`manifest declared hooks not registered: ${missing.join(', ')}`)
   }
   if (undeclared.length > 0) {
-    console.warn(
-      `[rose-ext] ${id}: registered hooks not declared in manifest provides.hooks[]: ${undeclared.join(', ')}`
-    )
+    lines.push(`registered hooks not declared in manifest provides.hooks[]: ${undeclared.join(', ')}`)
   }
+  if (lines.length > 0) throw new HookCatalogDriftError(id, lines.join('; '))
 }
 
 function loadExtensionMainModule(rootPath: string, id: string): void {
@@ -320,17 +325,26 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
     const cleanup = register?.(ctx)
     loadedMains.set(key, typeof cleanup === 'function' ? cleanup : () => {})
 
-    // Tool-catalog reconciliation: warn when the manifest's `provides.tools[]`
-    // (display metadata, drives the Settings -> Tools UI and disabledTools
-    // machinery) drifts from what `register(ctx)` actually wired into the
-    // runtime tool registry. This is observability, not enforcement — neither
-    // side blocks the load. The PRD's "one tool shape" goal will tighten this
-    // to refusal once the catalog drift is cleaned up across all 12
-    // extensions.
-    reconcileToolCatalog(id, manifestForHooks, extensionToolsRegistry.get(key) ?? [])
-    reconcileHookCatalog(id, key, manifestForHooks)
+    // Strict-mode reconciliation (#37): the manifest's declared tool and
+    // hook catalogs must match what `register(ctx)` actually wired into
+    // the runtime registries. Either side of any drift fails the load
+    // and unwinds the partial registration — the user sees the failure
+    // in the status bar, the extension's main module is not retained,
+    // and `getRegisteredExtensionTools` will not surface its tools to
+    // the agent.
+    try {
+      reconcileToolCatalog(id, manifestForHooks, extensionToolsRegistry.get(key) ?? [])
+      reconcileHookCatalog(id, key, manifestForHooks)
+    } catch (reconcileErr) {
+      const detail = (reconcileErr as Error).message
+      console.error(`[rose-ext] refusing to load ${id}: ${detail}`)
+      broadcastStatus(`Extension "${id}" failed to load: ${detail}`, 'error')
+      unloadExtensionMainModule(rootPath, id)
+    }
   } catch (err) {
+    const detail = (err as Error).message ?? String(err)
     console.error(`[rose-ext] Failed to load main module for ${id}:`, err)
+    broadcastStatus(`Extension "${id}" failed to load: ${detail}`, 'error')
   }
 }
 

@@ -1,5 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { diffToolCatalog, reconcileToolCatalog } from '../reconcileToolCatalog'
+import { describe, it, expect } from 'vitest'
+import {
+  diffToolCatalog,
+  reconcileToolCatalog,
+  ToolCatalogDriftError
+} from '../reconcileToolCatalog'
 import type { ExtensionManifest, ExtensionToolEntry } from '../../../shared/extension-types'
 
 function manifest(toolNames: string[]): ExtensionManifest {
@@ -61,36 +65,50 @@ describe('diffToolCatalog', () => {
   })
 })
 
-describe('reconcileToolCatalog', () => {
-  let warnSpy: ReturnType<typeof vi.spyOn>
-
-  beforeEach(() => {
-    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-  })
-
-  afterEach(() => {
-    warnSpy.mockRestore()
-  })
-
+describe('reconcileToolCatalog (strict)', () => {
   it('is silent when there is no drift', () => {
-    reconcileToolCatalog('rose-fake', manifest(['a']), [entry('a')])
-    expect(warnSpy).not.toHaveBeenCalled()
+    expect(() => reconcileToolCatalog('rose-fake', manifest(['a']), [entry('a')])).not.toThrow()
   })
 
-  it('warns on declared-but-not-registered', () => {
-    reconcileToolCatalog('rose-fake', manifest(['a', 'b']), [entry('a')])
-    expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy.mock.calls[0]?.[0]).toMatch(/manifest declares.*b/)
+  it('throws ToolCatalogDriftError on declared-but-not-registered', () => {
+    expect(() => reconcileToolCatalog('rose-fake', manifest(['a', 'b']), [entry('a')]))
+      .toThrow(ToolCatalogDriftError)
+    try {
+      reconcileToolCatalog('rose-fake', manifest(['a', 'b']), [entry('a')])
+    } catch (err) {
+      const e = err as ToolCatalogDriftError
+      expect(e.extensionId).toBe('rose-fake')
+      expect(e.drift.declaredButNotRegistered).toEqual(['b'])
+      expect(e.message).toMatch(/manifest declares.*b/)
+    }
   })
 
-  it('warns on registered-but-not-declared', () => {
-    reconcileToolCatalog('rose-fake', manifest(['a']), [entry('a'), entry('stealth')])
-    expect(warnSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy.mock.calls[0]?.[0]).toMatch(/missing from manifest.*stealth/)
+  it('throws ToolCatalogDriftError on registered-but-not-declared', () => {
+    expect(() => reconcileToolCatalog('rose-fake', manifest(['a']), [entry('a'), entry('stealth')]))
+      .toThrow(ToolCatalogDriftError)
+    try {
+      reconcileToolCatalog('rose-fake', manifest(['a']), [entry('a'), entry('stealth')])
+    } catch (err) {
+      const e = err as ToolCatalogDriftError
+      expect(e.drift.registeredButNotDeclared).toEqual(['stealth'])
+      expect(e.message).toMatch(/missing from manifest.*stealth/)
+    }
   })
 
-  it('warns once on each side when both drift', () => {
-    reconcileToolCatalog('rose-fake', manifest(['a', 'declared-only']), [entry('a'), entry('registered-only')])
-    expect(warnSpy).toHaveBeenCalledTimes(2)
+  it('throws a single error with both sides listed when both drift', () => {
+    try {
+      reconcileToolCatalog(
+        'rose-fake',
+        manifest(['a', 'declared-only']),
+        [entry('a'), entry('registered-only')]
+      )
+      expect.fail('expected throw')
+    } catch (err) {
+      const e = err as ToolCatalogDriftError
+      expect(e.drift.declaredButNotRegistered).toEqual(['declared-only'])
+      expect(e.drift.registeredButNotDeclared).toEqual(['registered-only'])
+      expect(e.message).toMatch(/declared-only/)
+      expect(e.message).toMatch(/registered-only/)
+    }
   })
 })
