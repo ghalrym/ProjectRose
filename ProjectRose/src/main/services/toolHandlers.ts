@@ -7,21 +7,8 @@ import { IPC } from '../../shared/ipcChannels'
 import { lspRequest } from './lspManager'
 import { loadSession } from '../lib/session'
 import { WEB_BASE_URL } from '../lib/webConfig'
-
-const modifiedFiles: string[] = []
-let _activeProjectRoot: string | null = null
-
-export function resetModifiedFiles(): void {
-  modifiedFiles.length = 0
-}
-
-export function getModifiedFiles(): string[] {
-  return modifiedFiles.splice(0)
-}
-
-export function setActiveProjectRoot(rootPath: string): void {
-  _activeProjectRoot = rootPath
-}
+import { sessionRegistry } from './sessionRegistry'
+import type { ExtensionToolCtx } from '../../shared/extension-types'
 
 function notifyRenderer(event: string, data: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -29,6 +16,14 @@ function notifyRenderer(event: string, data: unknown): void {
       win.webContents.send(event, data)
     }
   }
+}
+
+// Push a modified file path onto the owning ChatSession's per-turn list.
+// Looked up via the registry rather than passed explicitly so the handler
+// signature stays compatible with the rest of the tool family.
+function recordModifiedFile(toolCtx: ExtensionToolCtx | undefined, absolute: string): void {
+  if (!toolCtx) return
+  sessionRegistry.get(toolCtx.sessionId)?.modifiedFiles.push(absolute)
 }
 
 export async function handleReadFile(input: Record<string, unknown>, projectRoot: string): Promise<string> {
@@ -48,7 +43,11 @@ export async function handleReadFile(input: Record<string, unknown>, projectRoot
   }
 }
 
-export async function handleWriteFile(input: Record<string, unknown>, projectRoot: string): Promise<string> {
+export async function handleWriteFile(
+  input: Record<string, unknown>,
+  projectRoot: string,
+  toolCtx?: ExtensionToolCtx
+): Promise<string> {
   const filePath = String(input.path || '')
   const absolute = filePath.startsWith('/') || filePath.includes(':')
     ? filePath
@@ -57,13 +56,17 @@ export async function handleWriteFile(input: Record<string, unknown>, projectRoo
   const content = String(input.content ?? '')
   await mkdir(dirname(absolute), { recursive: true })
   await writeFile(absolute, content, 'utf-8')
-  modifiedFiles.push(absolute)
+  recordModifiedFile(toolCtx, absolute)
   notifyRenderer(IPC.AI_FILE_MODIFIED, { path: absolute })
 
   return `File written: ${filePath}`
 }
 
-export async function handleEditFile(input: Record<string, unknown>, projectRoot: string): Promise<string> {
+export async function handleEditFile(
+  input: Record<string, unknown>,
+  projectRoot: string,
+  toolCtx?: ExtensionToolCtx
+): Promise<string> {
   const filePath = String(input.path || '')
   const absolute = filePath.startsWith('/') || filePath.includes(':')
     ? filePath
@@ -83,7 +86,7 @@ export async function handleEditFile(input: Record<string, unknown>, projectRoot
 
   const updated = content.replace(oldString, newString)
   await writeFile(absolute, updated, 'utf-8')
-  modifiedFiles.push(absolute)
+  recordModifiedFile(toolCtx, absolute)
   notifyRenderer(IPC.AI_FILE_MODIFIED, { path: absolute })
 
   return `File edited: ${filePath}`

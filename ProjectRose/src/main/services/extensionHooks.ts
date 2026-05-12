@@ -15,6 +15,7 @@ import {
   DEFAULT_HOOK_PRIORITY,
   DEFAULT_INJECTION_POLICY
 } from '../../shared/extensionHooks'
+import type { ChatSession } from './chatSession'
 
 interface RegisteredHooks {
   extensionId: string
@@ -40,17 +41,20 @@ interface DispatchEntry {
 }
 
 /**
- * Owns the registered-hooks list, the per-extension turn budget, and the
- * dispatch logic for chat hooks.
+ * Owns the registered-hooks list and the dispatch logic for chat hooks.
  *
- * Replaces the previous bare `Map<string, RegisteredHooks>` + module-level
- * `turnBudget` Map. Ordering and injection policy are now first-class
- * concepts surfaced on the contract:
+ * Replaces the previous bare `Map<string, RegisteredHooks>`. Ordering and
+ * injection policy are first-class concepts surfaced on the contract:
  *
  *   - `priority?: number` on `ChatHook` (lower fires first, default 100).
  *   - `injectionPolicy: 'first-wins' | 'all'` declared per hook type in
  *     `manifest.provides.hooks[]`. If omitted, defaults to `'first-wins'`.
  *   - Registration order is the documented tiebreak when priorities match.
+ *
+ * Per-extension injection budget lives on the `ChatSession` passed into the
+ * fire methods — it's per-turn state, owned by the session that runs the
+ * turn. A new `ChatSession` means a fresh empty budget; no cross-module
+ * "reset" call is required.
  *
  * The host instantiates a single pipeline; the module-level functions below
  * are thin wrappers around that singleton so existing call sites keep
@@ -58,8 +62,6 @@ interface DispatchEntry {
  */
 export class HookPipeline {
   private readonly registry = new Map<string, RegisteredHooks>()
-  /** Per-extension injection counter for the current user turn. */
-  private readonly turnBudget = new Map<string, number>()
   private nextRegistrationSeq = 0
 
   register(
@@ -89,10 +91,6 @@ export class HookPipeline {
 
   unregister(key: string): void {
     this.registry.delete(key)
-  }
-
-  resetTurnBudgets(): void {
-    this.turnBudget.clear()
   }
 
   /**
@@ -172,7 +170,8 @@ export class HookPipeline {
   async fireInjecting(
     type: 'on_thought' | 'on_message',
     event: ThoughtHookEvent | MessageHookEvent,
-    rootPath: string
+    rootPath: string,
+    session: ChatSession
   ): Promise<InjectionRecord | null> {
     const entries = this.collectMatching(type, rootPath)
     if (entries.length === 0) return null
@@ -215,13 +214,13 @@ export class HookPipeline {
       const reg = group[0].reg
       const policy = this.policyFor(reg, type)
 
-      const used = this.turnBudget.get(reg.extensionId) ?? 0
+      const used = session.turnBudget.get(reg.extensionId) ?? 0
       const cap = this.budgetCap(group.map((g) => g.hook))
       if (used >= cap) continue
 
       let extensionInjected = false
       for (const entry of group) {
-        const remaining = cap - (this.turnBudget.get(reg.extensionId) ?? 0)
+        const remaining = cap - (session.turnBudget.get(reg.extensionId) ?? 0)
         if (remaining <= 0) break
 
         let result: unknown
@@ -242,9 +241,9 @@ export class HookPipeline {
           typeof (result as { inject?: unknown }).inject === 'string' &&
           (result as { inject: string }).inject.length > 0
         ) {
-          this.turnBudget.set(
+          session.turnBudget.set(
             reg.extensionId,
-            (this.turnBudget.get(reg.extensionId) ?? 0) + 1
+            (session.turnBudget.get(reg.extensionId) ?? 0) + 1
           )
           collected.push({
             extensionId: reg.extensionId,
@@ -299,14 +298,24 @@ export class HookPipeline {
     }
   }
 
-  fireThought(content: string, turnId: string, rootPath: string): Promise<InjectionRecord | null> {
+  fireThought(
+    content: string,
+    turnId: string,
+    rootPath: string,
+    session: ChatSession
+  ): Promise<InjectionRecord | null> {
     const event: ThoughtHookEvent = { type: 'on_thought', content, turnId }
-    return this.fireInjecting('on_thought', event, rootPath)
+    return this.fireInjecting('on_thought', event, rootPath, session)
   }
 
-  fireMessage(content: string, turnId: string, rootPath: string): Promise<InjectionRecord | null> {
+  fireMessage(
+    content: string,
+    turnId: string,
+    rootPath: string,
+    session: ChatSession
+  ): Promise<InjectionRecord | null> {
     const event: MessageHookEvent = { type: 'on_message', content, turnId }
-    return this.fireInjecting('on_message', event, rootPath)
+    return this.fireInjecting('on_message', event, rootPath, session)
   }
 
   fireUserMessage(content: string, rootPath: string): Promise<void> {
@@ -347,24 +356,22 @@ export function unregisterHooks(key: string): void {
   hookPipeline.unregister(key)
 }
 
-export function resetTurnBudgets(): void {
-  hookPipeline.resetTurnBudgets()
-}
-
 export function fireThoughtHook(
   content: string,
   turnId: string,
-  rootPath: string
+  rootPath: string,
+  session: ChatSession
 ): Promise<InjectionRecord | null> {
-  return hookPipeline.fireThought(content, turnId, rootPath)
+  return hookPipeline.fireThought(content, turnId, rootPath, session)
 }
 
 export function fireMessageHook(
   content: string,
   turnId: string,
-  rootPath: string
+  rootPath: string,
+  session: ChatSession
 ): Promise<InjectionRecord | null> {
-  return hookPipeline.fireMessage(content, turnId, rootPath)
+  return hookPipeline.fireMessage(content, turnId, rootPath, session)
 }
 
 export function fireUserMessageHook(content: string, rootPath: string): Promise<void> {
