@@ -135,3 +135,32 @@ describe('ChatSession.pendingScreenshots', () => {
     await expect(bResult).resolves.toEqual({ ok: false, reason: 'b-failed' })
   })
 })
+
+describe('ChatSession.modifiedFiles', () => {
+  it('starts as an empty array', () => {
+    const s = new ChatSession({ sessionId: 's1', rootPath: '/proj' })
+    expect(s.modifiedFiles).toEqual([])
+  })
+
+  it('two parallel sessions track modified files independently', () => {
+    const a = new ChatSession({ sessionId: 'a', rootPath: '/proj' })
+    const b = new ChatSession({ sessionId: 'b', rootPath: '/proj' })
+
+    a.modifiedFiles.push('/proj/a.ts')
+    b.modifiedFiles.push('/proj/b.ts')
+
+    expect(a.modifiedFiles).toEqual(['/proj/a.ts'])
+    expect(b.modifiedFiles).toEqual(['/proj/b.ts'])
+  })
+
+  it('a disposed session leaves the other session\'s array untouched', () => {
+    const a = new ChatSession({ sessionId: 'a', rootPath: '/proj' })
+    const b = new ChatSession({ sessionId: 'b', rootPath: '/proj' })
+
+    a.modifiedFiles.push('/proj/a.ts')
+    b.modifiedFiles.push('/proj/b.ts')
+
+    a.dispose()
+    expect(b.modifiedFiles).toEqual(['/proj/b.ts'])
+  })
+})

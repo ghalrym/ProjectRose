@@ -3,7 +3,6 @@ import { readFile } from 'fs/promises'
 import { randomUUID } from 'crypto'
 import { prPath } from '../lib/projectPaths'
 import { BrowserWindow } from 'electron'
-import { setActiveProjectRoot, getModifiedFiles, resetModifiedFiles } from './toolHandlers'
 import { streamChat, compressTurnsForContext, routeRequest } from './llmClient'
 import type { StreamResult, CompressionResult, ApiShapeMessage } from './llmClient'
 import { getContextLength } from './contextLengthRegistry'
@@ -169,9 +168,6 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
   resetTurnBudgets()
 
   try {
-    setActiveProjectRoot(rootPath)
-    resetModifiedFiles()
-
     const settings = await readSettings(rootPath)
     const userMessage = messages.at(-1)?.content ?? ''
     // Fire once per user-initiated turn so extensions can reset per-turn state.
@@ -258,7 +254,9 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
         const errorMessage = extractErrorMessage(err)
         const fallbackDisplay = defaultModel.displayName || defaultModel.modelName
         notifyRenderer(IPC.AI_STREAM_RESET, { errorMessage, fallbackModel: fallbackDisplay })
-        resetModifiedFiles()
+        // Clear any modified-files recorded during the failed primary
+        // attempt so the renderer only sees the fallback's writes.
+        session.modifiedFiles.length = 0
 
         activeModel = defaultModel
         activeModelDisplay = fallbackDisplay
@@ -291,7 +289,9 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
     }
 
     if (!lastStreamResult) throw new Error('Chat aborted before any turn completed')
-    return { content: lastStreamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay: activeModelDisplay }
+    // Snapshot before dispose — the session is about to be cleared.
+    const modifiedFiles = [...session.modifiedFiles]
+    return { content: lastStreamResult.content, modifiedFiles, modelDisplay: activeModelDisplay }
   } finally {
     sessionRegistry.unregister(session.sessionId)
     session.dispose()
@@ -314,9 +314,6 @@ export async function runAgentOnce(
   const session = new ChatSession({ sessionId: randomUUID(), rootPath })
   sessionRegistry.register(session)
   try {
-    setActiveProjectRoot(rootPath)
-    resetModifiedFiles()
-
     const settings = await readSettings(rootPath)
     const userMessage = messages.at(-1)?.content ?? ''
     const selectedModel = await selectModel(userMessage, settings)
@@ -345,7 +342,8 @@ export async function runAgentOnce(
     })
 
     const modelDisplay = selectedModel.displayName || selectedModel.modelName
-    return { content: streamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay }
+    const modifiedFiles = [...session.modifiedFiles]
+    return { content: streamResult.content, modifiedFiles, modelDisplay }
   } finally {
     sessionRegistry.unregister(session.sessionId)
     session.dispose()

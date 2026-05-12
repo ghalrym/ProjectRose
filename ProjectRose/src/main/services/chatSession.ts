@@ -29,6 +29,13 @@ export class ChatSession {
   // renderer; the renderer's result is routed back here via the IPC handler.
   readonly pendingScreenshots = new Map<string, (result: ScreenshotResult) => void>()
 
+  // Absolute paths of files written or edited during this turn. The
+  // file-write tools (`write_file`, `edit_file`) push here; the chat loop
+  // reads the array at end of turn so the renderer can update its
+  // "modified files" UI. Per-turn lifetime — the array is empty at
+  // construction time and is dropped with the session.
+  readonly modifiedFiles: string[] = []
+
   constructor(args: { sessionId: string; rootPath: string }) {
     this.sessionId = args.sessionId
     this.rootPath = args.rootPath
