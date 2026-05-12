@@ -9,6 +9,16 @@ export interface ReleaseEntry {
 
 export const RELEASES: ReleaseEntry[] = [
   {
+    version: '1.5.2',
+    tag: null,
+    date: null,
+    title: 'Code architecture improvements',
+    unreleased: true,
+    highlights: [
+      'Improving code architecture under the hood for a more maintainable foundation'
+    ]
+  },
+  {
     version: '1.5.1',
     tag: null,
     date: null,
