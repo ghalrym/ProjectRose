@@ -11,17 +11,33 @@ export interface ExtensionManifest {
     iconName: string
   }
   provides: {
+    // Renderer-side: the extension contributes a page view rendered inside
+    // the host's main nav. Drives whether a renderer bundle is loaded.
     pageView?: boolean
+    // Main-process: the extension ships a `main.js` whose `register(ctx)`
+    // entry point the host should evaluate at load time.
     main?: boolean
+    // Settings surfaces: declares the extension exposes a settings view that
+    // belongs to the project or to global user settings, respectively.
     projectSettings?: boolean
     globalSettings?: boolean
-    agentTools?: boolean
-    // Each tool entry is display metadata for the host's Settings → Tools UI.
+    // ctx.registerTools(...) is available. Each entry below is display
+    // metadata for the host's Settings → Tools UI.
     // `defaultDisabled: true` adds the tool to the project's disabledTools
     // list when the extension is installed, so the agent does not see it
     // until the user explicitly enables it in Settings → Tools.
+    agentTools?: boolean
     tools?: Array<{ name: string; displayName: string; description: string; defaultDisabled?: boolean }>
+    // ctx.registerHooks(...) is available.
     chatHooks?: boolean
+    // ctx.openAgentSession(...) is available.
+    agentSession?: boolean
+    // ctx.runBackgroundAgent(...) is available.
+    backgroundAgent?: boolean
+    // ctx.notifyStatus(...) is available.
+    notifyStatus?: boolean
+    // ctx.broadcast(...) is available.
+    broadcast?: boolean
     // Relative path inside the extension bundle pointing at a markdown file
     // whose contents are appended to the system prompt as the extension's
     // default. Resolved against the extension's installPath; must stay inside

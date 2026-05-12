@@ -13,6 +13,11 @@ import { create as createAgentSession, closeAllForOwner as closeAgentSessionsFor
 import type { ChatHook } from '../../shared/extensionHooks'
 import type { InstalledExtension, ExtensionManifest, ExtensionToolEntry } from '../../shared/extension-types'
 import type { ExtensionMainContext } from '../../shared/extension-contract'
+import {
+  validateManifest,
+  formatManifestIssues,
+  type ManifestValidationIssue
+} from '../../shared/extension-manifest-validator'
 
 function getExtensionsDir(rootPath: string): string {
   return prPath(rootPath, 'extensions')
@@ -22,13 +27,56 @@ async function ensureExtensionsDir(rootPath: string): Promise<void> {
   await mkdir(getExtensionsDir(rootPath), { recursive: true })
 }
 
-async function readManifest(extensionPath: string): Promise<ExtensionManifest | null> {
+interface ManifestReadOk {
+  ok: true
+  manifest: ExtensionManifest
+  warnings: ManifestValidationIssue[]
+}
+
+interface ManifestReadFail {
+  ok: false
+  /** `parse` = no manifest / unreadable JSON; `validate` = parsed but invalid. */
+  reason: 'parse' | 'validate'
+  errors: ManifestValidationIssue[]
+}
+
+async function readManifestStrict(extensionPath: string): Promise<ManifestReadOk | ManifestReadFail> {
+  let parsed: unknown
   try {
     const raw = await readFile(join(extensionPath, 'rose-extension.json'), 'utf-8')
-    return JSON.parse(raw) as ExtensionManifest
+    parsed = JSON.parse(raw)
   } catch {
-    return null
+    return { ok: false, reason: 'parse', errors: [{ path: '', message: 'rose-extension.json is missing or not valid JSON' }] }
   }
+  const result = validateManifest(parsed)
+  if (!result.ok) {
+    return { ok: false, reason: 'validate', errors: result.errors }
+  }
+  return { ok: true, manifest: result.manifest, warnings: result.warnings }
+}
+
+// Best-effort manifest read for listing flows that pre-date strict validation.
+// Returns null on any failure (parse OR validate); callers that need error
+// detail should use `readManifestStrict` directly.
+async function readManifest(extensionPath: string): Promise<ExtensionManifest | null> {
+  const r = await readManifestStrict(extensionPath)
+  return r.ok ? r.manifest : null
+}
+
+function broadcastStatus(text: string, tone: 'info' | 'success' | 'error' | 'warning'): void {
+  const payload = { text, tone, durationMs: 6000 }
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(IPC.STATUS_NOTIFY, payload)
+  }
+}
+
+// Surface manifest warnings (e.g. unknown capability keys) to the renderer
+// status bar so the user sees them, without blocking install or load.
+function reportManifestWarnings(extensionId: string, warnings: ManifestValidationIssue[]): void {
+  if (warnings.length === 0) return
+  const summary = formatManifestIssues(warnings)
+  console.warn(`[rose-ext] manifest warnings for ${extensionId}: ${summary}`)
+  broadcastStatus(`Extension "${extensionId}" manifest: ${summary}`, 'warning')
 }
 
 async function readEnabledState(rootPath: string, id: string): Promise<boolean> {
@@ -154,8 +202,22 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
   const key = `${rootPath}/${id}`
   if (loadedMains.has(key)) return
 
-  const mainPath = join(getExtensionsDir(rootPath), id, 'main.js')
+  const installDir = join(getExtensionsDir(rootPath), id)
+  const mainPath = join(installDir, 'main.js')
   if (!existsSync(mainPath)) return
+
+  // Validate the manifest BEFORE evaluating any extension code. A malformed
+  // manifest means we can't trust the capability set the extension is asking
+  // for, so we refuse to load instead of half-running it.
+  const manifestRead = readManifestSyncStrict(installDir)
+  if (!manifestRead.ok) {
+    const summary = formatManifestIssues(manifestRead.errors)
+    console.error(`[rose-ext] refusing to load ${id}: manifest invalid — ${summary}`)
+    broadcastStatus(`Extension "${id}" failed to load: ${summary}`, 'error')
+    return
+  }
+  reportManifestWarnings(id, manifestRead.warnings)
+  const manifestForHooks = manifestRead.manifest
 
   try {
     const code = readFileSync(mainPath, 'utf-8')
@@ -172,10 +234,6 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
     // eslint-disable-next-line no-new-func
     const wrapper = new Function('module', 'exports', 'require', '__dirname', '__filename', code)
     wrapper(mod, mod.exports, hostedRequire, dirname(mainPath), mainPath)
-
-    // Pull manifest fields needed for chat-hook attribution (extension chip
-     // in the renderer). Read here so we don't disk-hit on every hook fire.
-    const manifestForHooks = readManifestSync(join(getExtensionsDir(rootPath), id))
 
     const ctx: ExtensionMainContext = {
       rootPath,
@@ -245,13 +303,33 @@ function unloadExtensionMainModule(rootPath: string, id: string): void {
   closeAgentSessionsForOwner(key)
 }
 
-function readManifestSync(extensionPath: string): ExtensionManifest | null {
+interface ManifestReadSyncOk {
+  ok: true
+  manifest: ExtensionManifest
+  warnings: ManifestValidationIssue[]
+}
+interface ManifestReadSyncFail {
+  ok: false
+  reason: 'parse' | 'validate'
+  errors: ManifestValidationIssue[]
+}
+
+function readManifestSyncStrict(extensionPath: string): ManifestReadSyncOk | ManifestReadSyncFail {
+  let parsed: unknown
   try {
     const raw = readFileSync(join(extensionPath, 'rose-extension.json'), 'utf-8')
-    return JSON.parse(raw) as ExtensionManifest
+    parsed = JSON.parse(raw)
   } catch {
-    return null
+    return { ok: false, reason: 'parse', errors: [{ path: '', message: 'rose-extension.json is missing or not valid JSON' }] }
   }
+  const result = validateManifest(parsed)
+  if (!result.ok) return { ok: false, reason: 'validate', errors: result.errors }
+  return { ok: true, manifest: result.manifest, warnings: result.warnings }
+}
+
+function readManifestSync(extensionPath: string): ExtensionManifest | null {
+  const r = readManifestSyncStrict(extensionPath)
+  return r.ok ? r.manifest : null
 }
 
 export async function listInstalledExtensions(rootPath: string): Promise<InstalledExtension[]> {
@@ -295,8 +373,16 @@ export function registerExtensionHandlers(): void {
     try {
       await cloneRepo(trimmedUrl, tmpDir)
 
-      const manifest = await readManifest(tmpDir)
-      if (!manifest) throw new Error('Invalid extension: repository is missing rose-extension.json')
+      const manifestRead = await readManifestStrict(tmpDir)
+      if (!manifestRead.ok) {
+        const detail = formatManifestIssues(manifestRead.errors)
+        const intro = manifestRead.reason === 'parse'
+          ? 'Invalid extension: repository is missing rose-extension.json'
+          : 'Invalid extension manifest'
+        throw new Error(`${intro} (${detail})`)
+      }
+      const manifest = manifestRead.manifest
+      reportManifestWarnings(manifest.id, manifestRead.warnings)
 
       await buildExtension(tmpDir)
 
@@ -338,9 +424,13 @@ export function registerExtensionHandlers(): void {
       return { ok: false, error: 'Cannot install from a folder inside the extensions directory' }
     }
 
-    const manifestSource = await readManifest(absSource)
-    if (!manifestSource) {
-      return { ok: false, error: 'Folder is missing rose-extension.json' }
+    const manifestSourceRead = await readManifestStrict(absSource)
+    if (!manifestSourceRead.ok) {
+      const detail = formatManifestIssues(manifestSourceRead.errors)
+      const message = manifestSourceRead.reason === 'parse'
+        ? 'Folder is missing rose-extension.json'
+        : `Manifest is invalid: ${detail}`
+      return { ok: false, error: message }
     }
 
     const tmpDir = join(extensionsDir, `_install_${Date.now()}`)
@@ -348,8 +438,15 @@ export function registerExtensionHandlers(): void {
       await copyLocalSource(absSource, tmpDir)
 
       // Re-validate the manifest from the copy to avoid TOCTOU surprises
-      const manifest = await readManifest(tmpDir)
-      if (!manifest) throw new Error('Copied source is missing rose-extension.json')
+      const manifestRead = await readManifestStrict(tmpDir)
+      if (!manifestRead.ok) {
+        const detail = formatManifestIssues(manifestRead.errors)
+        throw new Error(manifestRead.reason === 'parse'
+          ? 'Copied source is missing rose-extension.json'
+          : `Copied manifest is invalid: ${detail}`)
+      }
+      const manifest = manifestRead.manifest
+      reportManifestWarnings(manifest.id, manifestRead.warnings)
 
       await buildExtension(tmpDir)
 

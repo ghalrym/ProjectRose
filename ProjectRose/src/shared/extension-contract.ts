@@ -34,6 +34,18 @@ export type {
 
 export { MAX_INJECTIONS_PER_TURN_WHEN_ALLOW_MULTIPLE } from './extensionHooks'
 
+// --- Manifest validator (host enforces this at install + load time) -------
+export type {
+  Capability,
+  ManifestValidationIssue,
+  ValidateManifestResult
+} from './extension-manifest-validator'
+export {
+  CAPABILITY_KEYS,
+  validateManifest,
+  formatManifestIssues
+} from './extension-manifest-validator'
+
 // --- Agent session ---------------------------------------------------------
 // Note: this re-exports only the type. The session implementation lives in
 // the host (`src/main/services/agentSession.ts`) and is constructed by the
