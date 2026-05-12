@@ -171,6 +171,13 @@ export class SpeechSession {
   }
 
   /**
+   * Cancel any in-flight draft. The user's "X Cancel" button calls this.
+   */
+  cancelDraft(): void {
+    this.draftAssembler.cancel()
+  }
+
+  /**
    * Accept a chunk of webm audio. Returns when the chunk has been queued; the
    * actual transcription happens asynchronously and produces an utterance
    * event when it completes (or no event for silence).

@@ -110,6 +110,7 @@ export const IPC = {
   SPEECH_SEND_CHUNK: 'speech:sendChunk',
   SPEECH_CLOSE_SESSION: 'speech:closeSession',
   SPEECH_DRAFT: 'speech:draft',
+  SPEECH_CANCEL_DRAFT: 'speech:cancelDraft',
 
   // Speaker management + session history
   ACTIVE_LISTENING_LABEL_SPEAKER: 'activeSpeech:labelSpeaker',

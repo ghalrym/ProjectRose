@@ -166,4 +166,11 @@ export function registerActiveSpeechHandlers(): void {
     (_event, payload: { sessionId: number; projectPath: string }) =>
       closeSpeechSession(sessionRegistry, payload)
   )
+
+  ipcMain.on(
+    IPC.SPEECH_CANCEL_DRAFT,
+    (_event, payload: { sessionId: number }) => {
+      sessionRegistry.get(payload.sessionId)?.cancelDraft()
+    }
+  )
 }

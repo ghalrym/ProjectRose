@@ -100,7 +100,11 @@ export function ChatInput({ notched = false }: { notched?: boolean }): JSX.Eleme
           </span>
           <button
             className={styles.draftCancel}
-            onClick={() => useActiveListeningStore.getState().cancelDraft()}
+            onClick={() => {
+              const sid = useActiveListeningStore.getState().sessionId
+              if (sid !== null) window.api.activeSpeech.cancelDraft({ sessionId: sid })
+              useActiveListeningStore.getState().clearDraft()
+            }}
           >
             ✕ Cancel
           </button>
