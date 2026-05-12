@@ -388,7 +388,7 @@ describe('chatTurn', () => {
 
       const errorMsg = useChatTimelineStore
         .getState()
-        .messages.find((m) => m.role === 'assistant' && (m as AssistantMessage).isError)
+        .messages.find((m): m is AssistantMessage => m.role === 'assistant' && (m as AssistantMessage).isError === true)
       expect(errorMsg).toBeDefined()
       expect(errorMsg?.content).toContain('Error: Request was aborted by client')
     })
