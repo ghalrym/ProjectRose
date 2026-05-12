@@ -2,12 +2,16 @@ import clsx from 'clsx'
 import { SessionSidebar } from './SessionSidebar'
 import { BloomStage } from './BloomStage'
 import { ChatPanel } from './ChatPanel'
-import { useActiveListening } from '../../hooks/useActiveListening'
+import { useActiveListen } from '../../hooks/useActiveListen'
+import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
+import { useProjectStore } from '../../stores/useProjectStore'
 import { useViewStore } from '../../stores/useViewStore'
 import styles from './ChatView.module.css'
 
 export function ChatView(): JSX.Element {
-  useActiveListening()
+  const isActive = useActiveListeningStore((s) => s.isActive)
+  const rootPath = useProjectStore((s) => s.rootPath)
+  useActiveListen({ enabled: isActive, projectPath: rootPath })
   const isChatFullWidth = useViewStore((s) => s.isChatFullWidth)
   return (
     <div className={clsx(styles.chatView, isChatFullWidth && styles.chatViewFullWidth)}>

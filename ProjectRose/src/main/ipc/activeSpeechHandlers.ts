@@ -1,10 +1,18 @@
 import { app, ipcMain } from 'electron'
-import path from 'path'
 import { IPC } from '../../shared/ipcChannels'
 import * as speechDB from '../services/speech/speechDB'
 import { saveRecording, webmPathToWav, cleanupWav } from '../services/speech/audioService'
 import { train, getEmbedder, initCacheDir as initSpeakerCache } from '../services/speech/speakerService'
-import { startSession, stopSession, processChunk } from '../services/speech/liveSession'
+import { SpeechSessionRegistry } from '../services/speech/sessionRegistry'
+import {
+  openSpeechSession,
+  sendSpeechChunk,
+  closeSpeechSession
+} from '../services/speech/sessionLifecycle'
+
+// One registry per process. The IPC handlers are the only thing that holds
+// SpeechSessions by id.
+const sessionRegistry = new SpeechSessionRegistry()
 
 // Tracks the current phase of in-flight training jobs so the UI can show
 // "Downloading model..." vs "Training..." without a DB schema change.
@@ -128,18 +136,6 @@ export function registerActiveSpeechHandlers(): void {
   )
 
   ipcMain.handle(
-    IPC.ACTIVE_LISTENING_CREATE_SESSION,
-    (_event, payload: { projectPath: string; projectId?: string }) =>
-      speechDB.createSession(payload.projectPath, payload.projectId ?? null)
-  )
-
-  ipcMain.handle(
-    IPC.ACTIVE_LISTENING_END_SESSION,
-    (_event, payload: { sessionId: number; projectPath: string }) =>
-      speechDB.endSession(payload.projectPath, payload.sessionId)
-  )
-
-  ipcMain.handle(
     IPC.ACTIVE_LISTENING_GET_UTTERANCES,
     (_event, payload: { sessionId: number; projectPath: string }) =>
       speechDB.getUtterances(payload.projectPath, payload.sessionId)
@@ -150,26 +146,31 @@ export function registerActiveSpeechHandlers(): void {
     (_event, projectPath: string) => speechDB.getSessions(projectPath)
   )
 
+  // --- Session lifecycle (collapsed seam) ---
+
   ipcMain.handle(
-    IPC.ACTIVE_LISTENING_START_STREAM,
-    (_event, payload: { sessionId: number; projectPath: string }) => {
-      startSession(payload.sessionId, payload.projectPath)
-    }
+    IPC.ACTIVE_LISTENING_OPEN_SESSION,
+    (_event, payload: { projectPath: string; projectId?: string }) =>
+      openSpeechSession(sessionRegistry, payload)
   )
 
   ipcMain.on(
-    IPC.ACTIVE_LISTENING_AUDIO_CHUNK,
-    (_event, payload: { sessionId: number; audioBuffer: ArrayBuffer; projectPath: string }) => {
-      processChunk(payload.sessionId, payload.audioBuffer, payload.projectPath).catch(
-        (e) => console.error('[Speech] chunk error:', e)
-      )
+    IPC.ACTIVE_LISTENING_SEND_CHUNK,
+    (_event, payload: { sessionId: number; audioBuffer: ArrayBuffer }) => {
+      sendSpeechChunk(sessionRegistry, payload)
     }
   )
 
   ipcMain.handle(
-    IPC.ACTIVE_LISTENING_STOP_STREAM,
+    IPC.ACTIVE_LISTENING_CLOSE_SESSION,
+    (_event, payload: { sessionId: number; projectPath: string }) =>
+      closeSpeechSession(sessionRegistry, payload)
+  )
+
+  ipcMain.on(
+    IPC.ACTIVE_LISTENING_CANCEL_DRAFT,
     (_event, payload: { sessionId: number }) => {
-      stopSession(payload.sessionId)
+      sessionRegistry.get(payload.sessionId)?.cancelDraft()
     }
   )
 }

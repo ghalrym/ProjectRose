@@ -33,11 +33,12 @@ interface ActiveListeningState {
   updateUtteranceSpeaker: (utteranceId: number, speakerName: string) => void
   setSpeakers: (s: Speaker[]) => void
   addSpeaker: (s: Speaker) => void
-  startDraft: (text: string) => void
-  appendDraft: (text: string) => void
-  cancelDraft: () => void
-  completeDraft: () => void
-  setDraftSecondsLeft: (n: number | null) => void
+  // Session-event-driven setters: the only way draft state is updated.
+  // Hook logic that used to call startDraft / appendDraft / completeDraft
+  // / cancelDraft / setDraftSecondsLeft now lives on main inside
+  // DraftAssembler, and the renderer just reflects what main emits.
+  setDraft: (text: string, secondsLeft: number | null) => void
+  clearDraft: () => void
   reset: () => void
 }
 
@@ -66,10 +67,7 @@ export const useActiveListeningStore = create<ActiveListeningState>()((set) => (
     })),
   setSpeakers: (sp) => set({ speakers: sp }),
   addSpeaker: (sp) => set((s) => ({ speakers: [...s.speakers, sp] })),
-  startDraft: (text) => set({ isDrafting: true, draftText: text }),
-  appendDraft: (text) => set((s) => ({ draftText: s.draftText + ' ' + text })),
-  cancelDraft: () => set({ isDrafting: false, draftText: '', draftSecondsLeft: null }),
-  completeDraft: () => set({ isDrafting: false, draftText: '', draftSecondsLeft: null }),
-  setDraftSecondsLeft: (n) => set({ draftSecondsLeft: n }),
+  setDraft: (text, secondsLeft) => set({ isDrafting: true, draftText: text, draftSecondsLeft: secondsLeft }),
+  clearDraft: () => set({ isDrafting: false, draftText: '', draftSecondsLeft: null }),
   reset: () => set({ utterances: [], speakers: [], isDrafting: false, draftText: '', draftSecondsLeft: null, sessionId: null, viewingSessionId: null }),
 }))
