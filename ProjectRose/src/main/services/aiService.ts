@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto'
 import { prPath } from '../lib/projectPaths'
 import { BrowserWindow } from 'electron'
 import { setActiveProjectRoot, getModifiedFiles, resetModifiedFiles } from './toolHandlers'
-import { streamChat, compressTurnsForContext, routeRequest, cancelAllAskUserQuestions } from './llmClient'
+import { streamChat, compressTurnsForContext, routeRequest } from './llmClient'
 import type { StreamResult, CompressionResult, ApiShapeMessage } from './llmClient'
 import { getContextLength } from './contextLengthRegistry'
 import { estimateTokens } from './tokenCounter'
@@ -23,13 +23,11 @@ import type { InjectionRecord } from '../../shared/extensionHooks'
 import { IPC } from '../../shared/ipcChannels'
 import type { Message } from '../../shared/roseModelTypes'
 import { loadSession } from '../lib/session'
-
-let activeAbortController: AbortController | null = null
+import { ChatSession } from './chatSession'
+import { sessionRegistry } from './sessionRegistry'
 
 export function cancelActiveChat(): void {
-  activeAbortController?.abort()
-  cancelAllAskUserQuestions()
-  activeAbortController = null
+  sessionRegistry.getActive()?.cancel()
 }
 
 function notifyRenderer(channel: string, payload: unknown): void {
@@ -163,8 +161,9 @@ export interface ChatResponse {
 }
 
 export async function chat(messages: Message[], rootPath: string, sessionId: string): Promise<ChatResponse> {
-  const abortController = new AbortController()
-  activeAbortController = abortController
+  const session = new ChatSession({ sessionId, rootPath })
+  sessionRegistry.register(session)
+  const abortController = session.abortController
   // New user message arrived — extension hooks get a fresh per-extension
   // injection budget for this turn.
   resetTurnBudgets()
@@ -294,7 +293,8 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
     if (!lastStreamResult) throw new Error('Chat aborted before any turn completed')
     return { content: lastStreamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay: activeModelDisplay }
   } finally {
-    activeAbortController = null
+    sessionRegistry.unregister(session.sessionId)
+    session.dispose()
   }
 }
 
@@ -308,41 +308,48 @@ export async function runAgentOnce(
   rootPath: string,
   systemPrompt: string,
 ): Promise<ChatResponse> {
-  setActiveProjectRoot(rootPath)
-  resetModifiedFiles()
+  // One-shot background runs are not part of any user chat — give them
+  // their own ephemeral session so extension tools (e.g. coding-agent
+  // harnesses) treat each call as a fresh session.
+  const session = new ChatSession({ sessionId: randomUUID(), rootPath })
+  sessionRegistry.register(session)
+  try {
+    setActiveProjectRoot(rootPath)
+    resetModifiedFiles()
 
-  const settings = await readSettings(rootPath)
-  const userMessage = messages.at(-1)?.content ?? ''
-  const selectedModel = await selectModel(userMessage, settings)
+    const settings = await readSettings(rootPath)
+    const userMessage = messages.at(-1)?.content ?? ''
+    const selectedModel = await selectModel(userMessage, settings)
 
-  const projectSettings = await readProjectSettings(rootPath)
-  const { disabledTools } = projectSettings
+    const projectSettings = await readProjectSettings(rootPath)
+    const { disabledTools } = projectSettings
 
-  const installed = await listInstalledExtensions(rootPath)
-  const enabledExtIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
-  const extensionTools = getRegisteredExtensionTools(rootPath, enabledExtIds)
-    .filter((t) => !disabledTools.includes(t.name))
+    const installed = await listInstalledExtensions(rootPath)
+    const enabledExtIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
+    const extensionTools = getRegisteredExtensionTools(rootPath, enabledExtIds)
+      .filter((t) => !disabledTools.includes(t.name))
 
-  const disabledCoreTools = disabledTools.filter((n) => CORE_TOOL_NAMES.has(n))
+    const disabledCoreTools = disabledTools.filter((n) => CORE_TOOL_NAMES.has(n))
 
-  const streamResult = await streamChat({
-    messages,
-    systemPrompt,
-    extensionTools,
-    disabledCoreTools,
-    model: selectedModel,
-    providerKeys: settings.providerKeys,
-    ollamaBaseUrl: settings.ollamaBaseUrl,
-    openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
-    projectRoot: rootPath,
-    // One-shot background runs are not part of any user chat — give them
-    // their own ephemeral session so extension tools (e.g. coding-agent
-    // harnesses) treat each call as a fresh session.
-    sessionId: randomUUID()
-  })
+    const streamResult = await streamChat({
+      messages,
+      systemPrompt,
+      extensionTools,
+      disabledCoreTools,
+      model: selectedModel,
+      providerKeys: settings.providerKeys,
+      ollamaBaseUrl: settings.ollamaBaseUrl,
+      openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
+      projectRoot: rootPath,
+      sessionId: session.sessionId
+    })
 
-  const modelDisplay = selectedModel.displayName || selectedModel.modelName
-  return { content: streamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay }
+    const modelDisplay = selectedModel.displayName || selectedModel.modelName
+    return { content: streamResult.content, modifiedFiles: getModifiedFiles(), modelDisplay }
+  } finally {
+    sessionRegistry.unregister(session.sessionId)
+    session.dispose()
+  }
 }
 
 // ── Context compression / status ──
