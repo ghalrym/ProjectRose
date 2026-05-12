@@ -19,6 +19,7 @@ import {
   type ManifestValidationIssue
 } from '../../shared/extension-manifest-validator'
 import { buildContext, type HostExtensionSurface } from '../extensions/buildContext'
+import { reconcileToolCatalog } from '../extensions/reconcileToolCatalog'
 
 function getExtensionsDir(rootPath: string): string {
   return prPath(rootPath, 'extensions')
@@ -223,13 +224,13 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
   try {
     const code = readFileSync(mainPath, 'utf-8')
     const extRequire = createRequire(mainPath)
-    const hostExports: Record<string, unknown> = {
-      '@main/ipc/settingsHandlers': { readSettings, writeSettings }
-    }
-    const hostedRequire: NodeJS.Require = ((spec: string) => {
-      if (spec in hostExports) return hostExports[spec]
-      return extRequire(spec)
-    }) as NodeJS.Require
+    // Sandbox tightening (#31): the host no longer hands extensions an
+    // escape hatch into its own internal modules. Anything an extension
+    // needs goes through `ctx`. Any leftover `require('@main/...')` style
+    // import inside an extension will now resolve through the normal
+    // node module resolver and fail loudly, which is what we want — it
+    // tells the author to migrate to the contract.
+    const hostedRequire: NodeJS.Require = ((spec: string) => extRequire(spec)) as NodeJS.Require
     Object.assign(hostedRequire, extRequire)
     const mod: { exports: Record<string, unknown> } = { exports: {} }
     // eslint-disable-next-line no-new-func
@@ -293,10 +294,20 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
     const register = mod.exports['register'] as ((ctx: ExtensionMainContext) => (() => void) | void) | undefined
     const cleanup = register?.(ctx)
     loadedMains.set(key, typeof cleanup === 'function' ? cleanup : () => {})
+
+    // Tool-catalog reconciliation: warn when the manifest's `provides.tools[]`
+    // (display metadata, drives the Settings -> Tools UI and disabledTools
+    // machinery) drifts from what `register(ctx)` actually wired into the
+    // runtime tool registry. This is observability, not enforcement — neither
+    // side blocks the load. The PRD's "one tool shape" goal will tighten this
+    // to refusal once the catalog drift is cleaned up across all 12
+    // extensions.
+    reconcileToolCatalog(id, manifestForHooks, extensionToolsRegistry.get(key) ?? [])
   } catch (err) {
     console.error(`[rose-ext] Failed to load main module for ${id}:`, err)
   }
 }
+
 
 function unloadExtensionMainModule(rootPath: string, id: string): void {
   const key = `${rootPath}/${id}`
