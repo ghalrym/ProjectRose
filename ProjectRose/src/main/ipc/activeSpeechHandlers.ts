@@ -149,26 +149,26 @@ export function registerActiveSpeechHandlers(): void {
   // --- Session lifecycle (collapsed seam) ---
 
   ipcMain.handle(
-    IPC.SPEECH_OPEN_SESSION,
+    IPC.ACTIVE_LISTENING_OPEN_SESSION,
     (_event, payload: { projectPath: string; projectId?: string }) =>
       openSpeechSession(sessionRegistry, payload)
   )
 
   ipcMain.on(
-    IPC.SPEECH_SEND_CHUNK,
+    IPC.ACTIVE_LISTENING_SEND_CHUNK,
     (_event, payload: { sessionId: number; audioBuffer: ArrayBuffer }) => {
       sendSpeechChunk(sessionRegistry, payload)
     }
   )
 
   ipcMain.handle(
-    IPC.SPEECH_CLOSE_SESSION,
+    IPC.ACTIVE_LISTENING_CLOSE_SESSION,
     (_event, payload: { sessionId: number; projectPath: string }) =>
       closeSpeechSession(sessionRegistry, payload)
   )
 
   ipcMain.on(
-    IPC.SPEECH_CANCEL_DRAFT,
+    IPC.ACTIVE_LISTENING_CANCEL_DRAFT,
     (_event, payload: { sessionId: number }) => {
       sessionRegistry.get(payload.sessionId)?.cancelDraft()
     }

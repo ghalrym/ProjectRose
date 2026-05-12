@@ -280,6 +280,6 @@ export class SpeechSession {
     for (const l of this.draftListeners) {
       try { l(evt) } catch (e) { console.error('[Speech] draft listener threw:', e) }
     }
-    this.emit(IPC.SPEECH_DRAFT, payload)
+    this.emit(IPC.ACTIVE_LISTENING_DRAFT, payload)
   }
 }

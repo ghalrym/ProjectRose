@@ -105,12 +105,12 @@ export const IPC = {
   AUTH_CHANGED: 'auth:changed',
   AUTH_PAIRING_PENDING: 'auth:pairingPending',
 
-  // Speech / Active Listening — session lifecycle
-  SPEECH_OPEN_SESSION: 'speech:openSession',
-  SPEECH_SEND_CHUNK: 'speech:sendChunk',
-  SPEECH_CLOSE_SESSION: 'speech:closeSession',
-  SPEECH_DRAFT: 'speech:draft',
-  SPEECH_CANCEL_DRAFT: 'speech:cancelDraft',
+  // Active Listening — session lifecycle
+  ACTIVE_LISTENING_OPEN_SESSION: 'activeSpeech:openSession',
+  ACTIVE_LISTENING_SEND_CHUNK: 'activeSpeech:sendChunk',
+  ACTIVE_LISTENING_CLOSE_SESSION: 'activeSpeech:closeSession',
+  ACTIVE_LISTENING_DRAFT: 'activeSpeech:draft',
+  ACTIVE_LISTENING_CANCEL_DRAFT: 'activeSpeech:cancelDraft',
 
   // Speaker management + session history
   ACTIVE_LISTENING_LABEL_SPEAKER: 'activeSpeech:labelSpeaker',
