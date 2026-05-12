@@ -58,6 +58,29 @@ export {
 // host when an extension calls `ctx.openAgentSession(...)`.
 export type { AgentSession } from './extension-agent-session'
 
+// --- View id ---------------------------------------------------------------
+// New rule, documented as part of the contract: **`manifest.id` IS the
+// extension's `viewId`.** The renderer routes saved view-state (nav tab,
+// last-open extension, etc.) by manifest id. Every new extension gets this
+// for free.
+//
+// The map below exists only to honour saved state from pre-namespaced
+// installs (when first-party extensions shipped under bare names like
+// `discord` or `git`, before the `rose-*` prefix convention). This is a
+// frozen legacy table — DO NOT add new entries. New extensions must use
+// their `rose-<name>` id directly.
+//
+// A future release will sunset this by running a one-shot upgrade migration
+// against saved viewIds in user settings; once nothing on disk references
+// the legacy names, this map can be removed.
+export const legacyViewIdAliases: Readonly<Record<string, string>> = Object.freeze({
+  discord: 'rose-discord',
+  email: 'rose-email',
+  git: 'rose-git',
+  docker: 'rose-docker',
+  heartbeat: 'rose-heartbeat'
+})
+
 // --- Main-process context handed to extensions on register() ---------------
 import type {
   ExtensionToolEntry,
