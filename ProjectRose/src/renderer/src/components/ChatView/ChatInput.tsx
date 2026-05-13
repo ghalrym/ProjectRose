@@ -3,7 +3,6 @@ import { useChatTimelineStore } from '../../stores/useChatTimelineStore'
 import { useChatUIStore } from '../../stores/useChatUIStore'
 import { sendMessage, cancelGeneration } from '../../services/chatTurn'
 import { useSettingsStore } from '../../stores/useSettingsStore'
-import { useServiceStore } from '../../stores/useServiceStore'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import { useScreenWebcamShare } from '../../hooks/useScreenWebcamShare'
 import { SharePreview } from './SharePreview'
@@ -18,7 +17,6 @@ export function ChatInput({ notched = false }: { notched?: boolean }): JSX.Eleme
   const setInputValue = useChatUIStore((s) => s.setInputValue)
   const isLoading = useChatTimelineStore((s) => s.isLoading)
   const micDeviceId = useSettingsStore((s) => s.micDeviceId)
-  const roseSpeechOnline = useServiceStore((s) => s.roseSpeech)
   const isDrafting = useActiveListeningStore((s) => s.isDrafting)
   const draftSecondsLeft = useActiveListeningStore((s) => s.draftSecondsLeft)
   const shareMode = useScreenWebcamShare((s) => s.mode)
@@ -156,11 +154,10 @@ export function ChatInput({ notched = false }: { notched?: boolean }): JSX.Eleme
             <button
               className={clsx(styles.micBtn, {
                 [styles.micRecording]: micState === 'recording',
-                [styles.micTranscribing]: micState === 'transcribing',
-                [styles.micOffline]: roseSpeechOnline === false
+                [styles.micTranscribing]: micState === 'transcribing'
               })}
               onClick={handleMicClick}
-              disabled={isLoading || micState === 'transcribing' || roseSpeechOnline === false}
+              disabled={isLoading || micState === 'transcribing'}
               title={micState === 'recording' ? 'Stop recording' : 'Record voice message'}
             >
               {micState === 'transcribing' ? '…' : '🎙'}
