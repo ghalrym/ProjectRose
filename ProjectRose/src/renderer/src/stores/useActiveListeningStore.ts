@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { useChatUIStore } from './useChatUIStore'
+import { sendMessage } from '../services/chatTurn'
 
 export interface Utterance {
   utteranceId: number
@@ -160,10 +161,5 @@ export const useActiveListeningStore = create<ActiveListeningState>()((set, get)
 // duplicating the wiring.
 export function defaultSendDraft(text: string): void {
   useChatUIStore.getState().setInputValue(text)
-  // Lazy import to avoid a slice → services cycle. chatTurn imports
-  // useChatUIStore + useChatTimelineStore + … so a static import here would
-  // require chatTurn to be loaded before the store can be created.
-  void import('../services/chatTurn').then(({ sendMessage }) => {
-    sendMessage()
-  })
+  sendMessage()
 }
