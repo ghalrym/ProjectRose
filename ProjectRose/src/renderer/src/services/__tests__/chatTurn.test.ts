@@ -14,11 +14,14 @@ import {
   sendMessage,
   cancelGeneration,
   answerAskUser,
-  refreshContextStatus,
-  compressNow,
   newSession,
   clearChatForProjectSwitch,
 } from '../chatTurn'
+
+const refreshContextStatus = (rootPath: string): Promise<void> =>
+  useCompressionStore.getState().refreshContextStatus(rootPath)
+const compressNow = (rootPath: string): Promise<void> =>
+  useCompressionStore.getState().compress(rootPath)
 import { useChatTimelineStore } from '../../stores/useChatTimelineStore'
 import { useChatUIStore } from '../../stores/useChatUIStore'
 import { useCompressionStore } from '../../stores/useCompressionStore'

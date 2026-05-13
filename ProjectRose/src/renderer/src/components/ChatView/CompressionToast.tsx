@@ -1,6 +1,5 @@
 import { useCompressionStore, useShouldShowToast } from '../../stores/useCompressionStore'
 import { useProjectStore } from '../../stores/useProjectStore'
-import { compressNow } from '../../services/chatTurn'
 import styles from './CompressionToast.module.css'
 
 export function CompressionToast(): JSX.Element | null {
@@ -18,7 +17,10 @@ export function CompressionToast(): JSX.Element | null {
   const pct = Math.round(status.percentUsed * 100)
 
   const handleCompress = (): void => {
-    compressNow(rootPath).catch(() => { /* failures shown via status notify elsewhere */ })
+    useCompressionStore
+      .getState()
+      .compress(rootPath)
+      .catch(() => { /* failures shown via status notify elsewhere */ })
   }
 
   return (

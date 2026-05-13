@@ -9,7 +9,6 @@ import type { UserMessage } from '../types/chatMessages'
 import { buildApiMessages, substituteCompressionSnapshot } from './chatApiMessages'
 import {
   persistSession,
-  persistCurrentSession,
   loadAllSessions,
   loadSessionInto,
   deleteSessionFor,
@@ -162,9 +161,12 @@ export async function sendMessage(): Promise<void> {
 
       // Refresh after each settled turn so the toast can fire when usage
       // crosses the threshold. Failures are swallowed — status is best-effort.
-      refreshContextStatus(rootPath).catch(() => {
-        /* ignore */
-      })
+      useCompressionStore
+        .getState()
+        .refreshContextStatus(rootPath)
+        .catch(() => {
+          /* ignore */
+        })
 
       if (response.modifiedFiles.length > 0) {
         useProjectStore.getState().refreshTree()
@@ -203,67 +205,6 @@ export async function answerAskUser(questionId: string, answer: string): Promise
   await window.api.aiAskUserResponse(sessionId, questionId, answer)
 }
 
-export async function refreshContextStatus(rootPath: string): Promise<void> {
-  const messages = useChatTimelineStore.getState().messages
-  if (messages.length === 0) {
-    useCompressionStore.getState().setContextStatus(null)
-    return
-  }
-  const c = useCompressionStore.getState()
-  const snapshot =
-    c.compressedMessages && c.compressedFromCount != null && c.compressedFromRawCount != null
-      ? {
-          compressedMessages: c.compressedMessages,
-          compressedFromCount: c.compressedFromCount,
-          compressedFromRawCount: c.compressedFromRawCount,
-        }
-      : null
-  const status = await window.api.aiContextStatus(
-    rootPath,
-    messages as unknown as Array<Record<string, unknown>>,
-    snapshot
-  )
-  useCompressionStore.getState().setContextStatus(status)
-}
-
-export async function compressNow(rootPath: string): Promise<void> {
-  const sessionId = useSessionsStore.getState().currentSessionId
-  if (!sessionId || useCompressionStore.getState().isCompressing) return
-  useCompressionStore.getState().setIsCompressing(true)
-  try {
-    const messages = useChatTimelineStore.getState().messages
-    const result = await window.api.aiCompressToolNoise(
-      rootPath,
-      messages as unknown as Array<Record<string, unknown>>
-    )
-    if (result) {
-      const at = Date.now()
-      useCompressionStore.getState().setSnapshot({
-        compressedMessages: result.compressedMessages,
-        compressedFromCount: result.compressedFromCount,
-        compressedFromRawCount: result.compressedFromRawCount,
-        compressedAt: at,
-      })
-      persistCurrentSession(rootPath)
-      // Recompute status against the new snapshot, then snap the dismiss
-      // baseline to it. If post-compression usage is below threshold the
-      // toast hides naturally; if it isn't (recent turns alone exceed it),
-      // the snap suppresses the toast until usage grows by REDISPLAY_*
-      // deltas. Either way we don't immediately re-fire the toast at the
-      // exact level the user just acted on.
-      await refreshContextStatus(rootPath)
-      const fresh = useCompressionStore.getState().contextStatus
-      useCompressionStore
-        .getState()
-        .setToastDismissed(
-          fresh ? { percentUsed: fresh.percentUsed, totalToolSteps: fresh.totalToolSteps } : null
-        )
-    }
-  } finally {
-    useCompressionStore.getState().setIsCompressing(false)
-  }
-}
-
 export function newSession(): void {
   useSessionsStore.getState().setCurrentSessionId(null)
   useChatTimelineStore.getState().resetTimeline()
@@ -273,17 +214,23 @@ export function newSession(): void {
 export async function loadSessions(rootPath: string): Promise<void> {
   await loadAllSessions(rootPath)
   if (useSessionsStore.getState().currentSessionId) {
-    await refreshContextStatus(rootPath).catch(() => {
-      /* ignore */
-    })
+    await useCompressionStore
+      .getState()
+      .refreshContextStatus(rootPath)
+      .catch(() => {
+        /* ignore */
+      })
   }
 }
 
 export async function switchSession(rootPath: string, sessionId: string): Promise<void> {
   await loadSessionInto(rootPath, sessionId)
-  await refreshContextStatus(rootPath).catch(() => {
-    /* ignore */
-  })
+  await useCompressionStore
+    .getState()
+    .refreshContextStatus(rootPath)
+    .catch(() => {
+      /* ignore */
+    })
 }
 
 export async function deleteSession(rootPath: string, sessionId: string): Promise<void> {
