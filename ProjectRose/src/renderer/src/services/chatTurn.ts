@@ -253,9 +253,11 @@ export async function compressNow(rootPath: string): Promise<void> {
       // exact level the user just acted on.
       await refreshContextStatus(rootPath)
       const fresh = useCompressionStore.getState().contextStatus
-      useCompressionStore.getState().setToastDismissed(
-        fresh ? { percentUsed: fresh.percentUsed, totalToolSteps: fresh.totalToolSteps } : null
-      )
+      useCompressionStore
+        .getState()
+        .setToastDismissed(
+          fresh ? { percentUsed: fresh.percentUsed, totalToolSteps: fresh.totalToolSteps } : null
+        )
     }
   } finally {
     useCompressionStore.getState().setIsCompressing(false)

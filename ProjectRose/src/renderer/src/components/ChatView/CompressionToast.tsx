@@ -1,19 +1,15 @@
-import { useCompressionStore } from '../../stores/useCompressionStore'
+import { useCompressionStore, useShouldShowToast } from '../../stores/useCompressionStore'
 import { useProjectStore } from '../../stores/useProjectStore'
-import { useSettingsStore } from '../../stores/useSettingsStore'
-import { shouldShowCompressionToast } from '../../services/compressionToast'
 import { compressNow } from '../../services/chatTurn'
 import styles from './CompressionToast.module.css'
 
 export function CompressionToast(): JSX.Element | null {
   const status = useCompressionStore((s) => s.contextStatus)
-  const dismissed = useCompressionStore((s) => s.compressionToastDismissed)
   const isCompressing = useCompressionStore((s) => s.isCompressing)
-  const dismiss = useCompressionStore((s) => s.dismissCompressionToast)
+  const dismiss = useCompressionStore((s) => s.dismissToast)
   const rootPath = useProjectStore((s) => s.rootPath)
-  const tokenThresholdPct = useSettingsStore((s) => s.compressionThresholdPct)
+  const shouldShow = useShouldShowToast()
 
-  const shouldShow = shouldShowCompressionToast(status, dismissed, tokenThresholdPct)
   // Once compression starts, keep the toast mounted (with the spinner) until
   // the action resolves — even if status changes mid-flight.
   if (!shouldShow && !isCompressing) return null

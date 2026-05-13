@@ -1,5 +1,14 @@
 import { create } from 'zustand'
 import type { ContextStatus, CompressionSnapshot } from '../types/chatMessages'
+import { useSettingsStore } from './useSettingsStore'
+
+// Tool-step count is fixed at 50 because it's a property of the agentic loop
+// budget rather than the model.
+export const TOOL_STEP_THRESHOLD = 50
+// Hysteresis after dismiss: re-show only once usage has grown by 10pp OR by
+// another 25 tool steps. Prevents the toast from re-appearing every turn.
+export const REDISPLAY_PCT_DELTA = 0.1
+export const REDISPLAY_TOOL_DELTA = 25
 
 interface CompressionState {
   // Per-session compression snapshot — replaces the leading
@@ -16,7 +25,7 @@ interface CompressionState {
   // Snapshot of {percentUsed, totalToolSteps} at dismiss time. The toast
   // re-appears only after the live values exceed this snapshot by the
   // REDISPLAY_* deltas — avoids nagging on every subsequent turn.
-  compressionToastDismissed: { percentUsed: number; totalToolSteps: number } | null
+  toastDismissed: { percentUsed: number; totalToolSteps: number } | null
   isCompressing: boolean
 
   setSnapshot: (snapshot: CompressionSnapshot | null) => void
@@ -24,7 +33,7 @@ interface CompressionState {
   setIsCompressing: (v: boolean) => void
   setToastDismissed: (v: { percentUsed: number; totalToolSteps: number } | null) => void
   reset: () => void
-  dismissCompressionToast: () => void
+  dismissToast: () => void
 }
 
 const initial = {
@@ -33,7 +42,7 @@ const initial = {
   compressedFromRawCount: null,
   compressedAt: null,
   contextStatus: null,
-  compressionToastDismissed: null,
+  toastDismissed: null,
   isCompressing: false,
 }
 
@@ -57,16 +66,47 @@ export const useCompressionStore = create<CompressionState>((set, get) => ({
     ),
   setContextStatus: (contextStatus) => set({ contextStatus }),
   setIsCompressing: (isCompressing) => set({ isCompressing }),
-  setToastDismissed: (compressionToastDismissed) => set({ compressionToastDismissed }),
+  setToastDismissed: (toastDismissed) => set({ toastDismissed }),
   reset: () => set({ ...initial }),
-  dismissCompressionToast: () => {
+  dismissToast: () => {
     const status = get().contextStatus
     if (!status) return
     set({
-      compressionToastDismissed: {
+      toastDismissed: {
         percentUsed: status.percentUsed,
         totalToolSteps: status.totalToolSteps,
       },
     })
   },
 }))
+
+// Pure threshold + hysteresis predicate. Exported for tests and for the
+// `shouldShowToast` selector below.
+export function evaluateShouldShowToast(
+  status: ContextStatus | null,
+  dismissed: { percentUsed: number; totalToolSteps: number } | null,
+  tokenThresholdPct: number
+): boolean {
+  if (!status) return false
+  const clampedThreshold = Math.min(1, Math.max(0.05, tokenThresholdPct))
+  const overToken = status.percentUsed >= clampedThreshold
+  const overSteps = status.totalToolSteps >= TOOL_STEP_THRESHOLD
+  if (!overToken && !overSteps) return false
+  if (!dismissed) return true
+  return (
+    status.percentUsed - dismissed.percentUsed >= REDISPLAY_PCT_DELTA ||
+    status.totalToolSteps - dismissed.totalToolSteps >= REDISPLAY_TOOL_DELTA
+  )
+}
+
+// One-stop selector for the toast: subscribes to contextStatus +
+// toastDismissed on this slice and compressionThresholdPct on
+// useSettingsStore, then composes them through `evaluateShouldShowToast`.
+// CompressionToast.tsx reads this single boolean instead of computing it from
+// three independent subscriptions.
+export function useShouldShowToast(): boolean {
+  const status = useCompressionStore((s) => s.contextStatus)
+  const dismissed = useCompressionStore((s) => s.toastDismissed)
+  const tokenThresholdPct = useSettingsStore((s) => s.compressionThresholdPct)
+  return evaluateShouldShowToast(status, dismissed, tokenThresholdPct)
+}

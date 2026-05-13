@@ -95,7 +95,7 @@ function resetStores(): void {
     compressedFromRawCount: null,
     compressedAt: null,
     contextStatus: null,
-    compressionToastDismissed: null,
+    toastDismissed: null,
     isCompressing: false,
   })
   useSessionsStore.setState({ sessions: [], currentSessionId: null })
@@ -216,7 +216,7 @@ describe('chatTurn', () => {
         compressedFromRawCount: 2,
         compressedAt: 1,
         contextStatus: null,
-        compressionToastDismissed: null,
+        toastDismissed: null,
         isCompressing: false,
       })
       useChatUIStore.getState().setInputValue('new turn')
@@ -484,7 +484,7 @@ describe('chatTurn', () => {
         compressedFromRawCount: 1,
         compressedAt: 1,
         contextStatus: null,
-        compressionToastDismissed: null,
+        toastDismissed: null,
         isCompressing: false,
       })
       await refreshContextStatus('/proj')
@@ -589,7 +589,7 @@ describe('chatTurn', () => {
         compressedFromRawCount: 1,
         compressedAt: 1,
         contextStatus: null,
-        compressionToastDismissed: null,
+        toastDismissed: null,
         isCompressing: false,
       })
 
