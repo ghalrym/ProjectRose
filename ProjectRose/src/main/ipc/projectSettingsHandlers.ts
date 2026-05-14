@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'fs/promises'
 import { ipcMain } from 'electron'
 import { listInstalledExtensions } from './extensionHandlers'
 import { prPath } from '../lib/projectPaths'
+import { toolRegistry } from '../services/toolRegistry'
 
 export interface ProjectSettings {
   disabledTools: string[]
@@ -10,23 +11,22 @@ export interface ProjectSettings {
 
 const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { disabledTools: [], disabledPrompts: [] }
 
-export const CORE_TOOL_NAMES = new Set([
-  'read_file', 'write_file', 'edit_file', 'list_directory', 'grep', 'run_command', 'ask_user',
-  'create_subagents', 'explore', 'search_web',
-])
-
-const CORE_TOOL_META = [
-  { name: 'read_file', displayName: 'Read File', description: 'Read the contents of any file in the project', type: 'core' as const },
-  { name: 'write_file', displayName: 'Write File', description: 'Write or overwrite file contents', type: 'core' as const },
-  { name: 'edit_file', displayName: 'Edit File', description: 'Replace a unique string in a file (requires prior read_file)', type: 'core' as const },
-  { name: 'list_directory', displayName: 'List Directory', description: 'List files and subdirectories', type: 'core' as const },
-  { name: 'grep', displayName: 'Grep', description: 'Search file contents by regex pattern', type: 'core' as const },
-  { name: 'run_command', displayName: 'Run Command', description: 'Execute shell commands in the project', type: 'core' as const },
-  { name: 'ask_user', displayName: 'Ask User', description: 'Pause generation to ask the user a clarifying question', type: 'core' as const },
-  { name: 'create_subagents', displayName: 'Subagents', description: 'Spawn one or more subagents to run focused tasks in parallel', type: 'core' as const },
-  { name: 'explore', displayName: 'Explore', description: 'Decompose a topic into parallel read-only sub-queries and return a combined report', type: 'core' as const },
-  { name: 'search_web', displayName: 'Web Search', description: 'Search the web via the ProjectRose search API', type: 'core' as const },
-]
+// User-facing labels for core tools. The list of names that actually exist
+// comes from the registry (`toolRegistry.getCoreToolNames()`); this table is
+// only the display strings. If a new core tool is registered without a row
+// here, it surfaces in the UI with its bare name as fallback.
+const CORE_TOOL_DISPLAY: Record<string, { displayName: string; description: string }> = {
+  read_file: { displayName: 'Read File', description: 'Read the contents of any file in the project' },
+  write_file: { displayName: 'Write File', description: 'Write or overwrite file contents' },
+  edit_file: { displayName: 'Edit File', description: 'Replace a unique string in a file (requires prior read_file)' },
+  list_directory: { displayName: 'List Directory', description: 'List files and subdirectories' },
+  grep: { displayName: 'Grep', description: 'Search file contents by regex pattern' },
+  run_command: { displayName: 'Run Command', description: 'Execute shell commands in the project' },
+  ask_user: { displayName: 'Ask User', description: 'Pause generation to ask the user a clarifying question' },
+  create_subagents: { displayName: 'Subagents', description: 'Spawn one or more subagents to run focused tasks in parallel' },
+  explore: { displayName: 'Explore', description: 'Decompose a topic into parallel read-only sub-queries and return a combined report' },
+  search_web: { displayName: 'Web Search', description: 'Search the web via the ProjectRose search API' }
+}
 
 export async function readProjectSettings(rootPath: string): Promise<ProjectSettings> {
   try {
@@ -50,6 +50,16 @@ export function registerProjectSettingsHandlers(): void {
   })
 
   ipcMain.handle('tools:list', async (_ev, rootPath: string) => {
+    const coreMeta = toolRegistry.getCoreToolNames().map((name) => {
+      const display = CORE_TOOL_DISPLAY[name]
+      return {
+        name,
+        displayName: display?.displayName ?? name,
+        description: display?.description ?? '',
+        type: 'core' as const
+      }
+    })
+
     const installed = await listInstalledExtensions(rootPath)
     const extensionMeta = installed
       .filter((ext) => ext.enabled && ext.manifest.provides.tools?.length)
@@ -64,6 +74,6 @@ export function registerProjectSettingsHandlers(): void {
         }))
       )
 
-    return [...CORE_TOOL_META, ...extensionMeta]
+    return [...coreMeta, ...extensionMeta]
   })
 }
