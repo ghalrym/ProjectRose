@@ -19,7 +19,6 @@ import { useFileStore } from './stores/useFileStore'
 import { useProjectStore } from './stores/useProjectStore'
 import { useIndexingStore } from './stores/useIndexingStore'
 import { useSettingsStore } from './stores/useSettingsStore'
-import { useServiceStore } from './stores/useServiceStore'
 import { useStatusStore } from './stores/useStatusStore'
 import { useUpdaterStore } from './stores/useUpdaterStore'
 import { useAppsDrawerStore } from './stores/useAppsDrawerStore'
@@ -40,14 +39,8 @@ function App(): JSX.Element {
   const { load: loadSettings } = useSettingsStore()
   const settingsLoaded = useSettingsStore((s) => s.loaded)
   const agentStartsExpanded = useSettingsStore((s) => s.agentStartsExpanded)
-  const setServiceStatus = useServiceStore((s) => s.setStatus)
   const [needsSetup, setNeedsSetup] = useState(false)
   const initialExpandApplied = useRef(false)
-
-  // Speech is now in-process — always available
-  useEffect(() => {
-    setServiceStatus(true)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bridge: when the agent invokes the `screenshot` tool, capture a frame from
   // the active share stream and send it back to main. The sessionId rides on

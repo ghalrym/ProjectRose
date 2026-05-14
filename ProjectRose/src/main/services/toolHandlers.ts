@@ -1,5 +1,5 @@
 import { readFile, writeFile, readdir, mkdir, stat } from 'fs/promises'
-import { join, basename, dirname } from 'path'
+import { join } from 'path'
 import { execSync } from 'child_process'
 import { platform } from 'os'
 import { BrowserWindow } from 'electron'
@@ -8,6 +8,7 @@ import { lspRequest } from './lspManager'
 import { loadSession } from '../lib/session'
 import { WEB_BASE_URL } from '../lib/webConfig'
 import { sessionRegistry } from './sessionRegistry'
+import { resolveProjectPath, isDotEnvPath } from './projectPathGuard'
 import type { ExtensionToolCtx } from '../../shared/extension-types'
 
 function notifyRenderer(event: string, data: unknown): void {
@@ -28,16 +29,11 @@ function recordModifiedFile(toolCtx: ExtensionToolCtx | undefined, absolute: str
 
 export async function handleReadFile(input: Record<string, unknown>, projectRoot: string): Promise<string> {
   const filePath = String(input.path || '')
-  const absolute = filePath.startsWith('/') || filePath.includes(':')
-    ? filePath
-    : join(projectRoot, filePath)
-
-  if (basename(absolute) === '.env' || basename(absolute).startsWith('.env.')) {
-    return 'Access denied: .env files cannot be read.'
-  }
+  const resolved = resolveProjectPath(filePath, projectRoot, { blockDotEnv: true })
+  if ('deniedReason' in resolved) return resolved.deniedReason
 
   try {
-    return await readFile(absolute, 'utf-8')
+    return await readFile(resolved.absolute, 'utf-8')
   } catch {
     return 'File does not exist.'
   }
@@ -49,15 +45,14 @@ export async function handleWriteFile(
   toolCtx?: ExtensionToolCtx
 ): Promise<string> {
   const filePath = String(input.path || '')
-  const absolute = filePath.startsWith('/') || filePath.includes(':')
-    ? filePath
-    : join(projectRoot, filePath)
+  const resolved = resolveProjectPath(filePath, projectRoot, { blockDotEnv: true })
+  if ('deniedReason' in resolved) return resolved.deniedReason
 
   const content = String(input.content ?? '')
-  await mkdir(dirname(absolute), { recursive: true })
-  await writeFile(absolute, content, 'utf-8')
-  recordModifiedFile(toolCtx, absolute)
-  notifyRenderer(IPC.AI_FILE_MODIFIED, { path: absolute })
+  await mkdir(join(resolved.absolute, '..'), { recursive: true })
+  await writeFile(resolved.absolute, content, 'utf-8')
+  recordModifiedFile(toolCtx, resolved.absolute)
+  notifyRenderer(IPC.AI_FILE_MODIFIED, { path: resolved.absolute })
 
   return `File written: ${filePath}`
 }
@@ -68,14 +63,13 @@ export async function handleEditFile(
   toolCtx?: ExtensionToolCtx
 ): Promise<string> {
   const filePath = String(input.path || '')
-  const absolute = filePath.startsWith('/') || filePath.includes(':')
-    ? filePath
-    : join(projectRoot, filePath)
+  const resolved = resolveProjectPath(filePath, projectRoot, { blockDotEnv: true })
+  if ('deniedReason' in resolved) return resolved.deniedReason
 
   const oldString = String(input.old_string ?? '')
   const newString = String(input.new_string ?? '')
 
-  const content = await readFile(absolute, 'utf-8')
+  const content = await readFile(resolved.absolute, 'utf-8')
   const occurrences = content.split(oldString).length - 1
   if (occurrences === 0) {
     return `old_string not found in ${filePath}. Read the file again to get current content before editing.`
@@ -85,19 +79,18 @@ export async function handleEditFile(
   }
 
   const updated = content.replace(oldString, newString)
-  await writeFile(absolute, updated, 'utf-8')
-  recordModifiedFile(toolCtx, absolute)
-  notifyRenderer(IPC.AI_FILE_MODIFIED, { path: absolute })
+  await writeFile(resolved.absolute, updated, 'utf-8')
+  recordModifiedFile(toolCtx, resolved.absolute)
+  notifyRenderer(IPC.AI_FILE_MODIFIED, { path: resolved.absolute })
 
   return `File edited: ${filePath}`
 }
 
 export async function handleListDirectory(input: Record<string, unknown>, projectRoot: string): Promise<string> {
   const dirPath = String(input.path || '.')
-  const absolute = dirPath.startsWith('/') || dirPath.includes(':')
-    ? dirPath
-    : join(projectRoot, dirPath)
-  const entries = await readdir(absolute, { withFileTypes: true })
+  const resolved = resolveProjectPath(dirPath, projectRoot, { blockDotEnv: true })
+  if ('deniedReason' in resolved) return resolved.deniedReason
+  const entries = await readdir(resolved.absolute, { withFileTypes: true })
   return JSON.stringify(entries.map((e) => ({ name: e.name, type: e.isDirectory() ? 'directory' : 'file' })))
 }
 
@@ -186,6 +179,10 @@ async function grepWalk(
     if (results.length >= max) break
     if (GREP_IGNORED.has(entry)) continue
     const full = join(dir, entry)
+    // .env / .env.* never appear in grep results — same blast radius as
+    // read_file's denial. Files are skipped by basename, not by path, so
+    // a nested `.env` in a subdir is also excluded.
+    if (isDotEnvPath(full)) continue
     let s
     try { s = await stat(full) } catch { continue }
 
@@ -218,9 +215,10 @@ export async function handleGrep(input: Record<string, unknown>, projectRoot: st
   }
 
   const searchPath = String(input.path || '.')
-  const absolute = searchPath.startsWith('/') || searchPath.includes(':')
-    ? searchPath
-    : join(projectRoot, searchPath)
+  const resolved = resolveProjectPath(searchPath, projectRoot)
+  // grep does not block the search root itself — `grep '.' '.env'` is
+  // unusual but file-level filtering inside grepWalk handles the case.
+  const absolute = 'absolute' in resolved ? resolved.absolute : join(projectRoot, searchPath)
 
   const includeExts = String(input.include || '')
     .split(',').map((s) => s.trim().replace(/^\*/, '')).filter(Boolean)
@@ -262,4 +260,3 @@ export async function handleSearchWeb(input: Record<string, unknown>): Promise<s
   }
   return text
 }
-

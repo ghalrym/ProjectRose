@@ -14,7 +14,6 @@ import * as xtermAddonWebLinks from '@xterm/addon-web-links'
 import * as useFileStore from './stores/useFileStore'
 import * as useIndexingStore from './stores/useIndexingStore'
 import * as useProjectStore from './stores/useProjectStore'
-import * as useServiceStore from './stores/useServiceStore'
 import * as useSettingsStore from './stores/useSettingsStore'
 import * as useStatusStore from './stores/useStatusStore'
 import * as useTerminalStore from './stores/useTerminalStore'
@@ -41,7 +40,6 @@ window.__rose__ = {
   '@renderer/stores/useFileStore': useFileStore,
   '@renderer/stores/useIndexingStore': useIndexingStore,
   '@renderer/stores/useProjectStore': useProjectStore,
-  '@renderer/stores/useServiceStore': useServiceStore,
   '@renderer/stores/useSettingsStore': useSettingsStore,
   '@renderer/stores/useStatusStore': useStatusStore,
   '@renderer/stores/useTerminalStore': useTerminalStore,
