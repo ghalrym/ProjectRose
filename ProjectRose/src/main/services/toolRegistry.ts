@@ -20,9 +20,10 @@
 import { tool } from 'ai'
 import type { ToolExecutionOptions } from 'ai'
 import { z } from 'zod'
-import type { ExtensionToolCtx, ExtensionToolEntry } from '../../shared/extension-types'
+import type { ExtensionManifest, ExtensionToolCtx, ExtensionToolEntry } from '../../shared/extension-types'
 import { IPC } from '../../shared/ipcChannels'
 import { fireToolCallHook } from './extensionHooks'
+import { reconcileToolCatalog, type ToolCatalogDrift } from '../extensions/reconcileToolCatalog'
 // Type-only imports keep the registry's runtime dependency graph one-way
 // (llmClient/subagentTools/skillService import the registry; the registry
 // imports their types but not their runtime modules).
@@ -149,12 +150,29 @@ export class ToolRegistry {
   private buildCoreToolsFn: BuildCoreToolsFn | null = null
   private buildSubagentToolsFn: BuildSubagentToolsFn | null = null
   private buildSkillToolsFn: BuildSkillToolsFn | null = null
+  private coreToolNames: string[] = []
   // Keyed by `${rootPath}/${extensionId}` — mirrors the prior storage in
   // `extensionHandlers.ts` so per-project extensions don't collide.
   private extensionTools = new Map<string, ExtensionToolEntry[]>()
 
   registerCoreTools(buildFn: BuildCoreToolsFn): void {
     this.buildCoreToolsFn = buildFn
+    // Probe the builder once with a stub context to capture the names. The
+    // `ai.tool({...})` factory only stores references at construction time —
+    // execute functions don't fire until the agent invokes them — so the
+    // probe is side-effect-free. Cached so consumers (Settings -> Tools
+    // catalog, manifest reconciliation) can list core names without rebuilding.
+    const probe = buildFn({
+      rootPath: '',
+      emit: () => {},
+      toolCtx: { sessionId: '', turnId: undefined }
+    })
+    this.coreToolNames = Object.keys(probe)
+  }
+
+  /** Names of the registered core tools, in source-declaration order. */
+  getCoreToolNames(): readonly string[] {
+    return this.coreToolNames
   }
 
   registerSubagentSource(buildFn: BuildSubagentToolsFn): void {
@@ -176,6 +194,20 @@ export class ToolRegistry {
   /** Raw entries for one extension; used by manifest reconciliation. */
   getExtensionToolEntries(extensionId: string, rootPath: string): ExtensionToolEntry[] {
     return this.extensionTools.get(`${rootPath}/${extensionId}`) ?? []
+  }
+
+  /**
+   * Diff the manifest's declared `provides.tools[].name` against the tools
+   * `register()` actually wired into the registry. Throws on drift — the
+   * extension loader catches the throw and refuses to retain the extension
+   * (#37 flipped this from warning-only to enforcement).
+   *
+   * This is the registry-owned entry point the loader uses; the underlying
+   * `reconcileToolCatalog` helper continues to provide the pure diff for
+   * unit tests.
+   */
+  assertManifestMatches(extensionId: string, rootPath: string, manifest: ExtensionManifest): ToolCatalogDrift {
+    return reconcileToolCatalog(extensionId, manifest, this.getExtensionToolEntries(extensionId, rootPath))
   }
 
   /** Raw entries for a set of enabled extensions; used by Settings UI. */

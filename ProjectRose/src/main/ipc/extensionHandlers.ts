@@ -23,7 +23,6 @@ import {
   type ManifestValidationIssue
 } from '../../shared/extension-manifest-validator'
 import { buildContext, type HostExtensionSurface } from '../extensions/buildContext'
-import { reconcileToolCatalog } from '../extensions/reconcileToolCatalog'
 import { toolRegistry } from '../services/toolRegistry'
 
 function getExtensionsDir(rootPath: string): string {
@@ -333,7 +332,7 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
     // and `getRegisteredExtensionTools` will not surface its tools to
     // the agent.
     try {
-      reconcileToolCatalog(id, manifestForHooks, toolRegistry.getExtensionToolEntries(id, rootPath))
+      toolRegistry.assertManifestMatches(id, rootPath, manifestForHooks)
       reconcileHookCatalog(id, key, manifestForHooks)
     } catch (reconcileErr) {
       const detail = (reconcileErr as Error).message
