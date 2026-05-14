@@ -49,7 +49,7 @@ export function buildSubagentTools(
     agentLabel: string,
     prompt: string,
     subSystemPrompt?: string,
-    disabledCoreTools?: string[]
+    disabledTools?: string[]
   ): Promise<string> {
     const idx = counter.value++
     const subId = randomUUID()
@@ -69,7 +69,7 @@ export function buildSubagentTools(
         projectRoot: ctx.rootPath,
         notify: () => {},  // subagents do not stream tokens to renderer
         abortSignal: ctx.abortSignal,
-        disabledCoreTools,
+        disabledTools,
         // Subagents share the parent chat session so extension tools see
         // continuity across the user's turn.
         sessionId: ctx.sessionId

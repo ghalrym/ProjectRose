@@ -10,8 +10,8 @@ import { estimateTokens } from './tokenCounter'
 import type { ModelMessage } from 'ai'
 import { readSettings } from '../ipc/settingsHandlers'
 import type { AppSettings, ModelConfig } from '../ipc/settingsHandlers'
-import { readProjectSettings, CORE_TOOL_NAMES } from '../ipc/projectSettingsHandlers'
-import { listInstalledExtensions, getRegisteredExtensionTools } from '../ipc/extensionHandlers'
+import { readProjectSettings } from '../ipc/projectSettingsHandlers'
+import { listInstalledExtensions } from '../ipc/extensionHandlers'
 import { buildRoseMd } from '../ipc/roseSetupHandlers'
 import { buildSubagentTools } from './subagentTools'
 import { buildSkillTools, getSessionSkillsPrompt } from './skillService'
@@ -181,12 +181,9 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
 
     const projectSettings = await readProjectSettings(rootPath)
     const { disabledTools } = projectSettings
-    const disabledCoreTools = disabledTools.filter((n) => CORE_TOOL_NAMES.has(n))
 
     const installed = await listInstalledExtensions(rootPath)
-    const enabledExtIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
-    const extensionTools = getRegisteredExtensionTools(rootPath, enabledExtIds)
-      .filter((t) => !disabledTools.includes(t.name))
+    const enabledExtensionIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
 
     // Build subagent tools for this session
     const agentCtx: AgentContext = {
@@ -208,12 +205,12 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
     const baseStreamParams = {
       systemPrompt,
       getSystemPrompt,
-      extensionTools,
+      enabledExtensionIds,
       providerKeys: settings.providerKeys,
       ollamaBaseUrl: settings.ollamaBaseUrl,
       openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
       projectRoot: rootPath,
-      disabledCoreTools,
+      disabledTools,
       abortSignal: abortController.signal,
       notify: notifyRenderer
     }
@@ -321,17 +318,13 @@ export async function runAgentOnce(
     const { disabledTools } = projectSettings
 
     const installed = await listInstalledExtensions(rootPath)
-    const enabledExtIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
-    const extensionTools = getRegisteredExtensionTools(rootPath, enabledExtIds)
-      .filter((t) => !disabledTools.includes(t.name))
-
-    const disabledCoreTools = disabledTools.filter((n) => CORE_TOOL_NAMES.has(n))
+    const enabledExtensionIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
 
     const streamResult = await streamChat({
       messages,
       systemPrompt,
-      extensionTools,
-      disabledCoreTools,
+      enabledExtensionIds,
+      disabledTools,
       model: selectedModel,
       providerKeys: settings.providerKeys,
       ollamaBaseUrl: settings.ollamaBaseUrl,
