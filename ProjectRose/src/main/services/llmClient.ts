@@ -24,6 +24,8 @@ import { fireThoughtHook, fireMessageHook, fireTokenHook, fireToolCallHook } fro
 import { loadSession } from '../lib/session'
 import { WEB_BASE_URL } from '../lib/webConfig'
 import { sessionRegistry } from './sessionRegistry'
+import { toolRegistry } from './toolRegistry'
+import type { ToolSourceContext } from './toolRegistry'
 import type { ScreenshotResult } from './chatSession'
 
 function notifyRenderer(channel: string, payload: unknown): void {
@@ -302,7 +304,8 @@ function wrapExecute(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildCoreTools(projectRoot: string, emit: EmitFn, toolCtx: ExtensionToolCtx, hookCtx?: HookCtx): Record<string, any> {
+export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
+  const { rootPath: projectRoot, emit, toolCtx, hookCtx } = ctx
   return {
     read_file: tool({
       description: 'Read the contents of a file. Use project-relative paths.',
@@ -534,11 +537,22 @@ export async function streamChat(params: {
   const hookCtx: HookCtx | undefined = params.turnId ? { turnId: params.turnId, rootPath: projectRoot } : undefined
   const toolCtx: ExtensionToolCtx = { sessionId: params.sessionId, turnId: params.turnId }
   const model = await resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
+  const coreTools = toolRegistry.getToolsForSession({
+    rootPath: projectRoot,
+    emit,
+    toolCtx,
+    hookCtx,
+    disabledTools: disabledCoreTools,
+    include: ['core']
+  })
   const tools = {
-    ...buildCoreTools(projectRoot, emit, toolCtx, hookCtx),
+    ...coreTools,
     ...buildExtensionTools(extensionTools ?? [], projectRoot, emit, toolCtx, hookCtx),
     ...(params.extraTools ?? {})
   }
+  // disabledCoreTools is applied inside the registry for core; reapply here
+  // for any non-core sources still merged inline (subagent/skill via
+  // extraTools). The registry will own this end-to-end in later issues.
   for (const name of disabledCoreTools ?? []) delete tools[name]
 
   let coreMessages: ModelMessage[] = params.preBuiltCoreMessages

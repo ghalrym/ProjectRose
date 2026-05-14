@@ -8,6 +8,8 @@ import { buildAppMenu } from './menu'
 import { disposeAllTerminals } from './services/terminalService'
 import { stopLsp } from './services/lspManager'
 import { initAutoUpdater } from './services/updaterService'
+import { toolRegistry } from './services/toolRegistry'
+import { buildCoreTools } from './services/llmClient'
 // Ensure single instance
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
@@ -30,6 +32,7 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  toolRegistry.registerCoreTools(buildCoreTools)
   registerAllHandlers()
   attachDisplayMediaHandler()
   buildAppMenu()
