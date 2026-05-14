@@ -13,11 +13,11 @@ import type { AppSettings, ModelConfig } from '../ipc/settingsHandlers'
 import { readProjectSettings } from '../ipc/projectSettingsHandlers'
 import { listInstalledExtensions } from '../ipc/extensionHandlers'
 import { buildRoseMd } from '../ipc/roseSetupHandlers'
-import { buildSubagentTools } from './subagentTools'
-import { buildSkillTools, getSessionSkillsPrompt } from './skillService'
+import { getSessionSkillsPrompt } from './skillService'
 import { fireUserMessageHook } from './extensionHooks'
 import { loadExtensionPrompts } from '../ipc/promptHandlers'
 import type { AgentContext, SubagentCounter } from './agentRunner'
+import type { SubagentTurnContext } from './toolRegistry'
 import type { InjectionRecord } from '../../shared/extensionHooks'
 import { IPC } from '../../shared/ipcChannels'
 import type { Message } from '../../shared/roseModelTypes'
@@ -185,7 +185,9 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
     const installed = await listInstalledExtensions(rootPath)
     const enabledExtensionIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
 
-    // Build subagent tools for this session
+    // Per-session subagent context. Re-built for each `streamChat` call so
+    // a fallback model rebuild picks up the new model without any closure
+    // staleness (the prior `buildExtraTools(model)` helper did the same).
     const agentCtx: AgentContext = {
       sessionId,
       agentIndex: 0,
@@ -194,12 +196,16 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
       abortSignal: abortController.signal
     }
     const counter: SubagentCounter = { value: 0 }
-    const skillTools = buildSkillTools(rootPath, sessionId, notifyRenderer)
     const getSystemPrompt = (): string => systemPrompt + getSessionSkillsPrompt(sessionId)
 
-    const buildExtraTools = (m: ModelConfig): Record<string, unknown> => ({
-      ...buildSubagentTools(agentCtx, m, settings.providerKeys, settings.ollamaBaseUrl, settings.openaiCompatBaseUrl, counter, systemPrompt),
-      ...skillTools
+    const buildSubagentContext = (m: ModelConfig): SubagentTurnContext => ({
+      agentCtx,
+      model: m,
+      providerKeys: settings.providerKeys,
+      ollamaBaseUrl: settings.ollamaBaseUrl,
+      openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
+      counter,
+      systemPrompt
     })
 
     const baseStreamParams = {
@@ -217,7 +223,6 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
 
     let activeModel = selectedModel
     let activeModelDisplay = modelDisplay
-    let activeExtraTools = buildExtraTools(selectedModel)
     let fallbackUsed = false
     let lastStreamResult: StreamResult | undefined
     let preBuiltCoreMessages: ModelMessage[] | undefined
@@ -228,20 +233,20 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
       const turnId = randomUUID()
       const collected: InjectionRecord[] = []
 
-      const runOnce = async (m: ModelConfig, extras: Record<string, unknown>): Promise<StreamResult> =>
+      const runOnce = async (m: ModelConfig): Promise<StreamResult> =>
         streamChat({
           ...baseStreamParams,
           messages,
           preBuiltCoreMessages,
           model: m,
-          extraTools: extras,
+          subagentContext: buildSubagentContext(m),
           turnId,
           sessionId,
           collectInjections: (rec) => collected.push(rec)
         })
 
       try {
-        lastStreamResult = await runOnce(activeModel, activeExtraTools)
+        lastStreamResult = await runOnce(activeModel)
       } catch (err) {
         if (abortController.signal.aborted) throw err
         const isAlreadyDefault = !defaultModel || activeModel.id === defaultModel.id
@@ -256,10 +261,9 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
 
         activeModel = defaultModel
         activeModelDisplay = fallbackDisplay
-        activeExtraTools = buildExtraTools(defaultModel)
         fallbackUsed = true
 
-        lastStreamResult = await runOnce(activeModel, activeExtraTools)
+        lastStreamResult = await runOnce(activeModel)
       }
 
       if (collected.length === 0) break
@@ -325,6 +329,10 @@ export async function runAgentOnce(
       systemPrompt,
       enabledExtensionIds,
       disabledTools,
+      // One-shot background runs are deliberately bounded: no recursive
+      // subagent spawning, no skill loading. Same behavior as the old
+      // inline assembly that simply did not build subagent/skill tools.
+      include: ['core', 'extension'],
       model: selectedModel,
       providerKeys: settings.providerKeys,
       ollamaBaseUrl: settings.ollamaBaseUrl,

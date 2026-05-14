@@ -25,7 +25,7 @@ import { loadSession } from '../lib/session'
 import { WEB_BASE_URL } from '../lib/webConfig'
 import { sessionRegistry } from './sessionRegistry'
 import { toolRegistry, wrapExecute } from './toolRegistry'
-import type { ToolSourceContext, EmitFn, HookCtx } from './toolRegistry'
+import type { ToolSourceContext, EmitFn, HookCtx, ToolSourceName, SubagentTurnContext } from './toolRegistry'
 import type { ScreenshotResult } from './chatSession'
 
 function notifyRenderer(channel: string, payload: unknown): void {
@@ -444,10 +444,13 @@ export async function streamChat(params: {
   // Optional notify override — defaults to notifyRenderer (main agent).
   // Pass `() => {}` for subagents that should not emit IPC events.
   notify?: EmitFn
-  // Extra tools merged into the tool set after core/extension/python tools are built.
-  // Useful for injecting agent-command tools (create_subagents, explore, etc.).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  extraTools?: Record<string, any>
+  // Which tool sources to ask the registry for. Defaults to all four.
+  // `runAgentOnce` and subagents pass `['core', 'extension']` to keep
+  // their tool sets bounded (no recursive subagent spawning).
+  include?: readonly ToolSourceName[]
+  // Per-turn context the subagent factory needs. Only required when
+  // `include` contains `'subagent'` (i.e. the main user-visible chat).
+  subagentContext?: SubagentTurnContext
   // Called fresh before each step — allows dynamic system prompt updates (e.g. loaded skills).
   getSystemPrompt?: () => string
   // When set, chat hooks fire at segment boundaries and after tool calls.
@@ -468,23 +471,16 @@ export async function streamChat(params: {
   const hookCtx: HookCtx | undefined = params.turnId ? { turnId: params.turnId, rootPath: projectRoot } : undefined
   const toolCtx: ExtensionToolCtx = { sessionId: params.sessionId, turnId: params.turnId }
   const model = await resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
-  const sourceTools = toolRegistry.getToolsForSession({
+  const tools = toolRegistry.getToolsForSession({
     rootPath: projectRoot,
     emit,
     toolCtx,
     hookCtx,
     disabledTools,
     enabledExtensionIds,
-    include: ['core', 'extension']
+    include: params.include,
+    subagent: params.subagentContext
   })
-  const tools = {
-    ...sourceTools,
-    ...(params.extraTools ?? {})
-  }
-  // disabledTools is applied inside the registry for core/extension; reapply
-  // here for any non-registry sources still merged inline (subagent/skill via
-  // extraTools). The registry will own this end-to-end after #15.
-  for (const name of disabledTools ?? []) delete tools[name]
 
   let coreMessages: ModelMessage[] = params.preBuiltCoreMessages
     ? [...params.preBuiltCoreMessages]

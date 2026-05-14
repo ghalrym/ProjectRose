@@ -23,6 +23,12 @@ import { z } from 'zod'
 import type { ExtensionToolCtx, ExtensionToolEntry } from '../../shared/extension-types'
 import { IPC } from '../../shared/ipcChannels'
 import { fireToolCallHook } from './extensionHooks'
+// Type-only imports keep the registry's runtime dependency graph one-way
+// (llmClient/subagentTools/skillService import the registry; the registry
+// imports their types but not their runtime modules).
+import type { AgentContext, SubagentCounter } from './agentRunner'
+import type { ModelConfig } from '../ipc/settingsHandlers'
+import type { ProviderKeys } from './llmClient'
 
 export type EmitFn = (channel: string, payload: unknown) => void
 
@@ -48,10 +54,26 @@ export interface ToolSourceContext {
 
 export type BuildCoreToolsFn = (ctx: ToolSourceContext) => ToolMap
 
+// Per-turn context the subagent factory needs. Lives on the registry because
+// it's the public shape of `getToolsForSession({ subagent: ... })`.
+export interface SubagentTurnContext {
+  agentCtx: AgentContext
+  model: ModelConfig
+  providerKeys: ProviderKeys
+  ollamaBaseUrl: string
+  openaiCompatBaseUrl: string
+  counter: SubagentCounter
+  systemPrompt: string
+}
+
+export type BuildSubagentToolsFn = (ctx: ToolSourceContext, turn: SubagentTurnContext) => ToolMap
+export type BuildSkillToolsFn = (ctx: ToolSourceContext) => ToolMap
+
 export interface GetToolsOpts extends ToolSourceContext {
   disabledTools?: string[]
   enabledExtensionIds?: string[]
   include?: readonly ToolSourceName[]
+  subagent?: SubagentTurnContext
 }
 
 const ALL_SOURCES: readonly ToolSourceName[] = ['core', 'subagent', 'skill', 'extension'] as const
@@ -125,12 +147,22 @@ function buildExtensionTools(entries: ExtensionToolEntry[], ctx: ToolSourceConte
 
 export class ToolRegistry {
   private buildCoreToolsFn: BuildCoreToolsFn | null = null
+  private buildSubagentToolsFn: BuildSubagentToolsFn | null = null
+  private buildSkillToolsFn: BuildSkillToolsFn | null = null
   // Keyed by `${rootPath}/${extensionId}` — mirrors the prior storage in
   // `extensionHandlers.ts` so per-project extensions don't collide.
   private extensionTools = new Map<string, ExtensionToolEntry[]>()
 
   registerCoreTools(buildFn: BuildCoreToolsFn): void {
     this.buildCoreToolsFn = buildFn
+  }
+
+  registerSubagentSource(buildFn: BuildSubagentToolsFn): void {
+    this.buildSubagentToolsFn = buildFn
+  }
+
+  registerSkillSource(buildFn: BuildSkillToolsFn): void {
+    this.buildSkillToolsFn = buildFn
   }
 
   registerExtensionTools(extensionId: string, rootPath: string, tools: ExtensionToolEntry[]): void {
@@ -170,7 +202,13 @@ export class ToolRegistry {
       Object.assign(tools, buildExtensionTools(entries, sourceCtx))
     }
 
-    // subagent, skill sources land in #15.
+    if (include.includes('subagent') && this.buildSubagentToolsFn && opts.subagent) {
+      Object.assign(tools, this.buildSubagentToolsFn(sourceCtx, opts.subagent))
+    }
+
+    if (include.includes('skill') && this.buildSkillToolsFn) {
+      Object.assign(tools, this.buildSkillToolsFn(sourceCtx))
+    }
 
     if (opts.disabledTools && opts.disabledTools.length > 0) {
       for (const name of opts.disabledTools) delete tools[name]

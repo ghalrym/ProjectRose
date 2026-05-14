@@ -70,6 +70,9 @@ export function buildSubagentTools(
         notify: () => {},  // subagents do not stream tokens to renderer
         abortSignal: ctx.abortSignal,
         disabledTools,
+        // Subagents must not get the subagent/skill sources themselves, or
+        // create_subagents would recurse. Same shape as runAgentOnce.
+        include: ['core', 'extension'],
         // Subagents share the parent chat session so extension tools see
         // continuity across the user's turn.
         sessionId: ctx.sessionId
