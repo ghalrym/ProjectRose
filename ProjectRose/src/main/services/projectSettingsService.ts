@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'fs/promises'
-import { listInstalledExtensions } from '../ipc/extensionHandlers'
+import { listInstalledExtensions } from './extensionService'
 import { prPath } from '../lib/projectPaths'
 import { toolRegistry } from './toolRegistry'
 import type { ToolMeta } from '../../shared/types'

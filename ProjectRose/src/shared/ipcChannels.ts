@@ -39,24 +39,6 @@ export const IPC = {
   LSP_STARTED: 'lsp:started',
   LSP_STOPPED: 'lsp:stopped',
 
-  // Extensions
-  EXTENSION_LIST: 'extension:list',
-  EXTENSION_INSTALL_FROM_GIT: 'extension:installFromGit',
-  EXTENSION_INSTALL_FROM_DISK: 'extension:installFromDisk',
-  // Two-step install: preview reads the manifest from a temp clone/copy and
-  // returns it without finalising. The renderer shows the user what the
-  // extension declares it'll do, then either confirms (build + move into
-  // place) or cancels (delete temp).
-  EXTENSION_INSTALL_PREVIEW_FROM_GIT: 'extension:installPreviewFromGit',
-  EXTENSION_INSTALL_PREVIEW_FROM_DISK: 'extension:installPreviewFromDisk',
-  EXTENSION_INSTALL_CONFIRM: 'extension:installConfirm',
-  EXTENSION_INSTALL_CANCEL: 'extension:installCancel',
-  EXTENSION_UNINSTALL: 'extension:uninstall',
-  EXTENSION_ENABLE: 'extension:enable',
-  EXTENSION_DISABLE: 'extension:disable',
-  EXTENSION_LOAD_RENDERER: 'extension:loadRenderer',
-  EXTENSION_LOAD_MAIN: 'extension:loadMain',
-
   // Skills (SKILLS_UPLOAD stays — dialog needs to anchor to the caller window;
   // list and delete are now declared via services/skillService.ipc.ts.)
   SKILLS_UPLOAD: 'skills:upload',

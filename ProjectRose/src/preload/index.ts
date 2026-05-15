@@ -15,6 +15,7 @@ import { updaterIpc } from '../main/services/updaterService.ipc'
 import { authIpc } from '../main/services/authService.ipc'
 import { aiIpc } from '../main/services/aiService.ipc'
 import { activeSpeechIpc } from '../main/services/speech/activeSpeechService.ipc'
+import { extensionIpc } from '../main/services/extensionService.ipc'
 
 const api = {
   // Theme
@@ -312,32 +313,7 @@ const api = {
   prompts: promptIpc.bindings,
 
   // Extensions
-  extension: {
-    list: (rootPath: string): Promise<{ installed: import('../shared/extension-types').InstalledExtension[] }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_LIST, rootPath),
-    installFromGit: (rootPath: string, url: string): Promise<{ ok: boolean; error?: string; manifest?: import('../shared/extension-types').ExtensionManifest }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_FROM_GIT, rootPath, url),
-    installFromDisk: (rootPath: string, sourcePath: string): Promise<{ ok: boolean; error?: string; warning?: string; manifest?: import('../shared/extension-types').ExtensionManifest }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_FROM_DISK, rootPath, sourcePath),
-    installPreviewFromGit: (rootPath: string, url: string): Promise<{ ok: boolean; error?: string; token?: string; manifest?: import('../shared/extension-types').ExtensionManifest }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_PREVIEW_FROM_GIT, rootPath, url),
-    installPreviewFromDisk: (rootPath: string, sourcePath: string): Promise<{ ok: boolean; error?: string; token?: string; manifest?: import('../shared/extension-types').ExtensionManifest }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_PREVIEW_FROM_DISK, rootPath, sourcePath),
-    installConfirm: (token: string): Promise<{ ok: boolean; error?: string; warning?: string; manifest?: import('../shared/extension-types').ExtensionManifest }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_CONFIRM, token),
-    installCancel: (token: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_CANCEL, token),
-    uninstall: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_UNINSTALL, rootPath, id),
-    enable: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_ENABLE, rootPath, id),
-    disable: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_DISABLE, rootPath, id),
-    loadRendererCode: (rootPath: string, id: string): Promise<{ ok: boolean; code: string | null; css?: string | null }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_LOAD_RENDERER, rootPath, id),
-    loadMainModule: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_LOAD_MAIN, rootPath, id)
-  },
+  extension: extensionIpc.bindings,
 
   // Account auth — request methods from the manifest; event subscriptions
   // (onChanged, onPairingPending) stay hand-written.

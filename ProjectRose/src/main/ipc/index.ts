@@ -3,7 +3,6 @@ import { registerTerminalHandlers } from './terminalHandlers'
 import { registerAppHandlers } from './appHandlers'
 import { registerLspHandlers } from './lspHandlers'
 import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
-import { registerExtensionHandlers } from './extensionHandlers'
 import { registerSkillHandlers } from './skillHandlers'
 import { registerScreenHandlers } from './screenHandlers'
 
@@ -71,6 +70,22 @@ import { chat, compressToolNoise, getContextStatus } from '../services/aiService
 import { buildAgentMd } from '../services/agentMd'
 import { sessionRegistry } from '../services/sessionRegistry'
 
+import { extensionIpc } from '../services/extensionService.ipc'
+import {
+  listExtensions,
+  installFromGit,
+  installFromDisk,
+  installPreviewFromGit,
+  installPreviewFromDisk,
+  installConfirm,
+  installCancel,
+  uninstallExtension,
+  enableExtension,
+  disableExtension,
+  loadRendererCode,
+  loadMainModule
+} from '../services/extensionService'
+
 import { activeSpeechIpc } from '../services/speech/activeSpeechService.ipc'
 import {
   getSpeakers,
@@ -92,7 +107,6 @@ export function registerAllHandlers(): void {
   registerAppHandlers()
   registerLspHandlers()
   registerActiveSpeechHandlers()
-  registerExtensionHandlers()
   registerSkillHandlers()
   registerScreenHandlers()
 }
@@ -169,6 +183,20 @@ export function registerIpcManifests(): void {
     cancel: cancelPairing,
     getStatus: getAuthStatus,
     getUsage: fetchUsage
+  })
+  extensionIpc.register({
+    list: listExtensions,
+    installFromGit,
+    installFromDisk,
+    installPreviewFromGit,
+    installPreviewFromDisk,
+    installConfirm,
+    installCancel,
+    uninstall: uninstallExtension,
+    enable: enableExtension,
+    disable: disableExtension,
+    loadRendererCode,
+    loadMainModule
   })
   activeSpeechIpc.register({
     getSpeakers,
