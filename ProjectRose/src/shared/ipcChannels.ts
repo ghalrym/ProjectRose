@@ -14,8 +14,6 @@ export const IPC = {
 
   APP_QUIT: 'app:quit',
 
-  WHISPER_TRANSCRIBE: 'whisper:transcribe',
-
   INDEXING_PROJECT: 'indexing:project',
   INDEXING_PROGRESS: 'indexing:progress',
 

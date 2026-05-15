@@ -10,6 +10,7 @@ import { recentProjectsIpc } from '../main/services/recentProjects.ipc'
 import { settingsIpc, healthIpc } from '../main/services/settingsService.ipc'
 import { projectSettingsIpc, toolsIpc } from '../main/services/projectSettingsService.ipc'
 import { roseSetupIpc } from '../main/services/roseSetupService.ipc'
+import { whisperIpc } from '../main/services/whisperService.ipc'
 
 const api = {
   // Theme
@@ -110,8 +111,7 @@ const api = {
   setSettings: settingsIpc.bindings.set,
   checkServicesHealth: healthIpc.bindings.checkAll,
 
-  transcribeAudio: (audioBuffer: ArrayBuffer): Promise<string> =>
-    ipcRenderer.invoke(IPC.WHISPER_TRANSCRIBE, audioBuffer),
+  transcribeAudio: whisperIpc.bindings.transcribe,
 
   // Active Listening / RoseSpeech
   activeSpeech: {

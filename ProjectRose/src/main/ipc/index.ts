@@ -3,7 +3,6 @@ import { registerTerminalHandlers } from './terminalHandlers'
 import { registerAppHandlers } from './appHandlers'
 import { registerLspHandlers } from './lspHandlers'
 import { registerAiHandlers } from './aiHandlers'
-import { registerWhisperHandlers } from './whisperHandlers'
 import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
 import { registerExtensionHandlers } from './extensionHandlers'
 import { registerAuthHandlers } from './authHandlers'
@@ -56,13 +55,15 @@ import { readProjectSettings, writeProjectSettings, listTools } from '../service
 import { roseSetupIpc } from '../services/roseSetupService.ipc'
 import { checkRoseMd, initRoseProject, ensureRoseScaffold } from '../services/roseSetupService'
 
+import { whisperIpc } from '../services/whisperService.ipc'
+import { transcribeAudio } from '../services/whisperService'
+
 export function registerAllHandlers(): void {
   registerDialogHandlers()
   registerTerminalHandlers()
   registerAppHandlers()
   registerLspHandlers()
   registerAiHandlers()
-  registerWhisperHandlers()
   registerActiveSpeechHandlers()
   registerExtensionHandlers()
   registerAuthHandlers()
@@ -127,5 +128,8 @@ export function registerIpcManifests(): void {
     checkMd: checkRoseMd,
     initProject: initRoseProject,
     ensureScaffold: ensureRoseScaffold
+  })
+  whisperIpc.register({
+    transcribe: transcribeAudio
   })
 }
