@@ -5,6 +5,7 @@ import type { Message } from '../shared/roseModelTypes'
 import { sessionIpc } from '../main/services/sessionService.ipc'
 import { promptIpc } from '../main/services/promptService.ipc'
 import { skillIpc } from '../main/services/skillService.ipc'
+import { fileIpc } from '../main/services/fileService.ipc'
 
 const api = {
   // Theme
@@ -34,29 +35,18 @@ const api = {
     return () => { ipcRenderer.removeListener('menu:save', handler) }
   },
 
-  readFile: (filePath: string): Promise<string> =>
-    ipcRenderer.invoke(IPC.FILE_READ, filePath),
-
+  // File operations — kept flat on api.* to avoid a renderer-side churn slice;
+  // a follow-up can namespace them under api.file.
+  readFile: fileIpc.bindings.read,
   writeFile: (filePath: string, content: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.FILE_WRITE, { filePath, content }),
-
-  createFile: (filePath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.FILE_CREATE, filePath),
-
-  deleteFile: (filePath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.FILE_DELETE, filePath),
-
-  deleteDirectory: (dirPath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.FILE_DELETE_DIR, dirPath),
-
+    fileIpc.bindings.write({ filePath, content }),
+  createFile: fileIpc.bindings.create,
+  deleteFile: fileIpc.bindings.delete,
+  deleteDirectory: fileIpc.bindings.deleteDir,
   renameFile: (oldPath: string, newPath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.FILE_RENAME, { oldPath, newPath }),
-
-  createDirectory: (dirPath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.FILE_CREATE_DIR, dirPath),
-
-  readDirectoryTree: (dirPath: string): Promise<FileNode | null> =>
-    ipcRenderer.invoke(IPC.FILE_READ_DIR_TREE, dirPath),
+    fileIpc.bindings.rename({ oldPath, newPath }),
+  createDirectory: fileIpc.bindings.createDir,
+  readDirectoryTree: fileIpc.bindings.readDirTree,
 
   openFolderDialog: (): Promise<string | null> =>
     ipcRenderer.invoke(IPC.DIALOG_OPEN_FOLDER),

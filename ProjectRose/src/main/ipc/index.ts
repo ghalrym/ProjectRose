@@ -1,4 +1,3 @@
-import { registerFileHandlers } from './fileHandlers'
 import { registerDialogHandlers } from './dialogHandlers'
 import { registerTerminalHandlers } from './terminalHandlers'
 import { registerProjectHandlers } from './projectHandlers'
@@ -31,8 +30,19 @@ import {
 import { skillIpc } from '../services/skillService.ipc'
 import { listSkills, deleteSkill } from '../services/skillService'
 
+import { fileIpc } from '../services/fileService.ipc'
+import {
+  readFileContent,
+  writeFileContent,
+  createFile,
+  deleteFile,
+  deleteDirectory,
+  renameEntry,
+  createDirectory,
+  readDirectoryTree
+} from '../services/fileService'
+
 export function registerAllHandlers(): void {
-  registerFileHandlers()
   registerDialogHandlers()
   registerTerminalHandlers()
   registerProjectHandlers()
@@ -71,5 +81,15 @@ export function registerIpcManifests(): void {
   skillIpc.register({
     list: listSkills,
     delete: deleteSkill
+  })
+  fileIpc.register({
+    read: readFileContent,
+    write: ({ filePath, content }) => writeFileContent(filePath, content),
+    create: createFile,
+    delete: deleteFile,
+    deleteDir: deleteDirectory,
+    rename: ({ oldPath, newPath }) => renameEntry(oldPath, newPath),
+    createDir: createDirectory,
+    readDirTree: readDirectoryTree
   })
 }
