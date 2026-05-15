@@ -55,7 +55,7 @@ export function buildSubagentTools(
     const subId = randomUUID()
     const messages = [{ role: 'user' as const, content: prompt }]
 
-    ctx.notify(IPC.AI_TOOL_CALL_START, { id: subId, name: `subagent:${agentLabel}`, params: { prompt } })
+    ctx.notify(IPC.AI_TOOL_CALL_START, { sessionId: ctx.sessionId, id: subId, name: `subagent:${agentLabel}`, params: { prompt } })
 
     let resultContent = ''
     try {
@@ -79,10 +79,10 @@ export function buildSubagentTools(
       })
       resultContent = result.content
 
-      ctx.notify(IPC.AI_TOOL_CALL_END, { id: subId, result: resultContent, error: false })
+      ctx.notify(IPC.AI_TOOL_CALL_END, { sessionId: ctx.sessionId, id: subId, result: resultContent, error: false })
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err)
-      ctx.notify(IPC.AI_TOOL_CALL_END, { id: subId, result: error, error: true })
+      ctx.notify(IPC.AI_TOOL_CALL_END, { sessionId: ctx.sessionId, id: subId, result: error, error: true })
       throw err
     }
 
@@ -118,7 +118,7 @@ export function buildSubagentTools(
     }),
     execute: async (input, options: ToolExecutionOptions) => {
       const id = options.toolCallId
-      ctx.notify(IPC.AI_TOOL_CALL_START, { id, name: 'create_subagents', params: { agents: input.agents.map((a) => a.agentId) } })
+      ctx.notify(IPC.AI_TOOL_CALL_START, { sessionId: ctx.sessionId, id, name: 'create_subagents', params: { agents: input.agents.map((a) => a.agentId) } })
 
       let resultJson = '{}'
       try {
@@ -129,10 +129,10 @@ export function buildSubagentTools(
           })
         )
         resultJson = JSON.stringify(Object.fromEntries(results))
-        ctx.notify(IPC.AI_TOOL_CALL_END, { id, result: `Completed ${input.agents.length} subagent(s)`, error: false })
+        ctx.notify(IPC.AI_TOOL_CALL_END, { sessionId: ctx.sessionId, id, result: `Completed ${input.agents.length} subagent(s)`, error: false })
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err)
-        ctx.notify(IPC.AI_TOOL_CALL_END, { id, result: error, error: true })
+        ctx.notify(IPC.AI_TOOL_CALL_END, { sessionId: ctx.sessionId, id, result: error, error: true })
         return JSON.stringify({ error })
       }
 
@@ -153,7 +153,7 @@ export function buildSubagentTools(
       const id = options.toolCallId
       const subQueries = decomposeExploreQueries(input.topic)
 
-      ctx.notify(IPC.AI_TOOL_CALL_START, { id, name: 'explore', params: { topic: input.topic, queries: subQueries.length } })
+      ctx.notify(IPC.AI_TOOL_CALL_START, { sessionId: ctx.sessionId, id, name: 'explore', params: { topic: input.topic, queries: subQueries.length } })
 
       let combined = ''
       try {
@@ -164,10 +164,10 @@ export function buildSubagentTools(
           })
         )
         combined = results.join('\n\n')
-        ctx.notify(IPC.AI_TOOL_CALL_END, { id, result: `${subQueries.length} explorers completed`, error: false })
+        ctx.notify(IPC.AI_TOOL_CALL_END, { sessionId: ctx.sessionId, id, result: `${subQueries.length} explorers completed`, error: false })
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err)
-        ctx.notify(IPC.AI_TOOL_CALL_END, { id, result: error, error: true })
+        ctx.notify(IPC.AI_TOOL_CALL_END, { sessionId: ctx.sessionId, id, result: error, error: true })
         return error
       }
 

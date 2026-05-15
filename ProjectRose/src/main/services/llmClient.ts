@@ -333,7 +333,7 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
         }
         return new Promise<string>((resolve) => {
           session.pendingAskUser.set(id, resolve)
-          emit(IPC.AI_ASK_USER, { questionId: id, question: input.question, options: input.options ?? [] })
+          emit(IPC.AI_ASK_USER, { sessionId: session.sessionId, questionId: id, question: input.question, options: input.options ?? [] })
         })
       }
     }),
@@ -342,13 +342,14 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
       inputSchema: z.object({}),
       execute: async (_input, options): Promise<string> => {
         const id = options.toolCallId
-        emit(IPC.AI_TOOL_CALL_START, { id, name: 'screenshot', params: {} })
-        const session = sessionRegistry.get(toolCtx.sessionId)
+        const sessionId = toolCtx.sessionId
+        emit(IPC.AI_TOOL_CALL_START, { sessionId, id, name: 'screenshot', params: {} })
+        const session = sessionRegistry.get(sessionId)
         const cancelled: ScreenshotResult = { ok: false, reason: 'cancelled' }
         if (!session) {
           // No registered session — no current path reaches this branch.
           // Return the cancelled sentinel rather than hang forever.
-          emit(IPC.AI_TOOL_CALL_END, { id, result: cancelled.reason, error: true })
+          emit(IPC.AI_TOOL_CALL_END, { sessionId, id, result: cancelled.reason, error: true })
           return JSON.stringify(cancelled)
         }
         const result = await new Promise<ScreenshotResult>((resolve) => {
@@ -359,10 +360,10 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
           emit(IPC.AI_CAPTURE_SCREENSHOT, { requestId: id, sessionId: session.sessionId })
         })
         if (!result.ok) {
-          emit(IPC.AI_TOOL_CALL_END, { id, result: result.reason, error: true })
+          emit(IPC.AI_TOOL_CALL_END, { sessionId, id, result: result.reason, error: true })
         } else {
           const summary = `Captured ${result.mode} frame${result.sourceLabel ? ` (${result.sourceLabel})` : ''}`
-          emit(IPC.AI_TOOL_CALL_END, { id, result: summary, error: false })
+          emit(IPC.AI_TOOL_CALL_END, { sessionId, id, result: summary, error: false })
         }
         return JSON.stringify(result)
       },
@@ -558,7 +559,7 @@ export async function streamChat(params: {
                 }
                 accumulatedText += token
                 textBuffer += token
-                emit(IPC.AI_TOKEN, { token })
+                emit(IPC.AI_TOKEN, { sessionId: params.sessionId, token })
                 // Notify on_token hooks. Voided so a slow handler never stalls
                 // streaming — handlers must self-throttle if they need to.
                 if (hookCtx) void fireTokenHook(token, hookCtx.turnId, hookCtx.rootPath)
@@ -567,7 +568,7 @@ export async function streamChat(params: {
             case 'reasoning-delta':
               if (chunk.text) {
                 thinkingBuffer += chunk.text
-                emit(IPC.AI_THINKING, { content: chunk.text })
+                emit(IPC.AI_THINKING, { sessionId: params.sessionId, content: chunk.text })
               }
               break
             case 'finish':

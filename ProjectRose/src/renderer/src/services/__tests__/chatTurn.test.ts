@@ -576,6 +576,48 @@ describe('chatTurn', () => {
     })
   })
 
+  describe('sessionId filter on streaming events', () => {
+    it('drops a token whose sessionId does not match the active turn', async () => {
+      vi.useFakeTimers()
+      // Capture the token callback wired up by sendMessage so the test can
+      // drive it directly with a mismatched sessionId.
+      let capturedTokenCb: ((d: { sessionId: string; token: string }) => void) | null =
+        null
+      api.onAiToken.mockImplementation(
+        (cb: (d: { sessionId: string; token: string }) => void) => {
+          capturedTokenCb = cb
+          return (): void => {}
+        }
+      )
+
+      useChatUIStore.getState().setInputValue('hello')
+      const promise = sendMessage()
+      await vi.advanceTimersByTimeAsync(0)
+
+      // sendMessage installs listeners synchronously after captureFrame resolves.
+      expect(capturedTokenCb).not.toBeNull()
+      const activeSessionId = useSessionsStore.getState().currentSessionId
+      expect(activeSessionId).not.toBeNull()
+
+      // Mismatched sessionId: the listener should ignore it entirely.
+      capturedTokenCb!({ sessionId: 'some-other-session', token: 'ghost' })
+      const tokenStreaming = useChatTimelineStore.getState().messages.find(
+        (m) => m.role === 'assistant'
+      ) as AssistantMessage | undefined
+      expect((tokenStreaming?.content ?? '')).not.toContain('ghost')
+
+      // Matched sessionId: the listener appends as normal.
+      capturedTokenCb!({ sessionId: activeSessionId!, token: 'real' })
+      const afterMatch = useChatTimelineStore
+        .getState()
+        .messages.find((m) => m.role === 'assistant') as AssistantMessage | undefined
+      expect(afterMatch?.content ?? '').toContain('real')
+
+      await vi.advanceTimersByTimeAsync(250)
+      await promise
+    })
+  })
+
   describe('clearChatForProjectSwitch', () => {
     it('wipes all four chat-related stores', () => {
       useSessionsStore.setState({

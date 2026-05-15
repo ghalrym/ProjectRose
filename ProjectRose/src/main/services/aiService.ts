@@ -175,7 +175,7 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
     const selectedModel = await selectModel(userMessage, settings)
     const defaultModel = settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
     const modelDisplay = selectedModel.displayName || selectedModel.modelName
-    notifyRenderer(IPC.AI_MODEL_SELECTED, { modelDisplay })
+    notifyRenderer(IPC.AI_MODEL_SELECTED, { sessionId, modelDisplay })
 
     const systemPrompt = await buildAgentMd(rootPath)
 
@@ -254,7 +254,7 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
 
         const errorMessage = extractErrorMessage(err)
         const fallbackDisplay = defaultModel.displayName || defaultModel.modelName
-        notifyRenderer(IPC.AI_STREAM_RESET, { errorMessage, fallbackModel: fallbackDisplay })
+        notifyRenderer(IPC.AI_STREAM_RESET, { sessionId, errorMessage, fallbackModel: fallbackDisplay })
         // Clear any modified-files recorded during the failed primary
         // attempt so the renderer only sees the fallback's writes.
         session.modifiedFiles.length = 0
@@ -275,6 +275,7 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
       const nextHistory: ModelMessage[] = [...lastStreamResult.finalMessages]
       for (const inj of collected) {
         notifyRenderer(IPC.AI_INJECTED_MESSAGE, {
+          sessionId,
           extensionId: inj.extensionId,
           extensionName: inj.extensionName,
           extensionIcon: inj.extensionIcon,

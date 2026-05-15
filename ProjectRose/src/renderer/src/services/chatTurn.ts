@@ -91,17 +91,28 @@ export async function sendMessage(): Promise<void> {
   useChatTimelineStore.getState().startTurn(userMsg)
   persistSession(rootPath, sessionMeta)
 
-  // Wire up streaming listeners
+  // Wire up streaming listeners.
+  //
+  // Every payload carries a `sessionId`. If the user switches sessions mid-stream,
+  // events from the abandoned session are still in flight on the IPC channel and
+  // would land on the new session's timeline. Filtering by the sessionId captured
+  // when this turn was issued drops those late events at the listener boundary.
   const t = (): ReturnType<typeof useChatTimelineStore.getState> =>
     useChatTimelineStore.getState()
-  const cleanupToken = window.api.onAiToken((d) => t().appendToken(d))
-  const cleanupToolStart = window.api.onAiToolCallStart((d) => t().appendToolStart(d))
-  const cleanupToolEnd = window.api.onAiToolCallEnd((d) => t().resolveToolEnd(d))
-  const cleanupThinking = window.api.onAiThinking((d) => t().appendThinking(d))
-  const cleanupAskUser = window.api.onAiAskUser((d) => t().appendAskUser(d))
-  const cleanupInjected = window.api.onAiInjectedMessage((d) => t().appendInjectedMessage(d))
-  const cleanupModelSelected = window.api.onAiModelSelected((d) => t().modelSelected(d))
-  const cleanupStreamReset = window.api.onAiStreamReset((d) => t().streamReset(d))
+  const turnSessionId = sessionId
+  const forThisTurn = <T extends { sessionId: string }>(handler: (d: T) => void) =>
+    (d: T): void => {
+      if (d.sessionId !== turnSessionId) return
+      handler(d)
+    }
+  const cleanupToken = window.api.onAiToken(forThisTurn((d) => t().appendToken(d)))
+  const cleanupToolStart = window.api.onAiToolCallStart(forThisTurn((d) => t().appendToolStart(d)))
+  const cleanupToolEnd = window.api.onAiToolCallEnd(forThisTurn((d) => t().resolveToolEnd(d)))
+  const cleanupThinking = window.api.onAiThinking(forThisTurn((d) => t().appendThinking(d)))
+  const cleanupAskUser = window.api.onAiAskUser(forThisTurn((d) => t().appendAskUser(d)))
+  const cleanupInjected = window.api.onAiInjectedMessage(forThisTurn((d) => t().appendInjectedMessage(d)))
+  const cleanupModelSelected = window.api.onAiModelSelected(forThisTurn((d) => t().modelSelected(d)))
+  const cleanupStreamReset = window.api.onAiStreamReset(forThisTurn((d) => t().streamReset(d)))
 
   const cleanup = (): void => {
     cleanupToken()

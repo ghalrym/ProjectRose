@@ -212,38 +212,38 @@ const api = {
     return () => { ipcRenderer.removeListener(IPC.AI_FILE_MODIFIED, handler) }
   },
 
-  onAiToolCallStart: (callback: (data: { id: string; name: string; params: Record<string, unknown> }) => void): (() => void) => {
-    const handler = (_e: unknown, data: { id: string; name: string; params: Record<string, unknown> }): void => callback(data)
+  onAiToolCallStart: (callback: (data: { sessionId: string; id: string; name: string; params: Record<string, unknown> }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { sessionId: string; id: string; name: string; params: Record<string, unknown> }): void => callback(data)
     ipcRenderer.on(IPC.AI_TOOL_CALL_START, handler)
     return () => { ipcRenderer.removeListener(IPC.AI_TOOL_CALL_START, handler) }
   },
 
-  onAiToolCallEnd: (callback: (data: { id: string; result: string; error: boolean }) => void): (() => void) => {
-    const handler = (_e: unknown, data: { id: string; result: string; error: boolean }): void => callback(data)
+  onAiToolCallEnd: (callback: (data: { sessionId: string; id: string; result: string; error: boolean }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { sessionId: string; id: string; result: string; error: boolean }): void => callback(data)
     ipcRenderer.on(IPC.AI_TOOL_CALL_END, handler)
     return () => { ipcRenderer.removeListener(IPC.AI_TOOL_CALL_END, handler) }
   },
 
-  onAiThinking: (callback: (data: { content: string }) => void): (() => void) => {
-    const handler = (_e: unknown, data: { content: string }): void => callback(data)
+  onAiThinking: (callback: (data: { sessionId: string; content: string }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { sessionId: string; content: string }): void => callback(data)
     ipcRenderer.on(IPC.AI_THINKING, handler)
     return () => { ipcRenderer.removeListener(IPC.AI_THINKING, handler) }
   },
 
-  onAiToken: (callback: (data: { token: string }) => void): (() => void) => {
-    const handler = (_e: unknown, data: { token: string }): void => callback(data)
+  onAiToken: (callback: (data: { sessionId: string; token: string }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { sessionId: string; token: string }): void => callback(data)
     ipcRenderer.on(IPC.AI_TOKEN, handler)
     return () => { ipcRenderer.removeListener(IPC.AI_TOKEN, handler) }
   },
 
-  onAiModelSelected: (callback: (data: { modelDisplay: string }) => void): (() => void) => {
-    const handler = (_e: unknown, data: { modelDisplay: string }): void => callback(data)
+  onAiModelSelected: (callback: (data: { sessionId: string; modelDisplay: string }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { sessionId: string; modelDisplay: string }): void => callback(data)
     ipcRenderer.on(IPC.AI_MODEL_SELECTED, handler)
     return () => { ipcRenderer.removeListener(IPC.AI_MODEL_SELECTED, handler) }
   },
 
-  onAiStreamReset: (callback: (data: { errorMessage: string; fallbackModel: string }) => void): (() => void) => {
-    const handler = (_e: unknown, data: { errorMessage: string; fallbackModel: string }): void => callback(data)
+  onAiStreamReset: (callback: (data: { sessionId: string; errorMessage: string; fallbackModel: string }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { sessionId: string; errorMessage: string; fallbackModel: string }): void => callback(data)
     ipcRenderer.on(IPC.AI_STREAM_RESET, handler)
     return () => { ipcRenderer.removeListener(IPC.AI_STREAM_RESET, handler) }
   },
@@ -251,8 +251,8 @@ const api = {
   aiCancelGeneration: (): Promise<void> =>
     ipcRenderer.invoke(IPC.AI_CANCEL),
 
-  onAiAskUser: (callback: (data: { questionId: string; question: string; options: string[] }) => void): (() => void) => {
-    const handler = (_e: unknown, data: { questionId: string; question: string; options: string[] }): void => callback(data)
+  onAiAskUser: (callback: (data: { sessionId: string; questionId: string; question: string; options: string[] }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { sessionId: string; questionId: string; question: string; options: string[] }): void => callback(data)
     ipcRenderer.on(IPC.AI_ASK_USER, handler)
     return () => { ipcRenderer.removeListener(IPC.AI_ASK_USER, handler) }
   },
@@ -260,8 +260,8 @@ const api = {
   aiAskUserResponse: (sessionId: string, questionId: string, answer: string): Promise<void> =>
     ipcRenderer.invoke(IPC.AI_ASK_USER_RESPONSE, { sessionId, questionId, answer }),
 
-  onAiInjectedMessage: (callback: (data: { extensionId: string; extensionName: string; extensionIcon?: string; content: string }) => void): (() => void) => {
-    const handler = (_e: unknown, data: { extensionId: string; extensionName: string; extensionIcon?: string; content: string }): void => callback(data)
+  onAiInjectedMessage: (callback: (data: { sessionId: string; extensionId: string; extensionName: string; extensionIcon?: string; content: string }) => void): (() => void) => {
+    const handler = (_e: unknown, data: { sessionId: string; extensionId: string; extensionName: string; extensionIcon?: string; content: string }): void => callback(data)
     ipcRenderer.on(IPC.AI_INJECTED_MESSAGE, handler)
     return () => { ipcRenderer.removeListener(IPC.AI_INJECTED_MESSAGE, handler) }
   },
