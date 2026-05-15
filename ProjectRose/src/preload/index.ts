@@ -9,6 +9,7 @@ import { fileIpc } from '../main/services/fileService.ipc'
 import { recentProjectsIpc } from '../main/services/recentProjects.ipc'
 import { settingsIpc, healthIpc } from '../main/services/settingsService.ipc'
 import { projectSettingsIpc, toolsIpc } from '../main/services/projectSettingsService.ipc'
+import { roseSetupIpc } from '../main/services/roseSetupService.ipc'
 
 const api = {
   // Theme
@@ -101,14 +102,9 @@ const api = {
   getRecentProjects: recentProjectsIpc.bindings.getRecent,
   getDefaultProjectPath: recentProjectsIpc.bindings.getDefaultPath,
 
-  checkRoseMd: (rootPath: string): Promise<boolean> =>
-    ipcRenderer.invoke(IPC.ROSE_CHECK_MD, rootPath),
-
-  ensureScaffold: (rootPath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.ROSE_ENSURE_SCAFFOLD, rootPath),
-
-  initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string; commStyle: string; depth: string; proactivity: string }): Promise<void> =>
-    ipcRenderer.invoke(IPC.ROSE_INIT_PROJECT, payload),
+  checkRoseMd: roseSetupIpc.bindings.checkMd,
+  ensureScaffold: roseSetupIpc.bindings.ensureScaffold,
+  initProject: roseSetupIpc.bindings.initProject,
 
   getSettings: settingsIpc.bindings.get,
   setSettings: settingsIpc.bindings.set,

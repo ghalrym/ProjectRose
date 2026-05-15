@@ -2,7 +2,7 @@ import { platform } from 'os'
 import { readFile } from 'fs/promises'
 import { prPath } from '../lib/projectPaths'
 import { readSettings } from './settingsService'
-import { buildRoseMd } from '../ipc/roseSetupHandlers'
+import { buildRoseMd } from './roseSetupService'
 import { loadExtensionPrompts } from './promptService'
 
 /**

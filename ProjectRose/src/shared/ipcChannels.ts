@@ -14,10 +14,6 @@ export const IPC = {
 
   APP_QUIT: 'app:quit',
 
-  ROSE_CHECK_MD: 'rose:checkMd',
-  ROSE_INIT_PROJECT: 'rose:initProject',
-  ROSE_ENSURE_SCAFFOLD: 'rose:ensureScaffold',
-
   WHISPER_TRANSCRIBE: 'whisper:transcribe',
 
   INDEXING_PROJECT: 'indexing:project',
