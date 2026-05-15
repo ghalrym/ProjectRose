@@ -6,6 +6,7 @@ import { sessionIpc } from '../main/services/sessionService.ipc'
 import { promptIpc } from '../main/services/promptService.ipc'
 import { skillIpc } from '../main/services/skillService.ipc'
 import { fileIpc } from '../main/services/fileService.ipc'
+import { recentProjectsIpc } from '../main/services/recentProjects.ipc'
 
 const api = {
   // Theme
@@ -95,11 +96,8 @@ const api = {
     }
   },
 
-  getRecentProjects: (): Promise<RecentProject[]> =>
-    ipcRenderer.invoke(IPC.PROJECTS_GET_RECENT),
-
-  getDefaultProjectPath: (): Promise<string> =>
-    ipcRenderer.invoke(IPC.PROJECTS_GET_DEFAULT_PATH),
+  getRecentProjects: recentProjectsIpc.bindings.getRecent,
+  getDefaultProjectPath: recentProjectsIpc.bindings.getDefaultPath,
 
   checkRoseMd: (rootPath: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.ROSE_CHECK_MD, rootPath),
@@ -162,11 +160,8 @@ const api = {
     }
   },
 
-  addRecentProject: (projectPath: string): Promise<RecentProject[]> =>
-    ipcRenderer.invoke(IPC.PROJECTS_ADD_RECENT, projectPath),
-
-  removeRecentProject: (projectPath: string): Promise<RecentProject[]> =>
-    ipcRenderer.invoke(IPC.PROJECTS_REMOVE_RECENT, projectPath),
+  addRecentProject: recentProjectsIpc.bindings.addRecent,
+  removeRecentProject: recentProjectsIpc.bindings.removeRecent,
 
   quitApp: (): Promise<void> =>
     ipcRenderer.invoke(IPC.APP_QUIT),

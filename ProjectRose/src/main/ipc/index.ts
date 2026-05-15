@@ -1,6 +1,6 @@
 import { registerDialogHandlers } from './dialogHandlers'
 import { registerTerminalHandlers } from './terminalHandlers'
-import { registerProjectHandlers } from './projectHandlers'
+import { registerAppHandlers } from './appHandlers'
 import { registerLspHandlers } from './lspHandlers'
 import { registerAiHandlers } from './aiHandlers'
 import { registerRoseSetupHandlers } from './roseSetupHandlers'
@@ -42,10 +42,18 @@ import {
   readDirectoryTree
 } from '../services/fileService'
 
+import { recentProjectsIpc } from '../services/recentProjects.ipc'
+import {
+  getRecentProjects,
+  addRecentProject,
+  removeRecentProject,
+  getDefaultProjectPath
+} from '../services/recentProjects'
+
 export function registerAllHandlers(): void {
   registerDialogHandlers()
   registerTerminalHandlers()
-  registerProjectHandlers()
+  registerAppHandlers()
   registerLspHandlers()
   registerAiHandlers()
   registerRoseSetupHandlers()
@@ -91,5 +99,11 @@ export function registerIpcManifests(): void {
     rename: ({ oldPath, newPath }) => renameEntry(oldPath, newPath),
     createDir: createDirectory,
     readDirTree: readDirectoryTree
+  })
+  recentProjectsIpc.register({
+    getRecent: getRecentProjects,
+    addRecent: addRecentProject,
+    removeRecent: removeRecentProject,
+    getDefaultPath: getDefaultProjectPath
   })
 }
