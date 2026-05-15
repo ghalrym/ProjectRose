@@ -13,13 +13,16 @@ vi.mock('../../hooks/useScreenWebcamShare', () => ({
 
 import { useChat, detectEmptyResponseError } from '../useChat'
 import type { UserMessage } from '../../types/chatMessages'
-import { useChatTimelineStore } from '../useChatTimelineStore'
-import { useChatUIStore } from '../useChatUIStore'
-import { useCompressionStore } from '../useCompressionStore'
-import { useSessionsStore } from '../useSessionsStore'
 import { useProjectStore } from '../useProjectStore'
 import { useSettingsStore } from '../useSettingsStore'
-import { emptyTimeline } from '../../services/chatTimelineReducers'
+
+const emptyTimeline = {
+  messages: [],
+  assistantPlaceholderId: null,
+  thinkingPlaceholderId: null,
+  pendingModelDisplay: null,
+  isLoading: false,
+}
 
 // Same hand-rolled api stubs the chatTurn tests use. Listener registrations
 // return no-op unsubscribers because send() goes through the full chat-turn
@@ -77,9 +80,13 @@ function makeApi(): ApiStub {
 }
 
 function resetStores(): void {
-  useChatTimelineStore.setState({ ...emptyTimeline })
-  useChatUIStore.setState({ inputValue: '', isRecording: false, searchQuery: '' })
-  useCompressionStore.setState({
+  useChat.setState({
+    ...emptyTimeline,
+    inputValue: '',
+    isRecording: false,
+    searchQuery: '',
+    sessions: [],
+    currentSessionId: null,
     compressedMessages: null,
     compressedFromCount: null,
     compressedFromRawCount: null,
@@ -88,7 +95,6 @@ function resetStores(): void {
     toastDismissed: null,
     isCompressing: false,
   })
-  useSessionsStore.setState({ sessions: [], currentSessionId: null })
 }
 
 describe('useChat slice', () => {
@@ -108,10 +114,9 @@ describe('useChat slice', () => {
     vi.useRealTimers()
   })
 
-  describe('state mirroring', () => {
-    it('mirrors timeline messages from useChatTimelineStore', () => {
-      useChatTimelineStore.setState({
-        ...emptyTimeline,
+  describe('state', () => {
+    it('holds timeline messages on the slice', () => {
+      useChat.setState({
         messages: [{ id: 'u1', role: 'user', content: 'hi', timestamp: 0 }],
       })
       expect(useChat.getState().messages).toEqual([
@@ -119,13 +124,13 @@ describe('useChat slice', () => {
       ])
     })
 
-    it('mirrors inputValue from useChatUIStore', () => {
-      useChatUIStore.getState().setInputValue('draft text')
+    it('holds inputValue on the slice', () => {
+      useChat.getState().setInputValue('draft text')
       expect(useChat.getState().inputValue).toBe('draft text')
     })
 
-    it('mirrors sessions and currentSessionId from useSessionsStore', () => {
-      useSessionsStore.setState({
+    it('holds sessions and currentSessionId on the slice', () => {
+      useChat.setState({
         sessions: [{ id: 's1', title: 't1', createdAt: 0, updatedAt: 0 }],
         currentSessionId: 's1',
       })
@@ -134,15 +139,12 @@ describe('useChat slice', () => {
       expect(slice.currentSessionId).toBe('s1')
     })
 
-    it('mirrors compression snapshot fields from useCompressionStore', () => {
-      useCompressionStore.setState({
+    it('holds compression snapshot fields on the slice', () => {
+      useChat.setState({
         compressedMessages: [{ role: 'system', content: 'summary' }],
         compressedFromCount: 2,
         compressedFromRawCount: 2,
         compressedAt: 100,
-        contextStatus: null,
-        toastDismissed: null,
-        isCompressing: false,
       })
       const slice = useChat.getState()
       expect(slice.compressedMessages).toEqual([{ role: 'system', content: 'summary' }])
@@ -152,12 +154,9 @@ describe('useChat slice', () => {
   })
 
   describe('actions', () => {
-    it('setInputValue updates the slice (via the underlying ui store)', () => {
+    it('setInputValue updates the slice', () => {
       useChat.getState().setInputValue('hello')
       expect(useChat.getState().inputValue).toBe('hello')
-      // The legacy store also reflects the change so consumers still on it
-      // continue to work during the adapter phase.
-      expect(useChatUIStore.getState().inputValue).toBe('hello')
     })
 
     it('send() drives the same timeline transitions as the legacy chatTurn.sendMessage flow', async () => {
@@ -212,18 +211,15 @@ describe('useChat slice', () => {
     })
 
     it('cancel() forwards to window.api.aiCancelGeneration with the active sessionId', async () => {
-      useSessionsStore.setState({ currentSessionId: 'sess-y' })
+      useChat.setState({ currentSessionId: 'sess-y' })
       await useChat.getState().cancel()
       expect(api.aiCancelGeneration).toHaveBeenCalledWith('sess-y')
     })
 
-    it('newSession() resets the slice via the legacy stores', () => {
-      useSessionsStore.setState({
+    it('newSession() resets the slice', () => {
+      useChat.setState({
         sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
         currentSessionId: 's1',
-      })
-      useChatTimelineStore.setState({
-        ...emptyTimeline,
         messages: [{ id: 'u1', role: 'user', content: 'hi', timestamp: 0 }],
       })
 
@@ -238,12 +234,13 @@ describe('useChat slice', () => {
 
       // Seed timeline with one user/assistant pair so the snapshot's
       // prefix is intact and can be substituted on the next send.
-      useChatTimelineStore.setState({
-        ...emptyTimeline,
+      useChat.setState({
         messages: [
           { id: 'u1', role: 'user', content: 'old', timestamp: 0 },
           { id: 'a1', role: 'assistant', content: 'old reply', timestamp: 0 },
         ],
+        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        currentSessionId: 's1',
       })
 
       // Mock the main-side compression response so compressNow installs a
@@ -260,14 +257,8 @@ describe('useChat slice', () => {
         totalToolSteps: 0,
       })
 
-      // Need a current session id for compress() to proceed.
-      useSessionsStore.setState({
-        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
-        currentSessionId: 's1',
-      })
-
       await useChat.getState().compressNow()
-      // Slice mirrors the new snapshot from the compression store.
+      // The slice now holds the new snapshot directly.
       expect(useChat.getState().compressedMessages).toEqual([
         { role: 'system', content: 'compressed prefix' },
       ])
@@ -382,22 +373,14 @@ describe('useChat slice', () => {
     })
 
     it('clearForProjectSwitch() wipes the chat-related slice state', () => {
-      useSessionsStore.setState({
+      useChat.setState({
         sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
         currentSessionId: 's1',
-      })
-      useChatTimelineStore.setState({
-        ...emptyTimeline,
         messages: [{ id: 'u1', role: 'user', content: 'hi', timestamp: 0 }],
-      })
-      useCompressionStore.setState({
         compressedMessages: [{ role: 'system', content: 's' }],
         compressedFromCount: 1,
         compressedFromRawCount: 1,
         compressedAt: 1,
-        contextStatus: null,
-        toastDismissed: null,
-        isCompressing: false,
       })
 
       useChat.getState().clearForProjectSwitch()

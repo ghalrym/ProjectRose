@@ -1,6 +1,5 @@
 import { create } from 'zustand'
-import { useChatUIStore } from './useChatUIStore'
-import { sendMessage } from '../services/chatTurn'
+import { useChat } from './useChat'
 
 export interface Utterance {
   utteranceId: number
@@ -160,6 +159,6 @@ export const useActiveListeningStore = create<ActiveListeningState>()((set, get)
 // hook layer is a one-liner, and so tests can drive `init` without
 // duplicating the wiring.
 export function defaultSendDraft(text: string): void {
-  useChatUIStore.getState().setInputValue(text)
-  sendMessage()
+  useChat.getState().setInputValue(text)
+  void useChat.getState().send()
 }

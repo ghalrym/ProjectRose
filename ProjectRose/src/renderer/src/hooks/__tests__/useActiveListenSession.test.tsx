@@ -4,12 +4,27 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 import { useActiveListenSession } from '../useActiveListenSession'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
-import { useChatUIStore } from '../../stores/useChatUIStore'
+import { useChat } from '../../stores/useChat'
 
-const sendMessageMock = vi.fn()
-vi.mock('../../services/chatTurn', () => ({
-  sendMessage: (): void => sendMessageMock()
-}))
+const sendMock = vi.fn()
+vi.mock('../../stores/useChat', async () => {
+  const actual = await vi.importActual<typeof import('../../stores/useChat')>(
+    '../../stores/useChat'
+  )
+  return {
+    ...actual,
+    useChat: Object.assign(
+      (selector: (s: ReturnType<typeof actual.useChat.getState>) => unknown) =>
+        actual.useChat(selector),
+      {
+        getState: () => ({
+          ...actual.useChat.getState(),
+          send: sendMock,
+        }),
+      }
+    ),
+  }
+})
 
 type UtteranceListener = (evt: { sessionId: number; utterance_id: number; speaker_name: string | null; text: string; speaker_id?: number | null }) => void
 type DraftListener = (evt: { sessionId: number; status: 'building' | 'submitted' | 'cancelled'; text: string; secondsLeft: number | null }) => void
@@ -62,9 +77,9 @@ async function flush(): Promise<void> {
 
 describe('useActiveListenSession', () => {
   beforeEach(() => {
-    sendMessageMock.mockClear()
+    sendMock.mockClear()
     useActiveListeningStore.getState().reset?.()
-    useChatUIStore.getState().setInputValue('')
+    useChat.getState().setInputValue('')
   })
 
   afterEach(() => {
@@ -155,8 +170,8 @@ describe('useActiveListenSession', () => {
     await act(async () => {
       api.draftListeners[0]({ sessionId: 42, status: 'submitted', text: 'go!', secondsLeft: null })
     })
-    expect(useChatUIStore.getState().inputValue).toBe('go!')
-    expect(sendMessageMock).toHaveBeenCalledOnce()
+    expect(useChat.getState().inputValue).toBe('go!')
+    expect(sendMock).toHaveBeenCalledOnce()
   })
 
   it('on a cancelled draft, clears draft state and does not send', async () => {
@@ -168,7 +183,7 @@ describe('useActiveListenSession', () => {
       api.draftListeners[0]({ sessionId: 42, status: 'cancelled', text: '', secondsLeft: null })
     })
     expect(useActiveListeningStore.getState().draftText).toBe('')
-    expect(sendMessageMock).not.toHaveBeenCalled()
+    expect(sendMock).not.toHaveBeenCalled()
   })
 
   it('closes the session and clears state on unmount', async () => {

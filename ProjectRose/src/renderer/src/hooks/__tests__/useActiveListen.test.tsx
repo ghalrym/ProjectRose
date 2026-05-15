@@ -5,12 +5,27 @@ import { act, cleanup, render } from '@testing-library/react'
 import { useActiveListen } from '../useActiveListen'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 
-// Mock the chat-turn service so the hook can call sendMessage without
-// pulling in the entire chat pipeline.
+// Mock the chat slice so the hook's `defaultSendDraft` can call send()
+// without pulling in the entire chat pipeline.
 const sendMessageMock = vi.fn()
-vi.mock('../../services/chatTurn', () => ({
-  sendMessage: () => sendMessageMock()
-}))
+vi.mock('../../stores/useChat', async () => {
+  const actual = await vi.importActual<typeof import('../../stores/useChat')>(
+    '../../stores/useChat'
+  )
+  return {
+    ...actual,
+    useChat: Object.assign(
+      (selector: (s: ReturnType<typeof actual.useChat.getState>) => unknown) =>
+        actual.useChat(selector),
+      {
+        getState: () => ({
+          ...actual.useChat.getState(),
+          send: sendMessageMock,
+        }),
+      }
+    ),
+  }
+})
 
 // Mock useAudioStream — we don't want a real MediaRecorder here.
 vi.mock('../useAudioStream', () => ({
