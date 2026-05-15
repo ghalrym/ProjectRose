@@ -14,6 +14,7 @@ import { whisperIpc } from '../main/services/whisperService.ipc'
 import { updaterIpc } from '../main/services/updaterService.ipc'
 import { authIpc } from '../main/services/authService.ipc'
 import { aiIpc } from '../main/services/aiService.ipc'
+import { activeSpeechIpc } from '../main/services/speech/activeSpeechService.ipc'
 
 const api = {
   // Theme
@@ -116,34 +117,16 @@ const api = {
 
   transcribeAudio: whisperIpc.bindings.transcribe,
 
-  // Active Listening / RoseSpeech
+  // Active Listening / RoseSpeech — invoke methods come from the manifest;
+  // sendChunk / cancelDraft are fire-and-forget (ipcRenderer.send) and the
+  // onUtterance / onDraft subscriptions are event broadcasts. Both stay
+  // hand-written.
   activeSpeech: {
-    getSpeakers: (projectPath: string): Promise<Array<{ id: number; name: string; created_at: string }>> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_GET_SPEAKERS, projectPath),
-    createSpeaker: (payload: { name: string; projectPath: string }): Promise<{ id: number; name: string }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_CREATE_SPEAKER, payload),
-    addSample: (payload: { speakerId: number; source: string; audioBuffer: ArrayBuffer; projectId?: string; projectPath: string }): Promise<{ id: number }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_ADD_SAMPLE, payload),
-    labelSpeaker: (payload: { utteranceId: number; speakerId?: number; speakerName?: string; projectPath: string }): Promise<{ ok: boolean; speaker_id: number }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_LABEL_SPEAKER, payload),
-    train: (projectPath: string): Promise<{ job_id: number }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_TRAIN, projectPath),
-    trainStatus: (payload: { jobId: number; projectPath: string }): Promise<{ status: string; accuracy: number | null; deployed: boolean; error: string | null }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_TRAIN_STATUS, payload),
-    trainHistory: (projectPath: string): Promise<Array<{ id: number; accuracy: number; is_active: boolean; trained_at: string; sample_count: number; notes: string | null }>> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_TRAIN_HISTORY, projectPath),
-    openSession: (payload: { projectPath: string; projectId?: string }): Promise<{ sessionId: number }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_OPEN_SESSION, payload),
+    ...activeSpeechIpc.bindings,
     sendChunk: (payload: { sessionId: number; audioBuffer: ArrayBuffer }): void =>
       ipcRenderer.send(IPC.ACTIVE_LISTENING_SEND_CHUNK, payload),
-    closeSession: (payload: { sessionId: number; projectPath: string }): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_CLOSE_SESSION, payload),
     cancelDraft: (payload: { sessionId: number }): void =>
       ipcRenderer.send(IPC.ACTIVE_LISTENING_CANCEL_DRAFT, payload),
-    getUtterances: (payload: { sessionId: number; projectPath: string }): Promise<Array<{ id: number; text: string; speaker_name: string | null; speaker_id: number | null; created_at: string }>> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_GET_UTTERANCES, payload),
-    getSessions: (projectPath: string): Promise<Array<{ id: number; project_id: string | null; started_at: string; ended_at: string | null; utterance_count: number }>> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_GET_SESSIONS, projectPath),
     onUtterance: (callback: (evt: { sessionId: number; utterance_id: number; speaker_name: string | null; text: string }) => void): (() => void) => {
       const handler = (_e: unknown, evt: { sessionId: number; utterance_id: number; speaker_name: string | null; text: string }): void => callback(evt)
       ipcRenderer.on(IPC.ACTIVE_LISTENING_UTTERANCE, handler)

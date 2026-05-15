@@ -66,23 +66,12 @@ export const IPC = {
   AUTH_CHANGED: 'auth:changed',
   AUTH_PAIRING_PENDING: 'auth:pairingPending',
 
-  // Active Listening — session lifecycle
-  ACTIVE_LISTENING_OPEN_SESSION: 'activeSpeech:openSession',
+  // Active Listening — only the fire-and-forget and event-broadcast channels
+  // live in the enum now; the eleven invoke channels are declared by
+  // services/speech/activeSpeechService.ipc.ts.
   ACTIVE_LISTENING_SEND_CHUNK: 'activeSpeech:sendChunk',
-  ACTIVE_LISTENING_CLOSE_SESSION: 'activeSpeech:closeSession',
-  ACTIVE_LISTENING_DRAFT: 'activeSpeech:draft',
   ACTIVE_LISTENING_CANCEL_DRAFT: 'activeSpeech:cancelDraft',
-
-  // Speaker management + session history
-  ACTIVE_LISTENING_LABEL_SPEAKER: 'activeSpeech:labelSpeaker',
-  ACTIVE_LISTENING_TRAIN: 'activeSpeech:train',
-  ACTIVE_LISTENING_TRAIN_STATUS: 'activeSpeech:trainStatus',
-  ACTIVE_LISTENING_TRAIN_HISTORY: 'activeSpeech:trainHistory',
-  ACTIVE_LISTENING_GET_SPEAKERS: 'activeSpeech:getSpeakers',
-  ACTIVE_LISTENING_CREATE_SPEAKER: 'activeSpeech:createSpeaker',
-  ACTIVE_LISTENING_ADD_SAMPLE: 'activeSpeech:addSample',
-  ACTIVE_LISTENING_GET_UTTERANCES: 'activeSpeech:getUtterances',
-  ACTIVE_LISTENING_GET_SESSIONS: 'activeSpeech:getSessions',
+  ACTIVE_LISTENING_DRAFT: 'activeSpeech:draft',
   ACTIVE_LISTENING_UTTERANCE: 'activeSpeech:utterance',
 
   // Screen / window capture for chat share-screen

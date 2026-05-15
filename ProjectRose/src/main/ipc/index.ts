@@ -71,6 +71,21 @@ import { chat, compressToolNoise, getContextStatus } from '../services/aiService
 import { buildAgentMd } from '../services/agentMd'
 import { sessionRegistry } from '../services/sessionRegistry'
 
+import { activeSpeechIpc } from '../services/speech/activeSpeechService.ipc'
+import {
+  getSpeakers,
+  createSpeaker,
+  addSample,
+  labelSpeaker,
+  startTrainingJob,
+  getTrainingStatus,
+  getTrainingHistory,
+  getUtterances,
+  getSessions,
+  openSession,
+  closeSession
+} from '../services/speech/activeSpeechService'
+
 export function registerAllHandlers(): void {
   registerDialogHandlers()
   registerTerminalHandlers()
@@ -154,6 +169,19 @@ export function registerIpcManifests(): void {
     cancel: cancelPairing,
     getStatus: getAuthStatus,
     getUsage: fetchUsage
+  })
+  activeSpeechIpc.register({
+    getSpeakers,
+    createSpeaker,
+    addSample,
+    labelSpeaker,
+    train: startTrainingJob,
+    trainStatus: getTrainingStatus,
+    trainHistory: getTrainingHistory,
+    getUtterances,
+    getSessions,
+    openSession,
+    closeSession
   })
   aiIpc.register({
     chat: ({ messages, rootPath, sessionId }) => chat(messages, rootPath, sessionId),
