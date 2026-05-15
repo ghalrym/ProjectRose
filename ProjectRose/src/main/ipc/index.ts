@@ -4,7 +4,6 @@ import { registerAppHandlers } from './appHandlers'
 import { registerLspHandlers } from './lspHandlers'
 import { registerAiHandlers } from './aiHandlers'
 import { registerRoseSetupHandlers } from './roseSetupHandlers'
-import { registerSettingsHandlers } from './settingsHandlers'
 import { registerWhisperHandlers } from './whisperHandlers'
 import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
 import { registerProjectSettingsHandlers } from './projectSettingsHandlers'
@@ -50,6 +49,9 @@ import {
   getDefaultProjectPath
 } from '../services/recentProjects'
 
+import { settingsIpc, healthIpc } from '../services/settingsService.ipc'
+import { readSettings, applySettingsPatch, checkServicesHealth } from '../services/settingsService'
+
 export function registerAllHandlers(): void {
   registerDialogHandlers()
   registerTerminalHandlers()
@@ -57,7 +59,6 @@ export function registerAllHandlers(): void {
   registerLspHandlers()
   registerAiHandlers()
   registerRoseSetupHandlers()
-  registerSettingsHandlers()
   registerWhisperHandlers()
   registerActiveSpeechHandlers()
   registerProjectSettingsHandlers()
@@ -105,5 +106,12 @@ export function registerIpcManifests(): void {
     addRecent: addRecentProject,
     removeRecent: removeRecentProject,
     getDefaultPath: getDefaultProjectPath
+  })
+  settingsIpc.register({
+    get: readSettings,
+    set: applySettingsPatch
+  })
+  healthIpc.register({
+    checkAll: checkServicesHealth
   })
 }

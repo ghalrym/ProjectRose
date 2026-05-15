@@ -7,6 +7,7 @@ import { promptIpc } from '../main/services/promptService.ipc'
 import { skillIpc } from '../main/services/skillService.ipc'
 import { fileIpc } from '../main/services/fileService.ipc'
 import { recentProjectsIpc } from '../main/services/recentProjects.ipc'
+import { settingsIpc, healthIpc } from '../main/services/settingsService.ipc'
 
 const api = {
   // Theme
@@ -108,14 +109,9 @@ const api = {
   initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string; commStyle: string; depth: string; proactivity: string }): Promise<void> =>
     ipcRenderer.invoke(IPC.ROSE_INIT_PROJECT, payload),
 
-  getSettings: (rootPath?: string): Promise<Record<string, unknown>> =>
-    ipcRenderer.invoke(IPC.SETTINGS_GET, rootPath),
-
-  setSettings: (patch: Record<string, unknown>, rootPath?: string): Promise<Record<string, unknown>> =>
-    ipcRenderer.invoke(IPC.SETTINGS_SET, patch, rootPath),
-
-  checkServicesHealth: (): Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>> =>
-    ipcRenderer.invoke(IPC.HEALTH_CHECK_ALL),
+  getSettings: settingsIpc.bindings.get,
+  setSettings: settingsIpc.bindings.set,
+  checkServicesHealth: healthIpc.bindings.checkAll,
 
   transcribeAudio: (audioBuffer: ArrayBuffer): Promise<string> =>
     ipcRenderer.invoke(IPC.WHISPER_TRANSCRIBE, audioBuffer),

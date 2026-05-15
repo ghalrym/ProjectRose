@@ -18,11 +18,6 @@ export const IPC = {
   ROSE_INIT_PROJECT: 'rose:initProject',
   ROSE_ENSURE_SCAFFOLD: 'rose:ensureScaffold',
 
-  SETTINGS_GET: 'settings:get',
-  SETTINGS_SET: 'settings:set',
-
-  HEALTH_CHECK_ALL: 'health:checkAll',
-
   WHISPER_TRANSCRIBE: 'whisper:transcribe',
 
   INDEXING_PROJECT: 'indexing:project',

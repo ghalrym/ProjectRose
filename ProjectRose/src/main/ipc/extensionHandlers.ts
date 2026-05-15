@@ -6,7 +6,7 @@ import { createRequire } from 'module'
 import { spawn } from 'child_process'
 import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
-import { readSettings, writeSettings, registerSensitiveExtensionFields } from './settingsHandlers'
+import { readSettings, writeSettings, registerSensitiveExtensionFields } from '../services/settingsService'
 import { runAgentOnce } from '../services/aiService'
 import {
   registerHooks as registerExtensionHooks,

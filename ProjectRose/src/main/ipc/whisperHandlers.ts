@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
-import { readSettings } from './settingsHandlers'
+import { readSettings } from '../services/settingsService'
 import { transcribe, setModel } from '../services/speech/transcriptionEngine'
 
 export function registerWhisperHandlers(): void {

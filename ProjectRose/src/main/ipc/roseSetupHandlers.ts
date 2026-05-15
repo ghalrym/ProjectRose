@@ -3,7 +3,7 @@ import { join } from 'path'
 import { writeFile, mkdir, access } from 'fs/promises'
 import { execSync } from 'child_process'
 import { IPC } from '../../shared/ipcChannels'
-import { readSettings, writeSettings } from './settingsHandlers'
+import { readSettings, writeSettings } from '../services/settingsService'
 import { prPath } from '../lib/projectPaths'
 
 const AUTONOMY_TEXT: Record<string, string> = {
