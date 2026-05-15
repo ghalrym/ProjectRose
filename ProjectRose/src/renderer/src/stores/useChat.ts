@@ -3,8 +3,9 @@ import type { ChatMessage, SessionMeta, ContextStatus, CompressionSnapshot } fro
 import { useChatTimelineStore } from './useChatTimelineStore'
 import { useChatUIStore } from './useChatUIStore'
 import { useSessionsStore } from './useSessionsStore'
-import { useCompressionStore } from './useCompressionStore'
+import { useCompressionStore, evaluateShouldShowToast } from './useCompressionStore'
 import { useProjectStore } from './useProjectStore'
+import { useSettingsStore } from './useSettingsStore'
 import {
   sendMessage as chatTurnSend,
   cancelGeneration as chatTurnCancel,
@@ -177,3 +178,17 @@ export const useChat = create<UseChatSlice>((set) => {
     clearForProjectSwitch: () => chatTurnClearForProjectSwitch(),
   }
 })
+
+/**
+ * One-stop selector for the compression toast: composes the slice's
+ * `contextStatus` + `toastDismissed` with the user-configurable token
+ * threshold in `useSettingsStore`. Exported here so the toast component
+ * does not have to import from `useCompressionStore` directly during
+ * the migration phase.
+ */
+export function useShouldShowToast(): boolean {
+  const status = useChat((s) => s.contextStatus)
+  const dismissed = useChat((s) => s.toastDismissed)
+  const tokenThresholdPct = useSettingsStore((s) => s.compressionThresholdPct)
+  return evaluateShouldShowToast(status, dismissed, tokenThresholdPct)
+}

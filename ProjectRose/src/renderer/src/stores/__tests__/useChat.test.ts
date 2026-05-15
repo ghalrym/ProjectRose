@@ -232,6 +232,79 @@ describe('useChat slice', () => {
       expect(useChat.getState().messages).toEqual([])
     })
 
+    it('compressNow → refreshContextStatus → send substitutes the snapshot on the outgoing wire', async () => {
+      vi.useFakeTimers()
+
+      // Seed timeline with one user/assistant pair so the snapshot's
+      // prefix is intact and can be substituted on the next send.
+      useChatTimelineStore.setState({
+        ...emptyTimeline,
+        messages: [
+          { id: 'u1', role: 'user', content: 'old', timestamp: 0 },
+          { id: 'a1', role: 'assistant', content: 'old reply', timestamp: 0 },
+        ],
+      })
+
+      // Mock the main-side compression response so compressNow installs a
+      // snapshot, and the status response so refresh succeeds.
+      api.aiCompressToolNoise.mockResolvedValueOnce({
+        compressedMessages: [{ role: 'system', content: 'compressed prefix' }],
+        compressedFromCount: 2,
+        compressedFromRawCount: 2,
+      })
+      api.aiContextStatus.mockResolvedValueOnce({
+        estimatedTokens: 50,
+        contextLength: 8000,
+        percentUsed: 0.00625,
+        totalToolSteps: 0,
+      })
+
+      // Need a current session id for compress() to proceed.
+      useSessionsStore.setState({
+        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        currentSessionId: 's1',
+      })
+
+      await useChat.getState().compressNow()
+      // Slice mirrors the new snapshot from the compression store.
+      expect(useChat.getState().compressedMessages).toEqual([
+        { role: 'system', content: 'compressed prefix' },
+      ])
+      expect(useChat.getState().compressedFromCount).toBe(2)
+
+      // refreshContextStatus reads the mirrored snapshot through the
+      // underlying compression store and writes contextStatus.
+      api.aiContextStatus.mockResolvedValueOnce({
+        estimatedTokens: 50,
+        contextLength: 8000,
+        percentUsed: 0.00625,
+        totalToolSteps: 0,
+      })
+      await useChat.getState().refreshContextStatus()
+      expect(useChat.getState().contextStatus?.estimatedTokens).toBe(50)
+
+      // Now drive send() and assert the outgoing wire has the snapshot
+      // substituted in: the first message should be the compressed prefix
+      // (system role) and the trailing user message is the new input.
+      useChat.getState().setInputValue('follow-up')
+      const promise = useChat.getState().send()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(api.aiChat).toHaveBeenCalledOnce()
+      const sentMessages = api.aiChat.mock.calls[0][0] as Array<{
+        role: string
+        content: string
+      }>
+      expect(sentMessages[0]).toMatchObject({ role: 'system', content: 'compressed prefix' })
+      expect(sentMessages[sentMessages.length - 1]).toMatchObject({
+        role: 'user',
+        content: 'follow-up',
+      })
+
+      await vi.advanceTimersByTimeAsync(250)
+      await promise
+    })
+
     it('clearForProjectSwitch() wipes the chat-related slice state', () => {
       useSessionsStore.setState({
         sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
