@@ -11,6 +11,7 @@ import { settingsIpc, healthIpc } from '../main/services/settingsService.ipc'
 import { projectSettingsIpc, toolsIpc } from '../main/services/projectSettingsService.ipc'
 import { roseSetupIpc } from '../main/services/roseSetupService.ipc'
 import { whisperIpc } from '../main/services/whisperService.ipc'
+import { updaterIpc } from '../main/services/updaterService.ipc'
 
 const api = {
   // Theme
@@ -390,16 +391,13 @@ const api = {
     }
   },
 
-  // Auto-updater
+  // Auto-updater — request methods come from the manifest; the on* event
+  // subscriptions stay hand-written because broadcasts aren't manifest-covered.
   updater: {
-    checkForUpdates: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.UPDATER_CHECK),
-    downloadUpdate: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.UPDATER_DOWNLOAD),
-    installUpdate: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.UPDATER_INSTALL),
-    skipVersion: (version: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.UPDATER_SKIP_VERSION, version),
+    checkForUpdates: updaterIpc.bindings.check,
+    downloadUpdate: updaterIpc.bindings.download,
+    installUpdate: updaterIpc.bindings.install,
+    skipVersion: updaterIpc.bindings.skipVersion,
     onAvailable: (callback: (info: { version: string; releaseNotes: string | null }) => void): (() => void) => {
       const handler = (_e: unknown, info: { version: string; releaseNotes: string | null }): void => callback(info)
       ipcRenderer.on(IPC.UPDATER_AVAILABLE, handler)

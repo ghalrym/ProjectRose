@@ -7,7 +7,6 @@ import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
 import { registerExtensionHandlers } from './extensionHandlers'
 import { registerAuthHandlers } from './authHandlers'
 import { registerSkillHandlers } from './skillHandlers'
-import { registerUpdaterHandlers } from './updaterHandlers'
 import { registerScreenHandlers } from './screenHandlers'
 
 import { sessionIpc } from '../services/sessionService.ipc'
@@ -58,6 +57,14 @@ import { checkRoseMd, initRoseProject, ensureRoseScaffold } from '../services/ro
 import { whisperIpc } from '../services/whisperService.ipc'
 import { transcribeAudio } from '../services/whisperService'
 
+import { updaterIpc } from '../services/updaterService.ipc'
+import {
+  checkForUpdatesNow,
+  downloadUpdateNow,
+  installUpdateAndRestart,
+  skipVersion
+} from '../services/updaterService'
+
 export function registerAllHandlers(): void {
   registerDialogHandlers()
   registerTerminalHandlers()
@@ -68,7 +75,6 @@ export function registerAllHandlers(): void {
   registerExtensionHandlers()
   registerAuthHandlers()
   registerSkillHandlers()
-  registerUpdaterHandlers()
   registerScreenHandlers()
 }
 
@@ -131,5 +137,11 @@ export function registerIpcManifests(): void {
   })
   whisperIpc.register({
     transcribe: transcribeAudio
+  })
+  updaterIpc.register({
+    check: checkForUpdatesNow,
+    download: downloadUpdateNow,
+    install: installUpdateAndRestart,
+    skipVersion: skipVersion
   })
 }

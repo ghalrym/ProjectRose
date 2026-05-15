@@ -99,11 +99,9 @@ export const IPC = {
   // Status bar notifications (main → renderer)
   STATUS_NOTIFY: 'status:notify',
 
-  // Auto-updater
-  UPDATER_CHECK: 'updater:check',
-  UPDATER_DOWNLOAD: 'updater:download',
-  UPDATER_INSTALL: 'updater:install',
-  UPDATER_SKIP_VERSION: 'updater:skipVersion',
+  // Auto-updater event broadcasts (main → renderer). Request channels —
+  // check, download, install, skipVersion — are declared by the typed manifest
+  // in services/updaterService.ipc.ts.
   UPDATER_AVAILABLE: 'updater:available',
   UPDATER_NOT_AVAILABLE: 'updater:notAvailable',
   UPDATER_PROGRESS: 'updater:progress',
