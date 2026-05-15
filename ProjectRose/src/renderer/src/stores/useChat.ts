@@ -41,6 +41,8 @@ export interface UseChatSlice {
 
   // UI state
   inputValue: string
+  isRecording: boolean
+  searchQuery: string
 
   // Sessions state
   sessions: SessionMeta[]
@@ -61,6 +63,8 @@ export interface UseChatSlice {
   cancel: () => Promise<void>
   answerAskUser: (questionId: string, answer: string) => Promise<void>
   setInputValue: (value: string) => void
+  setIsRecording: (value: boolean) => void
+  setSearchQuery: (value: string) => void
   compressNow: () => Promise<void>
   dismissCompressionToast: () => void
   newSession: () => void
@@ -78,6 +82,8 @@ function snapshot(): Pick<
   | 'isLoading'
   | 'assistantPlaceholderId'
   | 'inputValue'
+  | 'isRecording'
+  | 'searchQuery'
   | 'sessions'
   | 'currentSessionId'
   | 'compressedMessages'
@@ -97,6 +103,8 @@ function snapshot(): Pick<
     isLoading: timeline.isLoading,
     assistantPlaceholderId: timeline.assistantPlaceholderId,
     inputValue: ui.inputValue,
+    isRecording: ui.isRecording,
+    searchQuery: ui.searchQuery,
     sessions: sessions.sessions,
     currentSessionId: sessions.currentSessionId,
     compressedMessages: compression.compressedMessages,
@@ -128,6 +136,8 @@ export const useChat = create<UseChatSlice>((set) => {
     cancel: () => chatTurnCancel(),
     answerAskUser: (questionId, answer) => chatTurnAnswerAskUser(questionId, answer),
     setInputValue: (value) => useChatUIStore.getState().setInputValue(value),
+    setIsRecording: (value) => useChatUIStore.getState().setIsRecording(value),
+    setSearchQuery: (value) => useChatUIStore.getState().setSearchQuery(value),
 
     compressNow: async () => {
       const rootPath = useProjectStore.getState().rootPath

@@ -197,6 +197,19 @@ describe('useChat slice', () => {
       )
     })
 
+    it('send() clears the input field once the message starts sending — via the slice', async () => {
+      vi.useFakeTimers()
+      useChat.getState().setInputValue('clear me')
+      expect(useChat.getState().inputValue).toBe('clear me')
+
+      const promise = useChat.getState().send()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(useChat.getState().inputValue).toBe('')
+
+      await vi.advanceTimersByTimeAsync(250)
+      await promise
+    })
+
     it('cancel() forwards to window.api.aiCancelGeneration with the active sessionId', async () => {
       useSessionsStore.setState({ currentSessionId: 'sess-y' })
       await useChat.getState().cancel()

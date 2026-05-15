@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import clsx from 'clsx'
-import { useChatTimelineStore } from '../../stores/useChatTimelineStore'
+import { useChat } from '../../stores/useChat'
 import { loadSessions } from '../../services/chatTurn'
 import type {
   ChatMessage,
@@ -82,8 +82,8 @@ function groupMessages(messages: ChatMessage[]): RenderItem[] {
 }
 
 export function ChatPanel(): JSX.Element {
-  const messages = useChatTimelineStore((s) => s.messages)
-  const isLoading = useChatTimelineStore((s) => s.isLoading)
+  const messages = useChat((s) => s.messages)
+  const isLoading = useChat((s) => s.isLoading)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const rootPath = useProjectStore((s) => s.rootPath)
   const mode = useActiveListeningStore((s) => s.mode)

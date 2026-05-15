@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import clsx from 'clsx'
 import { useSessionsStore } from '../../stores/useSessionsStore'
-import { useChatTimelineStore } from '../../stores/useChatTimelineStore'
-import { useChatUIStore } from '../../stores/useChatUIStore'
+import { useChat } from '../../stores/useChat'
 import {
   newSession,
   switchSession,
@@ -27,9 +26,9 @@ function formatDate(ts: number): string {
 export function SessionSidebar(): JSX.Element {
   const sessions = useSessionsStore((s) => s.sessions)
   const currentSessionId = useSessionsStore((s) => s.currentSessionId)
-  const messages = useChatTimelineStore((s) => s.messages)
-  const searchQuery = useChatUIStore((s) => s.searchQuery)
-  const setSearchQuery = useChatUIStore((s) => s.setSearchQuery)
+  const messages = useChat((s) => s.messages)
+  const searchQuery = useChat((s) => s.searchQuery)
+  const setSearchQuery = useChat((s) => s.setSearchQuery)
   const rootPath = useProjectStore((s) => s.rootPath)
   const agentName = useSettingsStore((s) => s.agentName)
   const defaultModelId = useSettingsStore((s) => s.defaultModelId)
