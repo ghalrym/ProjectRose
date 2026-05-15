@@ -1,8 +1,8 @@
 import { readFile, writeFile } from 'fs/promises'
-import { ipcMain } from 'electron'
-import { listInstalledExtensions } from './extensionHandlers'
+import { listInstalledExtensions } from '../ipc/extensionHandlers'
 import { prPath } from '../lib/projectPaths'
-import { toolRegistry } from '../services/toolRegistry'
+import { toolRegistry } from './toolRegistry'
+import type { ToolMeta } from '../../shared/types'
 
 export interface ProjectSettings {
   disabledTools: string[]
@@ -37,43 +37,40 @@ export async function readProjectSettings(rootPath: string): Promise<ProjectSett
   }
 }
 
-export function registerProjectSettingsHandlers(): void {
-  ipcMain.handle('project:getSettings', (_ev, rootPath: string) =>
-    readProjectSettings(rootPath)
-  )
+export async function writeProjectSettings(
+  rootPath: string,
+  patch: Partial<ProjectSettings>
+): Promise<ProjectSettings> {
+  const current = await readProjectSettings(rootPath)
+  const updated = { ...current, ...patch }
+  await writeFile(prPath(rootPath, 'project-settings.json'), JSON.stringify(updated, null, 2))
+  return updated
+}
 
-  ipcMain.handle('project:setSettings', async (_ev, rootPath: string, patch: Partial<ProjectSettings>) => {
-    const current = await readProjectSettings(rootPath)
-    const updated = { ...current, ...patch }
-    await writeFile(prPath(rootPath, 'project-settings.json'), JSON.stringify(updated, null, 2))
-    return updated
+export async function listTools(rootPath: string): Promise<ToolMeta[]> {
+  const coreMeta = toolRegistry.getCoreToolNames().map((name) => {
+    const display = CORE_TOOL_DISPLAY[name]
+    return {
+      name,
+      displayName: display?.displayName ?? name,
+      description: display?.description ?? '',
+      type: 'core' as const
+    }
   })
 
-  ipcMain.handle('tools:list', async (_ev, rootPath: string) => {
-    const coreMeta = toolRegistry.getCoreToolNames().map((name) => {
-      const display = CORE_TOOL_DISPLAY[name]
-      return {
-        name,
-        displayName: display?.displayName ?? name,
-        description: display?.description ?? '',
-        type: 'core' as const
-      }
-    })
+  const installed = await listInstalledExtensions(rootPath)
+  const extensionMeta = installed
+    .filter((ext) => ext.enabled && ext.manifest.provides.tools?.length)
+    .flatMap((ext) =>
+      (ext.manifest.provides.tools ?? []).map((t) => ({
+        name: t.name,
+        displayName: t.displayName,
+        description: t.description,
+        type: 'extension' as const,
+        extensionId: ext.manifest.id,
+        extensionName: ext.manifest.name
+      }))
+    )
 
-    const installed = await listInstalledExtensions(rootPath)
-    const extensionMeta = installed
-      .filter((ext) => ext.enabled && ext.manifest.provides.tools?.length)
-      .flatMap((ext) =>
-        (ext.manifest.provides.tools ?? []).map((t) => ({
-          name: t.name,
-          displayName: t.displayName,
-          description: t.description,
-          type: 'extension' as const,
-          extensionId: ext.manifest.id,
-          extensionName: ext.manifest.name,
-        }))
-      )
-
-    return [...coreMeta, ...extensionMeta]
-  })
+  return [...coreMeta, ...extensionMeta]
 }

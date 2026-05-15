@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir, rm, access } from 'fs/promises'
 import { resolve, sep } from 'path'
 import { prPath } from '../lib/projectPaths'
 import { listInstalledExtensions } from '../ipc/extensionHandlers'
-import { readProjectSettings } from '../ipc/projectSettingsHandlers'
+import { readProjectSettings } from './projectSettingsService'
 
 function userPromptPath(rootPath: string, extId: string): string {
   return prPath(rootPath, 'prompts', `${extId}.md`)

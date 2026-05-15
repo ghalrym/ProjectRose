@@ -6,7 +6,6 @@ import { registerAiHandlers } from './aiHandlers'
 import { registerRoseSetupHandlers } from './roseSetupHandlers'
 import { registerWhisperHandlers } from './whisperHandlers'
 import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
-import { registerProjectSettingsHandlers } from './projectSettingsHandlers'
 import { registerExtensionHandlers } from './extensionHandlers'
 import { registerAuthHandlers } from './authHandlers'
 import { registerSkillHandlers } from './skillHandlers'
@@ -52,6 +51,9 @@ import {
 import { settingsIpc, healthIpc } from '../services/settingsService.ipc'
 import { readSettings, applySettingsPatch, checkServicesHealth } from '../services/settingsService'
 
+import { projectSettingsIpc, toolsIpc } from '../services/projectSettingsService.ipc'
+import { readProjectSettings, writeProjectSettings, listTools } from '../services/projectSettingsService'
+
 export function registerAllHandlers(): void {
   registerDialogHandlers()
   registerTerminalHandlers()
@@ -61,7 +63,6 @@ export function registerAllHandlers(): void {
   registerRoseSetupHandlers()
   registerWhisperHandlers()
   registerActiveSpeechHandlers()
-  registerProjectSettingsHandlers()
   registerExtensionHandlers()
   registerAuthHandlers()
   registerSkillHandlers()
@@ -113,5 +114,12 @@ export function registerIpcManifests(): void {
   })
   healthIpc.register({
     checkAll: checkServicesHealth
+  })
+  projectSettingsIpc.register({
+    getSettings: readProjectSettings,
+    setSettings: writeProjectSettings
+  })
+  toolsIpc.register({
+    list: listTools
   })
 }

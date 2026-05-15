@@ -8,6 +8,7 @@ import { skillIpc } from '../main/services/skillService.ipc'
 import { fileIpc } from '../main/services/fileService.ipc'
 import { recentProjectsIpc } from '../main/services/recentProjects.ipc'
 import { settingsIpc, healthIpc } from '../main/services/settingsService.ipc'
+import { projectSettingsIpc, toolsIpc } from '../main/services/projectSettingsService.ipc'
 
 const api = {
   // Theme
@@ -331,21 +332,11 @@ const api = {
   // Chat Sessions
   session: sessionIpc.bindings,
 
-  // Tools + Project settings
-  tools: {
-    list: (rootPath: string): Promise<ToolMeta[]> =>
-      ipcRenderer.invoke('tools:list', rootPath)
-  },
-
-  project: {
-    getSettings: (rootPath: string): Promise<{ disabledTools: string[]; disabledPrompts: string[] }> =>
-      ipcRenderer.invoke('project:getSettings', rootPath),
-    setSettings: (
-      rootPath: string,
-      patch: { disabledTools?: string[]; disabledPrompts?: string[] }
-    ): Promise<{ disabledTools: string[]; disabledPrompts: string[] }> =>
-      ipcRenderer.invoke('project:setSettings', rootPath, patch)
-  },
+  // Tools + Project settings — the hard-coded channel strings ('tools:list',
+  // 'project:getSettings', 'project:setSettings') that used to live here are
+  // gone; the manifest derives them from namespace + method.
+  tools: toolsIpc.bindings,
+  project: projectSettingsIpc.bindings,
 
   prompts: promptIpc.bindings,
 
