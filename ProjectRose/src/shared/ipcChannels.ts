@@ -155,5 +155,10 @@ export const IPC = {
   TRAY_TOGGLE_LISTENING: 'tray:toggleListening',
   // Tray (renderer → main): renderer pushes the live `isActive` value so the
   // tray menu and icon stay in sync without main needing to introspect store.
-  LISTENING_STATE_CHANGED: 'tray:listeningStateChanged'
+  LISTENING_STATE_CHANGED: 'tray:listeningStateChanged',
+
+  // Deep link (projectrose://...) delivered from main to renderer. On macOS
+  // this fires from `app.on('open-url')`; Windows/Linux delivery via argv is
+  // a follow-up.
+  DEEPLINK_RECEIVED: 'deeplink:received'
 } as const

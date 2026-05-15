@@ -29,6 +29,16 @@ The agent panel lives natively in the IDE sidebar. Agents are tool-use enabled, 
 | **OpenAI** | GPT-4o, GPT-4, and others |
 | **Amazon Bedrock** | Claude, Llama, Titan, and other hosted models |
 
+## Installing on macOS
+
+ProjectRose isn't signed by an Apple Developer ID yet, so the first launch is blocked by Gatekeeper with a "damaged" or "unidentified developer" warning. After dragging the app from the DMG into `Applications`, clear the quarantine attribute once:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/ProjectRose.app
+```
+
+No-terminal alternative: right-click the app in Finder → **Open** → click **Open** in the dialog that appears. macOS remembers the choice for subsequent launches. Auto-updates are disabled on macOS until the app is signed.
+
 ## Extensions
 
 Extensions add capabilities the agent can call as tools — and, optionally, UI panels in the sidebar. Each extension lives in its own repo and installs from the in-app store. The known extensions today: `rose-crm`, `rose-discord`, `rose-docker`, `rose-email`, `rose-git`, and `rose-heartbeat` (a background process that processes deferred notes and runs scheduled agent tasks).
