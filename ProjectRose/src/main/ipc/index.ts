@@ -28,6 +28,9 @@ import {
   resetExtensionPrompt
 } from '../services/promptService'
 
+import { skillIpc } from '../services/skillService.ipc'
+import { listSkills, deleteSkill } from '../services/skillService'
+
 export function registerAllHandlers(): void {
   registerFileHandlers()
   registerDialogHandlers()
@@ -64,5 +67,9 @@ export function registerIpcManifests(): void {
     readExtension: readExtensionPrompt,
     writeExtension: writeExtensionPrompt,
     resetExtension: resetExtensionPrompt
+  })
+  skillIpc.register({
+    list: listSkills,
+    delete: deleteSkill
   })
 }

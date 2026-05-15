@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'fs/promises'
+import { readdir, readFile, unlink } from 'fs/promises'
 import { join } from 'path'
 import { tool } from 'ai'
 import { z } from 'zod'
@@ -47,6 +47,10 @@ export async function listSkills(rootPath: string): Promise<SkillMeta[]> {
     }
   }
   return skills
+}
+
+export async function deleteSkill(rootPath: string, name: string): Promise<void> {
+  await unlink(prPath(rootPath, 'skills', `${name}.md`))
 }
 
 export async function loadSkillContent(rootPath: string, skillName: string): Promise<SkillContent | null> {

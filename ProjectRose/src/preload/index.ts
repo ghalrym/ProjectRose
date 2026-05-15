@@ -4,6 +4,7 @@ import type { FileNode, RecentProject, ToolMeta } from '../shared/types'
 import type { Message } from '../shared/roseModelTypes'
 import { sessionIpc } from '../main/services/sessionService.ipc'
 import { promptIpc } from '../main/services/promptService.ipc'
+import { skillIpc } from '../main/services/skillService.ipc'
 
 const api = {
   // Theme
@@ -466,14 +467,14 @@ const api = {
       ipcRenderer.invoke(IPC.SCREEN_SET_ACTIVE_SOURCE, sourceId)
   },
 
-  // Skills
+  // Skills — manifest bindings (list, delete) plus the hand-written upload
+  // handler that has to stay in main because it opens a file dialog anchored
+  // to the calling window. The merge pattern (spread bindings, then add
+  // hand-written entries) is the template later mixed-namespace slices copy.
   skills: {
-    list: (rootPath: string): Promise<{ name: string; description: string }[]> =>
-      ipcRenderer.invoke(IPC.SKILLS_LIST, rootPath),
+    ...skillIpc.bindings,
     upload: (rootPath: string): Promise<{ ok: boolean; canceled?: boolean; skills?: { name: string; description: string }[] }> =>
-      ipcRenderer.invoke(IPC.SKILLS_UPLOAD, rootPath),
-    delete: (rootPath: string, name: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.SKILLS_DELETE, rootPath, name)
+      ipcRenderer.invoke(IPC.SKILLS_UPLOAD, rootPath)
   },
 
   // Generic IPC bridge — used by dynamically-loaded extensions
