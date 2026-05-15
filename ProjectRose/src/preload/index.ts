@@ -13,6 +13,7 @@ import { roseSetupIpc } from '../main/services/roseSetupService.ipc'
 import { whisperIpc } from '../main/services/whisperService.ipc'
 import { updaterIpc } from '../main/services/updaterService.ipc'
 import { authIpc } from '../main/services/authService.ipc'
+import { aiIpc } from '../main/services/aiService.ipc'
 
 const api = {
   // Theme
@@ -161,10 +162,11 @@ const api = {
   quitApp: (): Promise<void> =>
     ipcRenderer.invoke(IPC.APP_QUIT),
 
-  // AI
-  aiChat: (messages: Message[], rootPath: string, sessionId: string): Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }> =>
-    ipcRenderer.invoke(IPC.AI_CHAT, { messages, rootPath, sessionId }),
-
+  // AI — request methods wrap the manifest payload-style bindings into the
+  // existing positional renderer API. Event subscriptions stay hand-written
+  // below (broadcasts aren't manifest-covered).
+  aiChat: (messages: Message[], rootPath: string, sessionId: string) =>
+    aiIpc.bindings.chat({ messages, rootPath, sessionId }),
   aiContextStatus: (
     rootPath: string,
     messages: Array<Record<string, unknown>>,
@@ -173,21 +175,10 @@ const api = {
       compressedFromCount: number
       compressedFromRawCount: number
     } | null
-  ): Promise<{ estimatedTokens: number; contextLength: number; percentUsed: number; totalToolSteps: number }> =>
-    ipcRenderer.invoke(IPC.AI_CONTEXT_STATUS, { rootPath, messages, compression }),
-
-  aiCompressToolNoise: (
-    rootPath: string,
-    messages: Array<Record<string, unknown>>
-  ): Promise<{
-    compressedMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
-    compressedFromCount: number
-    compressedFromRawCount: number
-  } | null> =>
-    ipcRenderer.invoke(IPC.AI_COMPRESS_TOOL_NOISE, { rootPath, messages }),
-
-  aiGetSystemPrompt: (rootPath: string): Promise<string> =>
-    ipcRenderer.invoke(IPC.AI_GET_SYSTEM_PROMPT, rootPath),
+  ) => aiIpc.bindings.contextStatus({ rootPath, messages, compression }),
+  aiCompressToolNoise: (rootPath: string, messages: Array<Record<string, unknown>>) =>
+    aiIpc.bindings.compressToolNoise({ rootPath, messages }),
+  aiGetSystemPrompt: aiIpc.bindings.getSystemPrompt,
 
   onAiFileModified: (callback: (data: { path: string }) => void): (() => void) => {
     const handler = (_event: unknown, data: { path: string }): void => callback(data)
@@ -232,7 +223,7 @@ const api = {
   },
 
   aiCancelGeneration: (sessionId: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.AI_CANCEL, { sessionId }),
+    aiIpc.bindings.cancel({ sessionId }),
 
   onAiAskUser: (callback: (data: { sessionId: string; questionId: string; question: string; options: string[] }) => void): (() => void) => {
     const handler = (_e: unknown, data: { sessionId: string; questionId: string; question: string; options: string[] }): void => callback(data)
@@ -240,8 +231,8 @@ const api = {
     return () => { ipcRenderer.removeListener(IPC.AI_ASK_USER, handler) }
   },
 
-  aiAskUserResponse: (sessionId: string, questionId: string, answer: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.AI_ASK_USER_RESPONSE, { sessionId, questionId, answer }),
+  aiAskUserResponse: (sessionId: string, questionId: string, answer: string) =>
+    aiIpc.bindings.askUserResponse({ sessionId, questionId, answer }),
 
   onAiInjectedMessage: (callback: (data: { sessionId: string; extensionId: string; extensionName: string; extensionIcon?: string; content: string }) => void): (() => void) => {
     const handler = (_e: unknown, data: { sessionId: string; extensionId: string; extensionName: string; extensionIcon?: string; content: string }): void => callback(data)
@@ -263,8 +254,7 @@ const api = {
     result:
       | { ok: true; dataUrl: string; mode: 'screen' | 'webcam'; sourceLabel: string | null }
       | { ok: false; reason: string }
-  ): Promise<void> =>
-    ipcRenderer.invoke(IPC.AI_CAPTURE_SCREENSHOT_RESULT, { sessionId, requestId, result }),
+  ) => aiIpc.bindings.captureScreenshotResult({ sessionId, requestId, result }),
 
   // Indexing / LSP startup
   indexProject: (rootPath: string): Promise<{ indexed: number; total: number; error?: string }> =>

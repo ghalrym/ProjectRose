@@ -17,10 +17,10 @@ export const IPC = {
   INDEXING_PROJECT: 'indexing:project',
   INDEXING_PROGRESS: 'indexing:progress',
 
-  AI_CHAT: 'ai:chat',
-  AI_CONTEXT_STATUS: 'ai:contextStatus',
-  AI_COMPRESS_TOOL_NOISE: 'ai:compressToolNoise',
-  AI_GET_SYSTEM_PROMPT: 'ai:getSystemPrompt',
+  // AI event broadcasts (main → renderer). Request channels — chat,
+  // contextStatus, compressToolNoise, getSystemPrompt, cancel,
+  // askUserResponse, captureScreenshotResult — are declared by
+  // services/aiService.ipc.ts.
   AI_MODEL_SELECTED: 'ai:modelSelected',
   AI_STREAM_RESET: 'ai:streamReset',
   AI_FILE_MODIFIED: 'ai:fileModified',
@@ -28,12 +28,9 @@ export const IPC = {
   AI_TOOL_CALL_END: 'ai:toolCallEnd',
   AI_THINKING: 'ai:thinking',
   AI_TOKEN: 'ai:token',
-  AI_CANCEL: 'ai:cancel',
   AI_ASK_USER: 'ai:askUser',
-  AI_ASK_USER_RESPONSE: 'ai:askUserResponse',
   AI_INJECTED_MESSAGE: 'ai:injectedMessage',
   AI_CAPTURE_SCREENSHOT: 'ai:captureScreenshot',
-  AI_CAPTURE_SCREENSHOT_RESULT: 'ai:captureScreenshotResult',
 
   LSP_PY_TO_SERVER: 'lsp:py:toServer',
   LSP_PY_FROM_SERVER: 'lsp:py:fromServer',

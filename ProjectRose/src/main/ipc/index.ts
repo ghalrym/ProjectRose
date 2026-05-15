@@ -2,7 +2,6 @@ import { registerDialogHandlers } from './dialogHandlers'
 import { registerTerminalHandlers } from './terminalHandlers'
 import { registerAppHandlers } from './appHandlers'
 import { registerLspHandlers } from './lspHandlers'
-import { registerAiHandlers } from './aiHandlers'
 import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
 import { registerExtensionHandlers } from './extensionHandlers'
 import { registerSkillHandlers } from './skillHandlers'
@@ -67,12 +66,16 @@ import {
 import { authIpc, loginViaAuthWindow } from '../services/authService.ipc'
 import { handleLogout, cancelPairing, getAuthStatus, fetchUsage } from '../services/authService'
 
+import { aiIpc } from '../services/aiService.ipc'
+import { chat, compressToolNoise, getContextStatus } from '../services/aiService'
+import { buildAgentMd } from '../services/agentMd'
+import { sessionRegistry } from '../services/sessionRegistry'
+
 export function registerAllHandlers(): void {
   registerDialogHandlers()
   registerTerminalHandlers()
   registerAppHandlers()
   registerLspHandlers()
-  registerAiHandlers()
   registerActiveSpeechHandlers()
   registerExtensionHandlers()
   registerSkillHandlers()
@@ -151,5 +154,23 @@ export function registerIpcManifests(): void {
     cancel: cancelPairing,
     getStatus: getAuthStatus,
     getUsage: fetchUsage
+  })
+  aiIpc.register({
+    chat: ({ messages, rootPath, sessionId }) => chat(messages, rootPath, sessionId),
+    contextStatus: ({ rootPath, messages, compression }) =>
+      getContextStatus(rootPath, messages, compression),
+    compressToolNoise: ({ rootPath, messages }) => compressToolNoise(rootPath, messages),
+    getSystemPrompt: buildAgentMd,
+    // No-op when the session is gone — see comments on aiHandlers' originals
+    // for why we don't fall back to "cancel the most recent".
+    cancel: ({ sessionId }) => {
+      sessionRegistry.get(sessionId)?.cancel()
+    },
+    askUserResponse: ({ sessionId, questionId, answer }) => {
+      sessionRegistry.get(sessionId)?.resolveAskUserQuestion(questionId, answer)
+    },
+    captureScreenshotResult: ({ sessionId, requestId, result }) => {
+      sessionRegistry.get(sessionId)?.resolveScreenshot(requestId, result)
+    }
   })
 }
