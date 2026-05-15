@@ -1,18 +1,16 @@
 import { randomUUID } from 'crypto'
 import { BrowserWindow } from 'electron'
-import { streamChat, compressTurnsForContext } from './llmClient'
+import { compressTurnsForContext } from './llmClient'
 import type { ApiShapeMessage, CompressionResult } from './llmClient'
 import { getContextLength } from './contextLengthRegistry'
 import { estimateTokens } from './tokenCounter'
 import { readSettings } from '../ipc/settingsHandlers'
 import type { AppSettings } from '../ipc/settingsHandlers'
-import { readProjectSettings } from '../ipc/projectSettingsHandlers'
-import { listInstalledExtensions } from '../ipc/extensionHandlers'
 import type { Message } from '../../shared/roseModelTypes'
 import { ChatSession } from './chatSession'
 import type { ChatResponse } from './chatSession'
 import { sessionRegistry } from './sessionRegistry'
-import { selectModel, pickActiveModel } from './modelSelection'
+import { pickActiveModel } from './modelSelection'
 
 export type { ChatResponse }
 
@@ -42,52 +40,26 @@ export async function chat(messages: Message[], rootPath: string, sessionId: str
   }
 }
 
-// Run the agent loop once and return the final string. Caller supplies the
-// system prompt and messages; the host wires up settings, model selection,
-// and tools (core + enabled extension tools, filtered by the user's
-// disabledTools). Subagent and skill tools are intentionally excluded to
-// keep one-shot runs bounded.
+/**
+ * Run a single bounded background turn. Caller supplies a system prompt;
+ * the role discriminator on `ChatSession` enforces the "no recursive
+ * subagents, no skills, no user-message hook, no injection loop" rules
+ * without the host having to know about them.
+ */
 export async function runAgentOnce(
   messages: Message[],
   rootPath: string,
   systemPrompt: string,
 ): Promise<ChatResponse> {
-  // One-shot background runs are not part of any user chat — give them
-  // their own ephemeral session so extension tools (e.g. coding-agent
-  // harnesses) treat each call as a fresh session.
-  const session = new ChatSession({ sessionId: randomUUID(), rootPath })
+  // Background runs are not part of any user chat — give them their own
+  // ephemeral session so extension tools (e.g. coding-agent harnesses)
+  // treat each call as a fresh session.
+  const session = new ChatSession({ sessionId: randomUUID(), rootPath, role: 'one-shot' })
   sessionRegistry.register(session)
   try {
-    const settings = await readSettings(rootPath)
-    const userMessage = messages.at(-1)?.content ?? ''
-    const selectedModel = await selectModel(userMessage, settings)
-
-    const projectSettings = await readProjectSettings(rootPath)
-    const { disabledTools } = projectSettings
-
-    const installed = await listInstalledExtensions(rootPath)
-    const enabledExtensionIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
-
-    const streamResult = await streamChat({
-      messages,
-      systemPrompt,
-      enabledExtensionIds,
-      disabledTools,
-      // One-shot background runs are deliberately bounded: no recursive
-      // subagent spawning, no skill loading. Same behavior as the old
-      // inline assembly that simply did not build subagent/skill tools.
-      include: ['core', 'extension'],
-      model: selectedModel,
-      providerKeys: settings.providerKeys,
-      ollamaBaseUrl: settings.ollamaBaseUrl,
-      openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
-      projectRoot: rootPath,
-      sessionId: session.sessionId,
-    })
-
-    const modelDisplay = selectedModel.displayName || selectedModel.modelName
-    const modifiedFiles = [...session.modifiedFiles]
-    return { content: streamResult.content, modifiedFiles, modelDisplay }
+    // No `notify` — one-shot runs are background work and should not
+    // emit streaming events to the renderer's main chat timeline.
+    return await session.run({ messages, systemPrompt })
   } finally {
     sessionRegistry.unregister(session.sessionId)
     session.dispose()

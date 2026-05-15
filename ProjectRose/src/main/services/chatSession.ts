@@ -12,7 +12,7 @@ import { getSessionSkillsPrompt } from './skillService'
 import { streamChat } from './llmClient'
 import type { StreamResult } from './llmClient'
 import type { AgentContext, SubagentCounter } from './agentRunner'
-import type { SubagentTurnContext } from './toolRegistry'
+import type { SubagentTurnContext, ToolSourceName } from './toolRegistry'
 import { buildAgentMd } from './agentMd'
 import { selectModel, extractErrorMessage } from './modelSelection'
 
@@ -31,6 +31,21 @@ export interface ChatResponse {
   modifiedFiles: string[]
   modelDisplay: string
 }
+
+/**
+ * Discriminator for what kind of turn this session runs.
+ *
+ * - `'main'` is the user-visible chat. It fires `on_user_message` hooks,
+ *   collects extension injections between iterations, can spawn subagents
+ *   and skills, and exposes streaming events to the renderer.
+ * - `'subagent'` is a recursive agent spawned by `create_subagents` /
+ *   `explore`. Single iteration, no hook fire, no further subagent or
+ *   skill tools (so the loop terminates), no streaming to the renderer.
+ * - `'one-shot'` is a background invocation (extension `runAgentOnce`)
+ *   that behaves like a subagent but additionally lets the caller
+ *   supply a custom system prompt without going through `buildAgentMd`.
+ */
+export type ChatRole = 'main' | 'subagent' | 'one-shot'
 
 /**
  * Notify function injected by the caller. Production wires this to a
@@ -60,6 +75,7 @@ const noopNotify: NotifyFn = () => {}
 export class ChatSession {
   readonly sessionId: string
   readonly rootPath: string
+  readonly role: ChatRole
   readonly abortController: AbortController
 
   // Pending ask_user resolvers — keyed by toolCallId. The `ask_user` tool
@@ -86,9 +102,10 @@ export class ChatSession {
   // in `extensionHooks.ts`.
   readonly turnBudget = new Map<string, number>()
 
-  constructor(args: { sessionId: string; rootPath: string }) {
+  constructor(args: { sessionId: string; rootPath: string; role?: ChatRole }) {
     this.sessionId = args.sessionId
     this.rootPath = args.rootPath
+    this.role = args.role ?? 'main'
     this.abortController = new AbortController()
   }
 
@@ -182,27 +199,40 @@ export class ChatSession {
    */
   async run(args: {
     messages: Message[]
+    /**
+     * System prompt override. Required for `'subagent'` and `'one-shot'`
+     * sessions, which supply their own; the main chat omits this and the
+     * session calls `buildAgentMd(rootPath)` to compose the prompt from
+     * ROSE.md, environment data, and per-extension prompt overrides.
+     */
+    systemPrompt?: string
     notify?: NotifyFn
     runOnce?: RunOnceFn
   }): Promise<ChatResponse> {
     const { messages } = args
     const notify: NotifyFn = args.notify ?? noopNotify
     const runOnceImpl = args.runOnce ?? defaultRunOnce
-    const { sessionId, rootPath } = this
+    const { sessionId, rootPath, role } = this
+    const isMain = role === 'main'
     const abortController = this.abortController
 
     const settings = await readSettings(rootPath)
     const userMessage = messages.at(-1)?.content ?? ''
-    // Fire once per user-initiated turn so extensions can reset per-turn state.
-    // Auto-injection iterations inside the loop below do not re-fire this.
-    await fireUserMessageHook(userMessage, rootPath)
+    // Fire once per user-initiated turn so extensions can reset per-turn
+    // state. Subagents and one-shot runs intentionally skip the hook: they
+    // are spawned by an existing turn (subagents) or are not user-visible
+    // (one-shot), and re-firing would cause extensions to wipe state mid-turn.
+    if (isMain) await fireUserMessageHook(userMessage, rootPath)
     const selectedModel = await selectModel(userMessage, settings)
     const defaultModel =
       settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
     const modelDisplay = selectedModel.displayName || selectedModel.modelName
-    notify(IPC.AI_MODEL_SELECTED, { sessionId, modelDisplay })
+    // Only main chat notifies the renderer about model selection. Subagent
+    // and one-shot sessions are background work — their model events should
+    // not show up in the user's main timeline.
+    if (isMain) notify(IPC.AI_MODEL_SELECTED, { sessionId, modelDisplay })
 
-    const systemPrompt = await buildAgentMd(rootPath)
+    const systemPrompt = args.systemPrompt ?? (await buildAgentMd(rootPath))
 
     const projectSettings = await readProjectSettings(rootPath)
     const { disabledTools } = projectSettings
@@ -213,6 +243,8 @@ export class ChatSession {
     // Per-session subagent context. Re-built for each `streamChat` call so
     // a fallback model rebuild picks up the new model without any closure
     // staleness (the prior `buildExtraTools(model)` helper did the same).
+    // Only main chat carries this context — subagent/one-shot intentionally
+    // omit it to keep the tool set bounded and prevent recursive spawning.
     const agentCtx: AgentContext = {
       sessionId,
       agentIndex: 0,
@@ -221,17 +253,28 @@ export class ChatSession {
       abortSignal: abortController.signal,
     }
     const counter: SubagentCounter = { value: 0 }
-    const getSystemPrompt = (): string => systemPrompt + getSessionSkillsPrompt(sessionId)
+    const getSystemPrompt = (): string =>
+      isMain ? systemPrompt + getSessionSkillsPrompt(sessionId) : systemPrompt
 
-    const buildSubagentContext = (m: ModelConfig): SubagentTurnContext => ({
-      agentCtx,
-      model: m,
-      providerKeys: settings.providerKeys,
-      ollamaBaseUrl: settings.ollamaBaseUrl,
-      openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
-      counter,
-      systemPrompt,
-    })
+    const buildSubagentContext = (m: ModelConfig): SubagentTurnContext | undefined =>
+      isMain
+        ? {
+            agentCtx,
+            model: m,
+            providerKeys: settings.providerKeys,
+            ollamaBaseUrl: settings.ollamaBaseUrl,
+            openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
+            counter,
+            systemPrompt,
+          }
+        : undefined
+
+    // Tool source filter. Main chat gets the full set (core, extension,
+    // subagent, skill); subagent and one-shot are deliberately bounded to
+    // core + extension so the loop terminates and the model can't recurse.
+    const include: readonly ToolSourceName[] | undefined = isMain
+      ? undefined
+      : (['core', 'extension'] as const)
 
     const baseStreamParams = {
       systemPrompt,
@@ -244,6 +287,7 @@ export class ChatSession {
       disabledTools,
       abortSignal: abortController.signal,
       notify,
+      include,
     }
 
     let activeModel = selectedModel
@@ -265,9 +309,14 @@ export class ChatSession {
           preBuiltCoreMessages,
           model: m,
           subagentContext: buildSubagentContext(m),
+          // turnId/collectInjections only make sense when the injection
+          // loop is active. Non-main roles emit a constant turnId so
+          // hook-id strings still parse but never collect.
           turnId,
           sessionId,
-          collectInjections: (rec) => collected.push(rec),
+          collectInjections: (rec) => {
+            if (isMain) collected.push(rec)
+          },
         })
 
       try {
@@ -279,11 +328,13 @@ export class ChatSession {
 
         const errorMessage = extractErrorMessage(err)
         const fallbackDisplay = defaultModel.displayName || defaultModel.modelName
-        notify(IPC.AI_STREAM_RESET, {
-          sessionId,
-          errorMessage,
-          fallbackModel: fallbackDisplay,
-        })
+        if (isMain) {
+          notify(IPC.AI_STREAM_RESET, {
+            sessionId,
+            errorMessage,
+            fallbackModel: fallbackDisplay,
+          })
+        }
         // Clear any modified-files recorded during the failed primary
         // attempt so the renderer only sees the fallback's writes.
         this.modifiedFiles.length = 0
@@ -295,6 +346,10 @@ export class ChatSession {
         lastStreamResult = await runOnce(activeModel)
       }
 
+      // Subagent / one-shot: a single iteration. Even if an extension hook
+      // somehow snuck an injection in, the role bound on collectInjections
+      // dropped it.
+      if (!isMain) break
       if (collected.length === 0) break
       if (abortController.signal.aborted) break
 
@@ -341,7 +396,11 @@ export interface RunOnceArgs {
   messages: Message[]
   preBuiltCoreMessages: ModelMessage[] | undefined
   model: ModelConfig
-  subagentContext: SubagentTurnContext
+  // Subagent context is `undefined` for `'subagent'` and `'one-shot'`
+  // sessions — they don't build the recursive spawning tools and so the
+  // dispatcher in `streamChat` does not need a turn context for the
+  // subagent source.
+  subagentContext: SubagentTurnContext | undefined
   turnId: string
   sessionId: string
   collectInjections: (rec: InjectionRecord) => void
