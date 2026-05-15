@@ -90,14 +90,6 @@ export const IPC = {
   SKILLS_UPLOAD: 'skills:upload',
   SKILLS_DELETE: 'skills:delete',
 
-  // Prompts (ROSE.md + per-extension system-prompt overrides)
-  PROMPTS_READ_ROSE: 'prompts:readRose',
-  PROMPTS_WRITE_ROSE: 'prompts:writeRose',
-  PROMPTS_LIST_EXTENSION: 'prompts:listExtension',
-  PROMPTS_READ_EXTENSION: 'prompts:readExtension',
-  PROMPTS_WRITE_EXTENSION: 'prompts:writeExtension',
-  PROMPTS_RESET_EXTENSION: 'prompts:resetExtension',
-
   // Account auth
   AUTH_LOGIN: 'auth:login',
   AUTH_LOGOUT: 'auth:logout',

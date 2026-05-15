@@ -13,11 +13,20 @@ import { registerExtensionHandlers } from './extensionHandlers'
 import { registerAuthHandlers } from './authHandlers'
 import { registerSkillHandlers } from './skillHandlers'
 import { registerUpdaterHandlers } from './updaterHandlers'
-import { registerPromptHandlers } from './promptHandlers'
 import { registerScreenHandlers } from './screenHandlers'
 
 import { sessionIpc } from '../services/sessionService.ipc'
 import { listSessions, loadSession, saveSession, deleteSession } from '../services/sessionService'
+
+import { promptIpc } from '../services/promptService.ipc'
+import {
+  readRosePrompt,
+  writeRosePrompt,
+  listExtensionPrompts,
+  readExtensionPrompt,
+  writeExtensionPrompt,
+  resetExtensionPrompt
+} from '../services/promptService'
 
 export function registerAllHandlers(): void {
   registerFileHandlers()
@@ -35,7 +44,6 @@ export function registerAllHandlers(): void {
   registerAuthHandlers()
   registerSkillHandlers()
   registerUpdaterHandlers()
-  registerPromptHandlers()
   registerScreenHandlers()
 }
 
@@ -48,5 +56,13 @@ export function registerIpcManifests(): void {
     load: loadSession,
     save: saveSession,
     delete: deleteSession
+  })
+  promptIpc.register({
+    readRose: readRosePrompt,
+    writeRose: writeRosePrompt,
+    listExtension: listExtensionPrompts,
+    readExtension: readExtensionPrompt,
+    writeExtension: writeExtensionPrompt,
+    resetExtension: resetExtensionPrompt
   })
 }

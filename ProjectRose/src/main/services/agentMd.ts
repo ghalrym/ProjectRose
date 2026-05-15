@@ -3,7 +3,7 @@ import { readFile } from 'fs/promises'
 import { prPath } from '../lib/projectPaths'
 import { readSettings } from '../ipc/settingsHandlers'
 import { buildRoseMd } from '../ipc/roseSetupHandlers'
-import { loadExtensionPrompts } from '../ipc/promptHandlers'
+import { loadExtensionPrompts } from './promptService'
 
 /**
  * Compose the system prompt for a chat turn.
