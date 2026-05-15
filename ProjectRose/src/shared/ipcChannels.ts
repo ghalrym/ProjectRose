@@ -64,12 +64,8 @@ export const IPC = {
   // list and delete are now declared via services/skillService.ipc.ts.)
   SKILLS_UPLOAD: 'skills:upload',
 
-  // Account auth
-  AUTH_LOGIN: 'auth:login',
-  AUTH_LOGOUT: 'auth:logout',
-  AUTH_CANCEL: 'auth:cancel',
-  AUTH_GET_STATUS: 'auth:getStatus',
-  AUTH_GET_USAGE: 'auth:getUsage',
+  // Account auth event broadcasts (main → renderer). Request channels are
+  // declared by services/authService.ipc.ts.
   AUTH_CHANGED: 'auth:changed',
   AUTH_PAIRING_PENDING: 'auth:pairingPending',
 

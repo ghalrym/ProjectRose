@@ -5,7 +5,6 @@ import { registerLspHandlers } from './lspHandlers'
 import { registerAiHandlers } from './aiHandlers'
 import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
 import { registerExtensionHandlers } from './extensionHandlers'
-import { registerAuthHandlers } from './authHandlers'
 import { registerSkillHandlers } from './skillHandlers'
 import { registerScreenHandlers } from './screenHandlers'
 
@@ -65,6 +64,9 @@ import {
   skipVersion
 } from '../services/updaterService'
 
+import { authIpc, loginViaAuthWindow } from '../services/authService.ipc'
+import { handleLogout, cancelPairing, getAuthStatus, fetchUsage } from '../services/authService'
+
 export function registerAllHandlers(): void {
   registerDialogHandlers()
   registerTerminalHandlers()
@@ -73,7 +75,6 @@ export function registerAllHandlers(): void {
   registerAiHandlers()
   registerActiveSpeechHandlers()
   registerExtensionHandlers()
-  registerAuthHandlers()
   registerSkillHandlers()
   registerScreenHandlers()
 }
@@ -143,5 +144,12 @@ export function registerIpcManifests(): void {
     download: downloadUpdateNow,
     install: installUpdateAndRestart,
     skipVersion: skipVersion
+  })
+  authIpc.register({
+    login: loginViaAuthWindow,
+    logout: handleLogout,
+    cancel: cancelPairing,
+    getStatus: getAuthStatus,
+    getUsage: fetchUsage
   })
 }

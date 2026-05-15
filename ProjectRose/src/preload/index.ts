@@ -12,6 +12,7 @@ import { projectSettingsIpc, toolsIpc } from '../main/services/projectSettingsSe
 import { roseSetupIpc } from '../main/services/roseSetupService.ipc'
 import { whisperIpc } from '../main/services/whisperService.ipc'
 import { updaterIpc } from '../main/services/updaterService.ipc'
+import { authIpc } from '../main/services/authService.ipc'
 
 const api = {
   // Theme
@@ -365,20 +366,14 @@ const api = {
       ipcRenderer.invoke(IPC.EXTENSION_LOAD_MAIN, rootPath, id)
   },
 
-  // Account auth
+  // Account auth — request methods from the manifest; event subscriptions
+  // (onChanged, onPairingPending) stay hand-written.
   auth: {
-    login: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.AUTH_LOGIN),
-    logout: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.AUTH_LOGOUT),
-    cancel: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.AUTH_CANCEL),
-    getStatus: (): Promise<{ loggedIn: boolean; email: string; name: string; avatar: string }> =>
-      ipcRenderer.invoke(IPC.AUTH_GET_STATUS),
-    getUsage: (): Promise<
-      | { ok: true; usage: { plan: string; plan_budget_usd: number; month_cost_usd: number; month_remaining_usd: number; pct: number; over_budget: boolean } }
-      | { ok: false; error: string }
-    > => ipcRenderer.invoke(IPC.AUTH_GET_USAGE),
+    login: authIpc.bindings.login,
+    logout: authIpc.bindings.logout,
+    cancel: authIpc.bindings.cancel,
+    getStatus: authIpc.bindings.getStatus,
+    getUsage: authIpc.bindings.getUsage,
     onChanged: (callback: (data: { loggedIn: boolean; email: string; name: string; avatar: string }) => void): (() => void) => {
       const handler = (_e: unknown, data: { loggedIn: boolean; email: string; name: string; avatar: string }): void => callback(data)
       ipcRenderer.on(IPC.AUTH_CHANGED, handler)

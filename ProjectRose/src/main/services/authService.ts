@@ -3,9 +3,9 @@ import { randomBytes } from 'crypto'
 import { hostname } from 'os'
 import type { Server } from 'http'
 import { IPC } from '../../shared/ipcChannels'
-import { WEB_BASE_URL } from './webConfig'
-import { startLoopbackServer } from './loopback'
-import { loadSession, saveSession, clearSession, type Session } from './session'
+import { WEB_BASE_URL } from '../lib/webConfig'
+import { startLoopbackServer } from '../lib/loopback'
+import { loadSession, saveSession, clearSession, type Session } from '../lib/session'
 
 const PAIRING_TIMEOUT_MS = 5 * 60 * 1000
 
