@@ -10,6 +10,7 @@ import { WEB_BASE_URL } from '../lib/webConfig'
 import { sessionRegistry } from './sessionRegistry'
 import { resolveProjectPath, isDotEnvPath } from './projectPathGuard'
 import type { ExtensionToolCtx } from '../../shared/extension-types'
+import { withAugmentedPath } from '../lib/childProcessEnv'
 
 function notifyRenderer(event: string, data: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -152,7 +153,8 @@ export async function handleRunCommand(input: Record<string, unknown>, projectRo
       encoding: 'utf-8',
       timeout: 30000,
       maxBuffer: 1024 * 1024,
-      shell: isWindows ? 'powershell.exe' : '/bin/bash'
+      shell: isWindows ? 'powershell.exe' : '/bin/bash',
+      env: withAugmentedPath()
     })
   } catch (err: any) {
     return `Command failed (exit ${err.status || 1}):\n${err.stderr || err.message}`
