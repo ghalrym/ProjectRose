@@ -248,8 +248,8 @@ const api = {
     return () => { ipcRenderer.removeListener(IPC.AI_STREAM_RESET, handler) }
   },
 
-  aiCancelGeneration: (): Promise<void> =>
-    ipcRenderer.invoke(IPC.AI_CANCEL),
+  aiCancelGeneration: (sessionId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.AI_CANCEL, { sessionId }),
 
   onAiAskUser: (callback: (data: { sessionId: string; questionId: string; question: string; options: string[] }) => void): (() => void) => {
     const handler = (_e: unknown, data: { sessionId: string; questionId: string; question: string; options: string[] }): void => callback(data)

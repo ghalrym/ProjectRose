@@ -206,7 +206,13 @@ export async function sendMessage(): Promise<void> {
 
 export async function cancelGeneration(): Promise<void> {
   userCancelled = true
-  await window.api.aiCancelGeneration()
+  // Route the cancel by sessionId so it only affects the user's current
+  // chat. Without this, a stray cancel could (in a future multi-session
+  // world) abort an unrelated backgrounded turn that happened to be the
+  // most recent.
+  const sessionId = useSessionsStore.getState().currentSessionId
+  if (!sessionId) return
+  await window.api.aiCancelGeneration(sessionId)
 }
 
 export async function answerAskUser(questionId: string, answer: string): Promise<void> {

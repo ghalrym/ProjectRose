@@ -427,9 +427,17 @@ describe('chatTurn', () => {
   })
 
   describe('cancelGeneration', () => {
-    it('calls window.api.aiCancelGeneration', async () => {
+    it('calls window.api.aiCancelGeneration with the active sessionId', async () => {
+      useSessionsStore.setState({ currentSessionId: 'sess-active' })
       await cancelGeneration()
       expect(api.aiCancelGeneration).toHaveBeenCalledOnce()
+      expect(api.aiCancelGeneration).toHaveBeenCalledWith('sess-active')
+    })
+
+    it('does not call the main process when no session is active', async () => {
+      useSessionsStore.setState({ currentSessionId: null })
+      await cancelGeneration()
+      expect(api.aiCancelGeneration).not.toHaveBeenCalled()
     })
   })
 

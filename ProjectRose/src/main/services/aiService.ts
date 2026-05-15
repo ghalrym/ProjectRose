@@ -25,10 +25,6 @@ import { loadSession } from '../lib/session'
 import { ChatSession } from './chatSession'
 import { sessionRegistry } from './sessionRegistry'
 
-export function cancelActiveChat(): void {
-  sessionRegistry.getActive()?.cancel()
-}
-
 function notifyRenderer(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send(channel, payload)

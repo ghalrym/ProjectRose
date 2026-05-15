@@ -24,17 +24,6 @@ class ChatSessionRegistry {
     return this.sessions.get(sessionId)
   }
 
-  /**
-   * Returns the most recently registered session, if any. Used by the
-   * `AI_CANCEL` IPC handler, which the renderer fires without a sessionId
-   * because today there is only one active chat at a time.
-   */
-  getActive(): ChatSession | undefined {
-    let latest: ChatSession | undefined
-    for (const s of this.sessions.values()) latest = s
-    return latest
-  }
-
   size(): number {
     return this.sessions.size
   }
