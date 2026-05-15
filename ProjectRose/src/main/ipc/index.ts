@@ -101,6 +101,11 @@ import {
   closeSession
 } from '../services/speech/activeSpeechService'
 
+// Hand-written handlers that don't fit the manifest pattern: dialog (needs
+// the calling BrowserWindow), terminal (per-session webContents.send
+// closures), lsp (per-window indexing progress), screen (capture source per
+// webContents.id), the SKILLS_UPLOAD half of skills (file-dialog anchor),
+// active-speech fire-and-forget chunks, and app.quit() for APP_QUIT.
 export function registerAllHandlers(): void {
   registerDialogHandlers()
   registerTerminalHandlers()
@@ -111,9 +116,8 @@ export function registerAllHandlers(): void {
   registerScreenHandlers()
 }
 
-// Wires up every typed-manifest namespace. Coexists with registerAllHandlers
-// for the duration of the migration; each slice moves one service from the
-// switchboard above into this one.
+// Wires every typed-manifest service. Called once at startup alongside
+// registerAllHandlers() — see main/index.ts.
 export function registerIpcManifests(): void {
   sessionIpc.register({
     list: listSessions,

@@ -1,3 +1,14 @@
+// Channels listed here are either:
+//   (a) event broadcasts (main → renderer via webContents.send + renderer-side
+//       `onX` subscriptions), or
+//   (b) handled by hand-written handlers that earn their keep — see
+//       dialog/terminal/lsp/screen handlers plus the SKILLS_UPLOAD and
+//       APP_QUIT one-offs.
+//
+// Request/response channels for service surfaces are derived from
+// `defineIpc(namespace, methods)` manifests and do NOT appear here. If you
+// add a new service method, declare it in `<service>.ipc.ts` instead of
+// inventing a constant here.
 export const IPC = {
   DIALOG_OPEN_FOLDER: 'dialog:openFolder',
   DIALOG_OPEN_FILE: 'dialog:openFile',
