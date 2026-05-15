@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import clsx from 'clsx'
-import { useChatTimelineStore } from '../../stores/useChatTimelineStore'
-import { loadSessions } from '../../services/chatTurn'
+import { useChat } from '../../stores/useChat'
 import type {
   ChatMessage,
   ToolMessage,
@@ -82,8 +81,9 @@ function groupMessages(messages: ChatMessage[]): RenderItem[] {
 }
 
 export function ChatPanel(): JSX.Element {
-  const messages = useChatTimelineStore((s) => s.messages)
-  const isLoading = useChatTimelineStore((s) => s.isLoading)
+  const messages = useChat((s) => s.messages)
+  const isLoading = useChat((s) => s.isLoading)
+  const loadSessions = useChat((s) => s.loadSessions)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const rootPath = useProjectStore((s) => s.rootPath)
   const mode = useActiveListeningStore((s) => s.mode)
@@ -132,8 +132,8 @@ export function ChatPanel(): JSX.Element {
   }
 
   useEffect(() => {
-    if (rootPath) loadSessions(rootPath)
-  }, [rootPath])
+    if (rootPath) loadSessions()
+  }, [rootPath, loadSessions])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

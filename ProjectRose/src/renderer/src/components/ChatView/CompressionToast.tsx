@@ -1,11 +1,12 @@
-import { useCompressionStore, useShouldShowToast } from '../../stores/useCompressionStore'
+import { useChat, useShouldShowToast } from '../../stores/useChat'
 import { useProjectStore } from '../../stores/useProjectStore'
 import styles from './CompressionToast.module.css'
 
 export function CompressionToast(): JSX.Element | null {
-  const status = useCompressionStore((s) => s.contextStatus)
-  const isCompressing = useCompressionStore((s) => s.isCompressing)
-  const dismiss = useCompressionStore((s) => s.dismissToast)
+  const status = useChat((s) => s.contextStatus)
+  const isCompressing = useChat((s) => s.isCompressing)
+  const dismiss = useChat((s) => s.dismissCompressionToast)
+  const compressNow = useChat((s) => s.compressNow)
   const rootPath = useProjectStore((s) => s.rootPath)
   const shouldShow = useShouldShowToast()
 
@@ -17,10 +18,7 @@ export function CompressionToast(): JSX.Element | null {
   const pct = Math.round(status.percentUsed * 100)
 
   const handleCompress = (): void => {
-    useCompressionStore
-      .getState()
-      .compress(rootPath)
-      .catch(() => { /* failures shown via status notify elsewhere */ })
+    compressNow().catch(() => { /* failures shown via status notify elsewhere */ })
   }
 
   return (

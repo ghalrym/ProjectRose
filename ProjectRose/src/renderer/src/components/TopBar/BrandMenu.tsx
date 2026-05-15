@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useFileStore } from '../../stores/useFileStore'
-import { clearChatForProjectSwitch } from '../../services/chatTurn'
+import { useChat } from '../../stores/useChat'
 import { RoseMark } from './RoseMark'
 import styles from './BrandMenu.module.css'
 
@@ -20,7 +20,7 @@ async function switchToProject(path: string): Promise<void> {
     activeFilePath: null,
     previousActiveFilePath: null
   })
-  clearChatForProjectSwitch()
+  useChat.getState().clearForProjectSwitch()
 
   await useProjectStore.getState().openFolder(path)
 }

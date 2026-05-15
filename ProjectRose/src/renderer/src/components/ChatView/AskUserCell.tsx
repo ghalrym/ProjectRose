@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { answerAskUser } from '../../services/chatTurn'
+import { useChat } from '../../stores/useChat'
 import type { AskUserMessage } from '../../types/chatMessages'
 import styles from './AskUserCell.module.css'
 
 export function AskUserCell({ message }: { message: AskUserMessage }): JSX.Element {
+  const answerAskUser = useChat((s) => s.answerAskUser)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [customAnswer, setCustomAnswer] = useState('')
 

@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
-import { chat, buildAgentMd, cancelActiveChat, compressToolNoise, getContextStatus } from '../services/aiService'
+import { chat, compressToolNoise, getContextStatus } from '../services/aiService'
+import { buildAgentMd } from '../services/agentMd'
 import { sessionRegistry } from '../services/sessionRegistry'
 import type { ScreenshotResult } from '../services/chatSession'
 import type { Message } from '../../shared/roseModelTypes'
@@ -42,8 +43,12 @@ export function registerAiHandlers(): void {
     }
   )
 
-  ipcMain.handle(IPC.AI_CANCEL, () => {
-    cancelActiveChat()
+  ipcMain.handle(IPC.AI_CANCEL, (_event, payload: { sessionId: string }) => {
+    // Route by sessionId. No-op if no session is registered for the id —
+    // either it already settled or the caller raced with cancellation. We
+    // do not fall back to "cancel the most recent" because that would let
+    // a stale cancel from a settled session abort a freshly-started one.
+    sessionRegistry.get(payload.sessionId)?.cancel()
   })
 
   ipcMain.handle(

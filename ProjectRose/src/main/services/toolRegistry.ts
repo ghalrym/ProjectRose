@@ -97,16 +97,17 @@ export function wrapExecute(
 ): (input: Record<string, unknown>, options: ToolExecutionOptions) => Promise<string> {
   return async (input, options) => {
     const id = options.toolCallId
-    emit(IPC.AI_TOOL_CALL_START, { id, name, params: input })
+    const sessionId = toolCtx.sessionId
+    emit(IPC.AI_TOOL_CALL_START, { sessionId, id, name, params: input })
     let result: string
     let error = false
     try {
       result = await fn(input, projectRoot, toolCtx)
-      emit(IPC.AI_TOOL_CALL_END, { id, result, error: false })
+      emit(IPC.AI_TOOL_CALL_END, { sessionId, id, result, error: false })
     } catch (err) {
       result = err instanceof Error ? err.message : String(err)
       error = true
-      emit(IPC.AI_TOOL_CALL_END, { id, result, error: true })
+      emit(IPC.AI_TOOL_CALL_END, { sessionId, id, result, error: true })
     }
     if (hookCtx) {
       await fireToolCallHook(

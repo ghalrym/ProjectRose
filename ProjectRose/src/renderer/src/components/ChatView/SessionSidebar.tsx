@@ -1,14 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import clsx from 'clsx'
-import { useSessionsStore } from '../../stores/useSessionsStore'
-import { useChatTimelineStore } from '../../stores/useChatTimelineStore'
-import { useChatUIStore } from '../../stores/useChatUIStore'
-import {
-  newSession,
-  switchSession,
-  renameSession,
-  deleteSession,
-} from '../../services/chatTurn'
+import { useChat } from '../../stores/useChat'
 import type { SessionMeta } from '../../types/chatMessages'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
@@ -25,11 +17,15 @@ function formatDate(ts: number): string {
 }
 
 export function SessionSidebar(): JSX.Element {
-  const sessions = useSessionsStore((s) => s.sessions)
-  const currentSessionId = useSessionsStore((s) => s.currentSessionId)
-  const messages = useChatTimelineStore((s) => s.messages)
-  const searchQuery = useChatUIStore((s) => s.searchQuery)
-  const setSearchQuery = useChatUIStore((s) => s.setSearchQuery)
+  const sessions = useChat((s) => s.sessions)
+  const currentSessionId = useChat((s) => s.currentSessionId)
+  const messages = useChat((s) => s.messages)
+  const searchQuery = useChat((s) => s.searchQuery)
+  const setSearchQuery = useChat((s) => s.setSearchQuery)
+  const newSession = useChat((s) => s.newSession)
+  const switchSession = useChat((s) => s.switchSession)
+  const renameSession = useChat((s) => s.renameSession)
+  const deleteSession = useChat((s) => s.deleteSession)
   const rootPath = useProjectStore((s) => s.rootPath)
   const agentName = useSettingsStore((s) => s.agentName)
   const defaultModelId = useSettingsStore((s) => s.defaultModelId)
@@ -61,7 +57,7 @@ export function SessionSidebar(): JSX.Element {
 
   function handleSwitch(sess: SessionMeta): void {
     if (!rootPath || sess.id === currentSessionId) return
-    switchSession(rootPath, sess.id)
+    switchSession(sess.id)
   }
 
   function startRename(sess: SessionMeta, e: React.MouseEvent): void {
@@ -73,7 +69,7 @@ export function SessionSidebar(): JSX.Element {
   function commitRename(sessId: string): void {
     if (!rootPath) return
     const trimmed = renameValue.trim()
-    if (trimmed) renameSession(rootPath, sessId, trimmed)
+    if (trimmed) renameSession(sessId, trimmed)
     setRenamingId(null)
   }
 
@@ -85,7 +81,7 @@ export function SessionSidebar(): JSX.Element {
   function handleDelete(sessId: string, e: React.MouseEvent): void {
     e.stopPropagation()
     if (!rootPath) return
-    deleteSession(rootPath, sessId)
+    deleteSession(sessId)
   }
 
   function handleActiveListening(): void {

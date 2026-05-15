@@ -1,0 +1,394 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+
+// The chat input flow captures a frame from the screen-webcam hook before
+// posting the user message. That hook reaches into HTMLVideoElement /
+// MediaStream which don't exist in the test environment, so stub it.
+import type { MessageAttachment } from '@shared/roseModelTypes'
+const captureFrame = vi.fn<() => Promise<MessageAttachment | null>>(async () => null)
+vi.mock('../../hooks/useScreenWebcamShare', () => ({
+  useScreenWebcamShare: {
+    getState: () => ({ captureFrame }),
+  },
+}))
+
+import { useChat, detectEmptyResponseError } from '../useChat'
+import type { UserMessage } from '../../types/chatMessages'
+import { useProjectStore } from '../useProjectStore'
+import { useSettingsStore } from '../useSettingsStore'
+
+const emptyTimeline = {
+  messages: [],
+  assistantPlaceholderId: null,
+  thinkingPlaceholderId: null,
+  pendingModelDisplay: null,
+  isLoading: false,
+}
+
+// Same hand-rolled api stubs the chatTurn tests use. Listener registrations
+// return no-op unsubscribers because send() goes through the full chat-turn
+// flow and chatTurn.ts wires them up.
+interface ApiStub {
+  aiChat: ReturnType<typeof vi.fn>
+  aiCancelGeneration: ReturnType<typeof vi.fn>
+  aiAskUserResponse: ReturnType<typeof vi.fn>
+  aiContextStatus: ReturnType<typeof vi.fn>
+  aiCompressToolNoise: ReturnType<typeof vi.fn>
+  onAiToken: ReturnType<typeof vi.fn>
+  onAiToolCallStart: ReturnType<typeof vi.fn>
+  onAiToolCallEnd: ReturnType<typeof vi.fn>
+  onAiThinking: ReturnType<typeof vi.fn>
+  onAiAskUser: ReturnType<typeof vi.fn>
+  onAiInjectedMessage: ReturnType<typeof vi.fn>
+  onAiModelSelected: ReturnType<typeof vi.fn>
+  onAiStreamReset: ReturnType<typeof vi.fn>
+  session: {
+    save: ReturnType<typeof vi.fn>
+    load: ReturnType<typeof vi.fn>
+    list: ReturnType<typeof vi.fn>
+    delete: ReturnType<typeof vi.fn>
+  }
+}
+
+function makeApi(): ApiStub {
+  const noopUnsub = (): void => {}
+  return {
+    aiChat: vi.fn(async () => ({ content: 'reply', modifiedFiles: [], modelDisplay: 'gpt-5' })),
+    aiCancelGeneration: vi.fn(async () => {}),
+    aiAskUserResponse: vi.fn(async () => {}),
+    aiContextStatus: vi.fn(async () => ({
+      estimatedTokens: 100,
+      contextLength: 8000,
+      percentUsed: 0.0125,
+      totalToolSteps: 0,
+    })),
+    aiCompressToolNoise: vi.fn(async () => null),
+    onAiToken: vi.fn(() => noopUnsub),
+    onAiToolCallStart: vi.fn(() => noopUnsub),
+    onAiToolCallEnd: vi.fn(() => noopUnsub),
+    onAiThinking: vi.fn(() => noopUnsub),
+    onAiAskUser: vi.fn(() => noopUnsub),
+    onAiInjectedMessage: vi.fn(() => noopUnsub),
+    onAiModelSelected: vi.fn(() => noopUnsub),
+    onAiStreamReset: vi.fn(() => noopUnsub),
+    session: {
+      save: vi.fn(async () => {}),
+      load: vi.fn(async () => null),
+      list: vi.fn(async () => []),
+      delete: vi.fn(async () => {}),
+    },
+  }
+}
+
+function resetStores(): void {
+  useChat.setState({
+    ...emptyTimeline,
+    inputValue: '',
+    isRecording: false,
+    searchQuery: '',
+    sessions: [],
+    currentSessionId: null,
+    compressedMessages: null,
+    compressedFromCount: null,
+    compressedFromRawCount: null,
+    compressedAt: null,
+    contextStatus: null,
+    toastDismissed: null,
+    isCompressing: false,
+  })
+}
+
+describe('useChat slice', () => {
+  let api: ApiStub
+
+  beforeEach(() => {
+    api = makeApi()
+    ;(globalThis as unknown as { window: { api: ApiStub } }).window = { api }
+    resetStores()
+    captureFrame.mockReset()
+    captureFrame.mockResolvedValue(null)
+    useProjectStore.setState({ rootPath: '/proj' })
+    useSettingsStore.setState({ includeThinkingInContext: false })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  describe('state', () => {
+    it('holds timeline messages on the slice', () => {
+      useChat.setState({
+        messages: [{ id: 'u1', role: 'user', content: 'hi', timestamp: 0 }],
+      })
+      expect(useChat.getState().messages).toEqual([
+        { id: 'u1', role: 'user', content: 'hi', timestamp: 0 },
+      ])
+    })
+
+    it('holds inputValue on the slice', () => {
+      useChat.getState().setInputValue('draft text')
+      expect(useChat.getState().inputValue).toBe('draft text')
+    })
+
+    it('holds sessions and currentSessionId on the slice', () => {
+      useChat.setState({
+        sessions: [{ id: 's1', title: 't1', createdAt: 0, updatedAt: 0 }],
+        currentSessionId: 's1',
+      })
+      const slice = useChat.getState()
+      expect(slice.sessions).toHaveLength(1)
+      expect(slice.currentSessionId).toBe('s1')
+    })
+
+    it('holds compression snapshot fields on the slice', () => {
+      useChat.setState({
+        compressedMessages: [{ role: 'system', content: 'summary' }],
+        compressedFromCount: 2,
+        compressedFromRawCount: 2,
+        compressedAt: 100,
+      })
+      const slice = useChat.getState()
+      expect(slice.compressedMessages).toEqual([{ role: 'system', content: 'summary' }])
+      expect(slice.compressedFromCount).toBe(2)
+      expect(slice.compressedAt).toBe(100)
+    })
+  })
+
+  describe('actions', () => {
+    it('setInputValue updates the slice', () => {
+      useChat.getState().setInputValue('hello')
+      expect(useChat.getState().inputValue).toBe('hello')
+    })
+
+    it('send() drives the same timeline transitions as the legacy chatTurn.sendMessage flow', async () => {
+      vi.useFakeTimers()
+      useChat.getState().setInputValue('hello world')
+
+      const promise = useChat.getState().send()
+      await vi.advanceTimersByTimeAsync(0)
+
+      // The legacy chat-turn flow called aiChat with the user message —
+      // proxy through send() and assert the same wire shape.
+      expect(api.aiChat).toHaveBeenCalledOnce()
+      const [messages, rootPath] = api.aiChat.mock.calls[0]
+      expect(messages).toHaveLength(1)
+      expect(messages[0]).toMatchObject({ role: 'user', content: 'hello world' })
+      expect(rootPath).toBe('/proj')
+
+      // A session was created and reflected onto the slice via the
+      // sessions-store subscription.
+      expect(useChat.getState().sessions).toHaveLength(1)
+      expect(useChat.getState().currentSessionId).toBe(
+        useChat.getState().sessions[0].id
+      )
+
+      await vi.advanceTimersByTimeAsync(250)
+      await promise
+
+      // Same post-settle invariants the legacy chatTurn.test.ts asserts:
+      // isLoading is false and no streaming placeholder remains. The
+      // assistant text itself comes from streaming token events, which
+      // this happy-path test does not drive.
+      expect(useChat.getState().isLoading).toBe(false)
+      expect(useChat.getState().assistantPlaceholderId).toBeNull()
+      // The user message landed on the mirrored timeline.
+      const messagesAfter = useChat.getState().messages
+      expect(messagesAfter.find((m) => m.role === 'user')?.content).toBe(
+        'hello world'
+      )
+    })
+
+    it('send() clears the input field once the message starts sending — via the slice', async () => {
+      vi.useFakeTimers()
+      useChat.getState().setInputValue('clear me')
+      expect(useChat.getState().inputValue).toBe('clear me')
+
+      const promise = useChat.getState().send()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(useChat.getState().inputValue).toBe('')
+
+      await vi.advanceTimersByTimeAsync(250)
+      await promise
+    })
+
+    it('cancel() forwards to window.api.aiCancelGeneration with the active sessionId', async () => {
+      useChat.setState({ currentSessionId: 'sess-y' })
+      await useChat.getState().cancel()
+      expect(api.aiCancelGeneration).toHaveBeenCalledWith('sess-y')
+    })
+
+    it('newSession() resets the slice', () => {
+      useChat.setState({
+        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        currentSessionId: 's1',
+        messages: [{ id: 'u1', role: 'user', content: 'hi', timestamp: 0 }],
+      })
+
+      useChat.getState().newSession()
+
+      expect(useChat.getState().currentSessionId).toBeNull()
+      expect(useChat.getState().messages).toEqual([])
+    })
+
+    it('compressNow → refreshContextStatus → send substitutes the snapshot on the outgoing wire', async () => {
+      vi.useFakeTimers()
+
+      // Seed timeline with one user/assistant pair so the snapshot's
+      // prefix is intact and can be substituted on the next send.
+      useChat.setState({
+        messages: [
+          { id: 'u1', role: 'user', content: 'old', timestamp: 0 },
+          { id: 'a1', role: 'assistant', content: 'old reply', timestamp: 0 },
+        ],
+        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        currentSessionId: 's1',
+      })
+
+      // Mock the main-side compression response so compressNow installs a
+      // snapshot, and the status response so refresh succeeds.
+      api.aiCompressToolNoise.mockResolvedValueOnce({
+        compressedMessages: [{ role: 'system', content: 'compressed prefix' }],
+        compressedFromCount: 2,
+        compressedFromRawCount: 2,
+      })
+      api.aiContextStatus.mockResolvedValueOnce({
+        estimatedTokens: 50,
+        contextLength: 8000,
+        percentUsed: 0.00625,
+        totalToolSteps: 0,
+      })
+
+      await useChat.getState().compressNow()
+      // The slice now holds the new snapshot directly.
+      expect(useChat.getState().compressedMessages).toEqual([
+        { role: 'system', content: 'compressed prefix' },
+      ])
+      expect(useChat.getState().compressedFromCount).toBe(2)
+
+      // refreshContextStatus reads the mirrored snapshot through the
+      // underlying compression store and writes contextStatus.
+      api.aiContextStatus.mockResolvedValueOnce({
+        estimatedTokens: 50,
+        contextLength: 8000,
+        percentUsed: 0.00625,
+        totalToolSteps: 0,
+      })
+      await useChat.getState().refreshContextStatus()
+      expect(useChat.getState().contextStatus?.estimatedTokens).toBe(50)
+
+      // Now drive send() and assert the outgoing wire has the snapshot
+      // substituted in: the first message should be the compressed prefix
+      // (system role) and the trailing user message is the new input.
+      useChat.getState().setInputValue('follow-up')
+      const promise = useChat.getState().send()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(api.aiChat).toHaveBeenCalledOnce()
+      const sentMessages = api.aiChat.mock.calls[0][0] as Array<{
+        role: string
+        content: string
+      }>
+      expect(sentMessages[0]).toMatchObject({ role: 'system', content: 'compressed prefix' })
+      expect(sentMessages[sentMessages.length - 1]).toMatchObject({
+        role: 'user',
+        content: 'follow-up',
+      })
+
+      await vi.advanceTimersByTimeAsync(250)
+      await promise
+    })
+
+    it('detectEmptyResponseError returns null when the response has content', () => {
+      const userMsg: UserMessage = {
+        id: 'u1',
+        role: 'user',
+        content: 'hi',
+        timestamp: 0,
+      }
+      const result = detectEmptyResponseError({
+        response: { content: 'reply', modifiedFiles: [] },
+        lastMessageId: 'u1',
+        userMsg,
+        hasAttachment: false,
+        isManaged: false,
+      })
+      expect(result).toBeNull()
+    })
+
+    it('detectEmptyResponseError hint for an attachment + local model points at vision-capable alternatives', () => {
+      const userMsg: UserMessage = {
+        id: 'u1',
+        role: 'user',
+        content: 'look',
+        timestamp: 0,
+        attachments: [
+          { kind: 'screen', dataUrl: 'data:image/jpeg;base64,xx', mimeType: 'image/jpeg' },
+        ],
+      }
+      const result = detectEmptyResponseError({
+        response: { content: '', modifiedFiles: [] },
+        lastMessageId: 'u1',
+        userMsg,
+        hasAttachment: true,
+        isManaged: false,
+      })
+      expect(result).toContain('Error: The model returned an empty response.')
+      expect(result).toContain('vision-capable model')
+    })
+
+    it('detectEmptyResponseError hint for an attachment + managed host mentions server image support', () => {
+      const userMsg: UserMessage = {
+        id: 'u1',
+        role: 'user',
+        content: 'look',
+        timestamp: 0,
+        attachments: [
+          { kind: 'screen', dataUrl: 'data:image/jpeg;base64,xx', mimeType: 'image/jpeg' },
+        ],
+      }
+      const result = detectEmptyResponseError({
+        response: { content: '', modifiedFiles: [] },
+        lastMessageId: 'u1',
+        userMsg,
+        hasAttachment: true,
+        isManaged: true,
+      })
+      expect(result).toContain('Server image support is coming soon')
+    })
+
+    it('detectEmptyResponseError with no attachment returns the bare error (no hint suffix)', () => {
+      const userMsg: UserMessage = {
+        id: 'u1',
+        role: 'user',
+        content: 'hi',
+        timestamp: 0,
+      }
+      const result = detectEmptyResponseError({
+        response: { content: '', modifiedFiles: [] },
+        lastMessageId: 'u1',
+        userMsg,
+        hasAttachment: false,
+        isManaged: false,
+      })
+      expect(result).toBe('Error: The model returned an empty response.')
+    })
+
+    it('clearForProjectSwitch() wipes the chat-related slice state', () => {
+      useChat.setState({
+        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        currentSessionId: 's1',
+        messages: [{ id: 'u1', role: 'user', content: 'hi', timestamp: 0 }],
+        compressedMessages: [{ role: 'system', content: 's' }],
+        compressedFromCount: 1,
+        compressedFromRawCount: 1,
+        compressedAt: 1,
+      })
+
+      useChat.getState().clearForProjectSwitch()
+
+      expect(useChat.getState().sessions).toEqual([])
+      expect(useChat.getState().currentSessionId).toBeNull()
+      expect(useChat.getState().messages).toEqual([])
+      expect(useChat.getState().compressedMessages).toBeNull()
+    })
+  })
+})
