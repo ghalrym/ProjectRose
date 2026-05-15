@@ -1,8 +1,48 @@
+import { randomUUID } from 'crypto'
+import type { ModelMessage } from 'ai'
+import { IPC } from '../../shared/ipcChannels'
+import type { Message } from '../../shared/roseModelTypes'
+import type { InjectionRecord } from '../../shared/extensionHooks'
+import { readSettings } from '../ipc/settingsHandlers'
+import type { ModelConfig } from '../ipc/settingsHandlers'
+import { readProjectSettings } from '../ipc/projectSettingsHandlers'
+import { listInstalledExtensions } from '../ipc/extensionHandlers'
+import { fireUserMessageHook } from './extensionHooks'
+import { getSessionSkillsPrompt } from './skillService'
+import { streamChat } from './llmClient'
+import type { StreamResult } from './llmClient'
+import type { AgentContext, SubagentCounter } from './agentRunner'
+import type { SubagentTurnContext } from './toolRegistry'
+import { buildAgentMd } from './agentMd'
+import { selectModel, extractErrorMessage } from './modelSelection'
+
 // Screenshot result shape — duplicated from llmClient.ts so chatSession.ts
 // does not import from llmClient (which would form a cycle).
 export type ScreenshotResult =
   | { ok: true; dataUrl: string; mode: 'screen' | 'webcam'; sourceLabel: string | null }
   | { ok: false; reason: string }
+
+/**
+ * Final response surfaced to the IPC caller after `ChatSession.run()` settles.
+ * Mirrors the shape the renderer expects on the `AI_CHAT` invoke return.
+ */
+export interface ChatResponse {
+  content: string
+  modifiedFiles: string[]
+  modelDisplay: string
+}
+
+/**
+ * Notify function injected by the caller. Production wires this to a
+ * `BrowserWindow.getAllWindows().forEach(send)` from `aiService.ts`; tests
+ * pass a stub (or omit it, in which case streaming events are dropped).
+ *
+ * Lives as an injected dependency rather than a top-level
+ * `import { BrowserWindow } from 'electron'` so the test runner can load
+ * `chatSession.ts` without pulling in the Electron binary.
+ */
+export type NotifyFn = (channel: string, payload: unknown) => void
+const noopNotify: NotifyFn = () => {}
 
 /**
  * A `ChatSession` owns all state whose lifetime equals a single chat turn:
@@ -11,6 +51,11 @@ export type ScreenshotResult =
  * injection budget. Construct one at the start of a turn, dispose it in
  * `finally`. A fresh session implies all state is fresh — no cross-module
  * "reset" calls are required.
+ *
+ * The session also owns the chat loop itself via `run()`. Public callers
+ * construct a session, register it, call `.run(messages)`, then dispose —
+ * the loop body, model fallback, injection collection, and notify wiring
+ * live entirely inside this class.
  */
 export class ChatSession {
   readonly sessionId: string
@@ -117,4 +162,209 @@ export class ChatSession {
     this.cancelPendingAskUser()
     this.cancelPendingScreenshots()
   }
+
+  /**
+   * Run a single user turn end-to-end on this session.
+   *
+   * The body owns: extension `on_user_message` firing, model selection
+   * (including fallback to the default model on first failure), system
+   * prompt construction, subagent/skill tool context build-out, the
+   * extension injection loop, and the streaming wire-up via `streamChat`.
+   * Notifications (`AI_MODEL_SELECTED`, `AI_STREAM_RESET`,
+   * `AI_INJECTED_MESSAGE`) are emitted directly to the renderer with the
+   * session id attached so the renderer can drop late events from
+   * abandoned sessions.
+   *
+   * `runOnce` is exposed as a parameter so tests can substitute a fake
+   * LLM without spinning up the full streaming path. In production the
+   * default points at `streamChat` and behaves identically to the prior
+   * `chat()` body.
+   */
+  async run(args: {
+    messages: Message[]
+    notify?: NotifyFn
+    runOnce?: RunOnceFn
+  }): Promise<ChatResponse> {
+    const { messages } = args
+    const notify: NotifyFn = args.notify ?? noopNotify
+    const runOnceImpl = args.runOnce ?? defaultRunOnce
+    const { sessionId, rootPath } = this
+    const abortController = this.abortController
+
+    const settings = await readSettings(rootPath)
+    const userMessage = messages.at(-1)?.content ?? ''
+    // Fire once per user-initiated turn so extensions can reset per-turn state.
+    // Auto-injection iterations inside the loop below do not re-fire this.
+    await fireUserMessageHook(userMessage, rootPath)
+    const selectedModel = await selectModel(userMessage, settings)
+    const defaultModel =
+      settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
+    const modelDisplay = selectedModel.displayName || selectedModel.modelName
+    notify(IPC.AI_MODEL_SELECTED, { sessionId, modelDisplay })
+
+    const systemPrompt = await buildAgentMd(rootPath)
+
+    const projectSettings = await readProjectSettings(rootPath)
+    const { disabledTools } = projectSettings
+
+    const installed = await listInstalledExtensions(rootPath)
+    const enabledExtensionIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
+
+    // Per-session subagent context. Re-built for each `streamChat` call so
+    // a fallback model rebuild picks up the new model without any closure
+    // staleness (the prior `buildExtraTools(model)` helper did the same).
+    const agentCtx: AgentContext = {
+      sessionId,
+      agentIndex: 0,
+      rootPath,
+      notify,
+      abortSignal: abortController.signal,
+    }
+    const counter: SubagentCounter = { value: 0 }
+    const getSystemPrompt = (): string => systemPrompt + getSessionSkillsPrompt(sessionId)
+
+    const buildSubagentContext = (m: ModelConfig): SubagentTurnContext => ({
+      agentCtx,
+      model: m,
+      providerKeys: settings.providerKeys,
+      ollamaBaseUrl: settings.ollamaBaseUrl,
+      openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
+      counter,
+      systemPrompt,
+    })
+
+    const baseStreamParams = {
+      systemPrompt,
+      getSystemPrompt,
+      enabledExtensionIds,
+      providerKeys: settings.providerKeys,
+      ollamaBaseUrl: settings.ollamaBaseUrl,
+      openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
+      projectRoot: rootPath,
+      disabledTools,
+      abortSignal: abortController.signal,
+      notify,
+    }
+
+    let activeModel = selectedModel
+    let activeModelDisplay = modelDisplay
+    let fallbackUsed = false
+    let lastStreamResult: StreamResult | undefined
+    let preBuiltCoreMessages: ModelMessage[] | undefined
+
+    while (true) {
+      if (abortController.signal.aborted) break
+
+      const turnId = randomUUID()
+      const collected: InjectionRecord[] = []
+
+      const runOnce = (m: ModelConfig): Promise<StreamResult> =>
+        runOnceImpl({
+          baseStreamParams,
+          messages,
+          preBuiltCoreMessages,
+          model: m,
+          subagentContext: buildSubagentContext(m),
+          turnId,
+          sessionId,
+          collectInjections: (rec) => collected.push(rec),
+        })
+
+      try {
+        lastStreamResult = await runOnce(activeModel)
+      } catch (err) {
+        if (abortController.signal.aborted) throw err
+        const isAlreadyDefault = !defaultModel || activeModel.id === defaultModel.id
+        if (isAlreadyDefault || fallbackUsed) throw err
+
+        const errorMessage = extractErrorMessage(err)
+        const fallbackDisplay = defaultModel.displayName || defaultModel.modelName
+        notify(IPC.AI_STREAM_RESET, {
+          sessionId,
+          errorMessage,
+          fallbackModel: fallbackDisplay,
+        })
+        // Clear any modified-files recorded during the failed primary
+        // attempt so the renderer only sees the fallback's writes.
+        this.modifiedFiles.length = 0
+
+        activeModel = defaultModel
+        activeModelDisplay = fallbackDisplay
+        fallbackUsed = true
+
+        lastStreamResult = await runOnce(activeModel)
+      }
+
+      if (collected.length === 0) break
+      if (abortController.signal.aborted) break
+
+      // Each injection becomes a system message in the next iteration's
+      // history; the renderer is also notified so it can display the
+      // bordered "guided agent" cell for the user.
+      const nextHistory: ModelMessage[] = [...lastStreamResult.finalMessages]
+      for (const inj of collected) {
+        notify(IPC.AI_INJECTED_MESSAGE, {
+          sessionId,
+          extensionId: inj.extensionId,
+          extensionName: inj.extensionName,
+          extensionIcon: inj.extensionIcon,
+          content: inj.content,
+        })
+        nextHistory.push({
+          role: 'system',
+          content: `[Extension ${inj.extensionName}] ${inj.content}`,
+        })
+      }
+      preBuiltCoreMessages = nextHistory
+    }
+
+    if (!lastStreamResult) throw new Error('Chat aborted before any turn completed')
+    // Snapshot before dispose — the session is about to be cleared.
+    const modifiedFiles = [...this.modifiedFiles]
+    return {
+      content: lastStreamResult.content,
+      modifiedFiles,
+      modelDisplay: activeModelDisplay,
+    }
+  }
 }
+
+/**
+ * Shape of a single streaming round trip. Tests substitute a fake LLM here;
+ * the production path defaults to `streamChat` and behaves like the prior
+ * code. `baseStreamParams` is opaque to the test seam — it is forwarded
+ * verbatim into `streamChat` so the production path stays identical.
+ */
+export interface RunOnceArgs {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  baseStreamParams: any
+  messages: Message[]
+  preBuiltCoreMessages: ModelMessage[] | undefined
+  model: ModelConfig
+  subagentContext: SubagentTurnContext
+  turnId: string
+  sessionId: string
+  collectInjections: (rec: InjectionRecord) => void
+}
+export type RunOnceFn = (args: RunOnceArgs) => Promise<StreamResult>
+
+const defaultRunOnce: RunOnceFn = ({
+  baseStreamParams,
+  messages,
+  preBuiltCoreMessages,
+  model,
+  subagentContext,
+  turnId,
+  sessionId,
+  collectInjections,
+}) =>
+  streamChat({
+    ...baseStreamParams,
+    messages,
+    preBuiltCoreMessages,
+    model,
+    subagentContext,
+    turnId,
+    sessionId,
+    collectInjections,
+  })

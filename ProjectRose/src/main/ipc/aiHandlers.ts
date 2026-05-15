@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
-import { chat, buildAgentMd, compressToolNoise, getContextStatus } from '../services/aiService'
+import { chat, compressToolNoise, getContextStatus } from '../services/aiService'
+import { buildAgentMd } from '../services/agentMd'
 import { sessionRegistry } from '../services/sessionRegistry'
 import type { ScreenshotResult } from '../services/chatSession'
 import type { Message } from '../../shared/roseModelTypes'
