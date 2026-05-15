@@ -12,6 +12,7 @@ import { toolRegistry } from './services/toolRegistry'
 import { buildCoreTools } from './services/llmClient'
 import { buildSubagentTools } from './services/subagentTools'
 import { buildSkillTools } from './services/skillService'
+import { IPC } from '../shared/ipcChannels'
 // Ensure single instance
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
@@ -27,8 +28,28 @@ if (!gotLock) {
   })
 }
 
+// macOS delivers projectrose:// links via `open-url`. Must be registered as
+// early as possible — before `whenReady` — because the event can fire during
+// app launch when the user opens a link that triggers the app to start.
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  const [win] = BrowserWindow.getAllWindows()
+  if (win) {
+    if (win.isMinimized()) win.restore()
+    if (!win.isVisible()) win.show()
+    win.focus()
+    win.webContents.send(IPC.DEEPLINK_RECEIVED, url)
+  }
+})
+
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.projectrose.app')
+
+  // Register the projectrose:// scheme. electron-builder installs this for
+  // packaged Windows/Linux builds via the `protocols` config and for Mac via
+  // `extendInfo.CFBundleURLTypes`, but in dev mode nothing's installed it
+  // yet — calling this is a no-op when already registered.
+  app.setAsDefaultProtocolClient('projectrose')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

@@ -2,7 +2,11 @@ import { BrowserWindow, shell, ipcMain } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 
-const ICON_PATH = join(__dirname, '../../build/icon.ico')
+const isMac = process.platform === 'darwin'
+
+const ICON_PATH = isMac || process.platform === 'linux'
+  ? join(__dirname, '../../build/icon.png')
+  : join(__dirname, '../../build/icon.ico')
 
 // Theme colors matching variables.css
 const THEME_COLORS = {
@@ -34,12 +38,17 @@ export function createWindow(): BrowserWindow {
     minHeight: 600,
     title: 'ProjectRose',
     icon: ICON_PATH,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: THEME_COLORS.dark.bg,
-      symbolColor: THEME_COLORS.dark.fg,
-      height: 36
-    },
+    // On macOS, `hiddenInset` renders the native traffic lights inset from
+    // the corner. `titleBarOverlay` is Windows/Linux-only and is omitted on
+    // Mac to avoid clipping the traffic lights against the content.
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+    ...(isMac ? {} : {
+      titleBarOverlay: {
+        color: THEME_COLORS.dark.bg,
+        symbolColor: THEME_COLORS.dark.fg,
+        height: 36
+      }
+    }),
     backgroundColor: THEME_COLORS.dark.bg,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -81,6 +90,9 @@ export function createWindow(): BrowserWindow {
 
 // Update title bar overlay colors when theme changes
 ipcMain.on('theme:changed', (_event, theme: 'dark' | 'light' | 'herbarium') => {
+  // `setTitleBarOverlay` is a no-op (and throws on some Electron versions) on
+  // macOS, which uses native traffic lights instead of an overlay.
+  if (isMac) return
   if (mainWindow && !mainWindow.isDestroyed()) {
     const colors = THEME_COLORS[theme]
     mainWindow.setTitleBarOverlay({

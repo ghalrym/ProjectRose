@@ -15,7 +15,14 @@ function sendToRenderer(channel: string): void {
 }
 
 export function buildAppMenu(): void {
+  const isMac = process.platform === 'darwin'
+
+  // On macOS, the first menu must be the `appMenu` role — that's how the
+  // menu bar shows the product name (instead of "Electron") and how About /
+  // Services / Hide / Quit get their canonical slots. Quit also lives in the
+  // app menu on Mac, not in File.
   const template: Electron.MenuItemConstructorOptions[] = [
+    ...(isMac ? [{ role: 'appMenu' as const }] : []),
     {
       label: 'File',
       submenu: [
@@ -40,8 +47,9 @@ export function buildAppMenu(): void {
           accelerator: 'CmdOrCtrl+S',
           click: () => sendToRenderer(IPC_MENU.SAVE)
         },
-        { type: 'separator' },
-        { role: 'quit' }
+        ...(isMac
+          ? []
+          : [{ type: 'separator' as const }, { role: 'quit' as const }])
       ]
     },
     {
@@ -69,7 +77,8 @@ export function buildAppMenu(): void {
         { type: 'separator' },
         { role: 'togglefullscreen' }
       ]
-    }
+    },
+    ...(isMac ? [{ role: 'window' as const }] : [])
   ]
 
   const menu = Menu.buildFromTemplate(template)

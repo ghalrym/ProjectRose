@@ -66,10 +66,30 @@
       ]
     },
     "mac": {
-      "icon": "build/icon.png",
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "darkModeSupport": true,
       "target": [
-        "dmg"
-      ]
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "extendInfo": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "ProjectRose Protocol",
+            "CFBundleURLSchemes": [
+              "projectrose"
+            ]
+          }
+        ],
+        "NSMicrophoneUsageDescription": "ProjectRose uses the microphone for the Active Listening feature.",
+        "NSCameraUsageDescription": "ProjectRose may use the camera when the chat requests screen or camera capture."
+      }
     }
   },
   "dependencies": {

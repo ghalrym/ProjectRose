@@ -145,8 +145,18 @@ export function setListeningState(active: boolean): void {
 }
 
 export function createTray(): Tray {
-  baseIcon = nativeImage.createFromPath(pickIconPath())
+  const raw = nativeImage.createFromPath(pickIconPath())
+  // macOS menu-bar icons should be ~22pt and rendered as template images so
+  // they automatically invert in dark mode. The 1024×1024 source is way too
+  // big for the menu bar otherwise.
+  if (process.platform === 'darwin') {
+    baseIcon = raw.resize({ width: 22, height: 22, quality: 'best' })
+    baseIcon.setTemplateImage(true)
+  } else {
+    baseIcon = raw
+  }
   listeningIcon = makeListeningIcon(baseIcon)
+  if (process.platform === 'darwin') listeningIcon.setTemplateImage(true)
 
   tray = new Tray(baseIcon)
   refreshTrayPresentation()
