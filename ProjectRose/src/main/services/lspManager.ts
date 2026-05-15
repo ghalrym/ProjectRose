@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from 'child_process'
 import { pathToFileURL } from 'url'
 import { BrowserWindow, ipcMain } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
+import { withAugmentedPath } from '../lib/childProcessEnv'
 
 type ServerName = 'py' | 'ts'
 
@@ -89,15 +90,29 @@ function spawnServer(name: ServerName, rootPath: string): LspServer {
     throw new Error(`LSP binary not found for '${name}'. Run npm install.`)
   }
 
-  const proc = spawn('node', [script, '--stdio'], {
+  // Use Electron's own binary as the Node runtime instead of relying on a
+  // system `node` on PATH. When launched from Finder on macOS, the app gets
+  // a minimal PATH (`/usr/bin:/bin:/usr/sbin:/sbin`) and `spawn('node')`
+  // fails with ENOENT. `ELECTRON_RUN_AS_NODE=1` makes Electron behave as a
+  // plain Node interpreter; the LSP servers don't care which binary is
+  // running their JS.
+  const proc = spawn(process.execPath, [script, '--stdio'], {
     cwd: rootPath,
     stdio: ['pipe', 'pipe', 'ignore'],
-    env: { ...process.env }
+    env: withAugmentedPath({ ...process.env, ELECTRON_RUN_AS_NODE: '1' })
   })
 
   const server: LspServer = { proc, buffer: Buffer.alloc(0), nextId: 1, pending: new Map() }
 
   proc.stdin?.on('error', () => { /* suppress EPIPE on shutdown */ })
+
+  // spawn() reports failures asynchronously through 'error'. Without a
+  // listener the error bubbles up as an uncaughtException, which Electron
+  // surfaces to the user as a modal dialog. Keep it as a log line.
+  proc.on('error', (err) => {
+    console.error(`[lsp] ${name} child process error:`, err)
+    servers.delete(name)
+  })
 
   proc.stdout?.on('data', (chunk: Buffer) => {
     server.buffer = Buffer.concat([server.buffer, chunk])

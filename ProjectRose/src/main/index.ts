@@ -13,6 +13,20 @@ import { buildCoreTools } from './services/llmClient'
 import { buildSubagentTools } from './services/subagentTools'
 import { buildSkillTools } from './services/skillService'
 import { IPC } from '../shared/ipcChannels'
+import log from 'electron-log/main'
+
+// Without these listeners, Electron pops a modal dialog ("Uncaught
+// Exception: ...") for any unhandled error in the main process. That's the
+// right default during development but terrible at runtime: a single
+// missing-binary or transient I/O failure can spam the user with a stack of
+// dialogs they can't dismiss in bulk. Log the error and keep the app alive.
+process.on('uncaughtException', (err) => {
+  log.error('[main] uncaughtException', err)
+})
+process.on('unhandledRejection', (reason) => {
+  log.error('[main] unhandledRejection', reason)
+})
+
 // Ensure single instance
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {

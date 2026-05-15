@@ -24,6 +24,7 @@ import {
 } from '../../shared/extension-manifest-validator'
 import { buildContext, type HostExtensionSurface } from '../extensions/buildContext'
 import { toolRegistry } from '../services/toolRegistry'
+import { withAugmentedPath } from '../lib/childProcessEnv'
 
 function getExtensionsDir(rootPath: string): string {
   return prPath(rootPath, 'extensions')
@@ -102,10 +103,23 @@ async function writeEnabledState(rootPath: string, id: string, enabled: boolean)
 
 function runCommand(cmd: string, args: string[], cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, { cwd, shell: process.platform === 'win32', stdio: 'pipe' })
+    // Augment PATH so Homebrew / NVM / volta / etc. are findable when the
+    // app was launched from Finder on macOS (which strips PATH down to
+    // /usr/bin:/bin:/usr/sbin:/sbin).
+    const proc = spawn(cmd, args, {
+      cwd,
+      shell: process.platform === 'win32',
+      stdio: 'pipe',
+      env: withAugmentedPath()
+    })
     let stderr = ''
     proc.stderr?.on('data', (chunk) => { stderr += chunk.toString() })
-    proc.on('error', reject)
+    proc.on('error', (err: NodeJS.ErrnoException) => {
+      const hint = err.code === 'ENOENT'
+        ? ` — '${cmd}' is not on PATH. On macOS, install ${cmd} via Homebrew or ensure it's in /usr/local/bin or /opt/homebrew/bin.`
+        : ''
+      reject(new Error(`Failed to run ${cmd}: ${err.message}${hint}`))
+    })
     proc.on('close', (code) => {
       if (code === 0) resolve()
       else reject(new Error(`${cmd} ${args.join(' ')} failed (exit ${code}): ${stderr.trim()}`))
