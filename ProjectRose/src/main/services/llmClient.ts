@@ -16,14 +16,16 @@ import {
   handleRunCommand,
   handleSearchWeb
 } from './toolHandlers'
-import type { ExtensionToolEntry, ExtensionToolCtx } from '../../shared/extension-types'
+import type { ExtensionToolCtx } from '../../shared/extension-types'
 import type { Message } from '../../shared/roseModelTypes'
 import type { ModelConfig, RouterConfig } from '../ipc/settingsHandlers'
 import type { InjectionRecord } from '../../shared/extensionHooks'
-import { fireThoughtHook, fireMessageHook, fireTokenHook, fireToolCallHook } from './extensionHooks'
+import { fireThoughtHook, fireMessageHook, fireTokenHook } from './extensionHooks'
 import { loadSession } from '../lib/session'
 import { WEB_BASE_URL } from '../lib/webConfig'
 import { sessionRegistry } from './sessionRegistry'
+import { toolRegistry, wrapExecute } from './toolRegistry'
+import type { ToolSourceContext, EmitFn, HookCtx, ToolSourceName, SubagentTurnContext } from './toolRegistry'
 import type { ScreenshotResult } from './chatSession'
 
 function notifyRenderer(channel: string, payload: unknown): void {
@@ -262,47 +264,9 @@ export async function routeRequest(
   return text.trim().toLowerCase()
 }
 
-type ExecuteFn = (input: Record<string, unknown>, projectRoot: string, toolCtx: ExtensionToolCtx) => Promise<string>
-type EmitFn = (channel: string, payload: unknown) => void
-
-interface HookCtx {
-  turnId: string
-  rootPath: string
-}
-
-function wrapExecute(
-  name: string,
-  fn: ExecuteFn,
-  projectRoot: string,
-  emit: EmitFn,
-  toolCtx: ExtensionToolCtx,
-  hookCtx?: HookCtx
-): (input: Record<string, unknown>, options: ToolExecutionOptions) => Promise<string> {
-  return async (input, options) => {
-    const id = options.toolCallId
-    emit(IPC.AI_TOOL_CALL_START, { id, name, params: input })
-    let result: string
-    let error = false
-    try {
-      result = await fn(input, projectRoot, toolCtx)
-      emit(IPC.AI_TOOL_CALL_END, { id, result, error: false })
-    } catch (err) {
-      result = err instanceof Error ? err.message : String(err)
-      error = true
-      emit(IPC.AI_TOOL_CALL_END, { id, result, error: true })
-    }
-    if (hookCtx) {
-      await fireToolCallHook(
-        { toolName: name, params: input, result, error, turnId: hookCtx.turnId },
-        hookCtx.rootPath
-      )
-    }
-    return result
-  }
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildCoreTools(projectRoot: string, emit: EmitFn, toolCtx: ExtensionToolCtx, hookCtx?: HookCtx): Record<string, any> {
+export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
+  const { rootPath: projectRoot, emit, toolCtx, hookCtx } = ctx
   return {
     read_file: tool({
       description: 'Read the contents of a file. Use project-relative paths.',
@@ -437,36 +401,6 @@ function buildCoreTools(projectRoot: string, emit: EmitFn, toolCtx: ExtensionToo
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildExtensionTools(entries: ExtensionToolEntry[], projectRoot: string, emit: EmitFn, toolCtx: ExtensionToolCtx, hookCtx?: HookCtx): Record<string, any> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result: Record<string, any> = {}
-  for (const entry of entries) {
-    const shape: Record<string, z.ZodTypeAny> = {}
-    const props = entry.schema?.properties ?? {}
-    for (const [key, def] of Object.entries(props as Record<string, { type: string; description?: string; enum?: string[] }>)) {
-      let zodType: z.ZodTypeAny
-      if (def.enum) {
-        zodType = z.enum(def.enum as [string, ...string[]])
-      } else if (def.type === 'number') {
-        zodType = z.number()
-      } else {
-        zodType = z.string()
-      }
-      const required = (entry.schema?.required as string[] | undefined)?.includes(key) ?? false
-      shape[key] = required
-        ? zodType.describe(def.description ?? '')
-        : zodType.optional().describe(def.description ?? '')
-    }
-    result[entry.name] = tool({
-      description: entry.description,
-      inputSchema: z.object(shape),
-      execute: wrapExecute(entry.name, entry.execute, projectRoot, emit, toolCtx, hookCtx)
-    })
-  }
-  return result
-}
-
 export interface StreamResult {
   content: string
   inputTokens: number
@@ -499,21 +433,24 @@ function toModelMessage(m: Message): ModelMessage {
 export async function streamChat(params: {
   messages: Message[]
   systemPrompt: string
-  extensionTools?: ExtensionToolEntry[]
+  enabledExtensionIds?: string[]
   model: ModelConfig
   providerKeys: ProviderKeys
   ollamaBaseUrl: string
   openaiCompatBaseUrl: string
   projectRoot: string
-  disabledCoreTools?: string[]
+  disabledTools?: string[]
   abortSignal?: AbortSignal
   // Optional notify override — defaults to notifyRenderer (main agent).
   // Pass `() => {}` for subagents that should not emit IPC events.
   notify?: EmitFn
-  // Extra tools merged into the tool set after core/extension/python tools are built.
-  // Useful for injecting agent-command tools (create_subagents, explore, etc.).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  extraTools?: Record<string, any>
+  // Which tool sources to ask the registry for. Defaults to all four.
+  // `runAgentOnce` and subagents pass `['core', 'extension']` to keep
+  // their tool sets bounded (no recursive subagent spawning).
+  include?: readonly ToolSourceName[]
+  // Per-turn context the subagent factory needs. Only required when
+  // `include` contains `'subagent'` (i.e. the main user-visible chat).
+  subagentContext?: SubagentTurnContext
   // Called fresh before each step — allows dynamic system prompt updates (e.g. loaded skills).
   getSystemPrompt?: () => string
   // When set, chat hooks fire at segment boundaries and after tool calls.
@@ -529,17 +466,21 @@ export async function streamChat(params: {
   // full assistant tool-call structure across iterations (Message[] is lossy).
   preBuiltCoreMessages?: ModelMessage[]
 }): Promise<StreamResult> {
-  const { messages, systemPrompt, extensionTools, model: modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl, projectRoot, disabledCoreTools, abortSignal } = params
+  const { messages, systemPrompt, enabledExtensionIds, model: modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl, projectRoot, disabledTools, abortSignal } = params
   const emit: EmitFn = params.notify ?? notifyRenderer
   const hookCtx: HookCtx | undefined = params.turnId ? { turnId: params.turnId, rootPath: projectRoot } : undefined
   const toolCtx: ExtensionToolCtx = { sessionId: params.sessionId, turnId: params.turnId }
   const model = await resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
-  const tools = {
-    ...buildCoreTools(projectRoot, emit, toolCtx, hookCtx),
-    ...buildExtensionTools(extensionTools ?? [], projectRoot, emit, toolCtx, hookCtx),
-    ...(params.extraTools ?? {})
-  }
-  for (const name of disabledCoreTools ?? []) delete tools[name]
+  const tools = toolRegistry.getToolsForSession({
+    rootPath: projectRoot,
+    emit,
+    toolCtx,
+    hookCtx,
+    disabledTools,
+    enabledExtensionIds,
+    include: params.include,
+    subagent: params.subagentContext
+  })
 
   let coreMessages: ModelMessage[] = params.preBuiltCoreMessages
     ? [...params.preBuiltCoreMessages]

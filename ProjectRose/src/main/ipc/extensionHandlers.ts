@@ -23,7 +23,7 @@ import {
   type ManifestValidationIssue
 } from '../../shared/extension-manifest-validator'
 import { buildContext, type HostExtensionSurface } from '../extensions/buildContext'
-import { reconcileToolCatalog } from '../extensions/reconcileToolCatalog'
+import { toolRegistry } from '../services/toolRegistry'
 
 function getExtensionsDir(rootPath: string): string {
   return prPath(rootPath, 'extensions')
@@ -197,11 +197,10 @@ async function applyDefaultDisabledTools(rootPath: string, manifest: ExtensionMa
 // Tracks cleanup functions for loaded extension main modules, keyed by "<rootPath>/<id>"
 const loadedMains = new Map<string, () => void>()
 
-// Registered tools per extension, keyed by "<rootPath>/<id>"
-const extensionToolsRegistry = new Map<string, ExtensionToolEntry[]>()
-
+// Extension tool storage now lives on `toolRegistry`. This thin wrapper stays
+// for callers that still read entries directly (Settings UI catalog).
 export function getRegisteredExtensionTools(rootPath: string, enabledIds: string[]): ExtensionToolEntry[] {
-  return enabledIds.flatMap((id) => extensionToolsRegistry.get(`${rootPath}/${id}`) ?? [])
+  return toolRegistry.getEnabledExtensionToolEntries(rootPath, enabledIds)
 }
 
 class HookCatalogDriftError extends Error {
@@ -285,7 +284,7 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
         }
       },
       registerTools: (tools: ExtensionToolEntry[]) => {
-        extensionToolsRegistry.set(key, tools)
+        toolRegistry.registerExtensionTools(id, rootPath, tools)
       },
       registerSensitiveFields: (keys: string[]) => {
         registerSensitiveExtensionFields(keys)
@@ -333,7 +332,7 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
     // and `getRegisteredExtensionTools` will not surface its tools to
     // the agent.
     try {
-      reconcileToolCatalog(id, manifestForHooks, extensionToolsRegistry.get(key) ?? [])
+      toolRegistry.assertManifestMatches(id, rootPath, manifestForHooks)
       reconcileHookCatalog(id, key, manifestForHooks)
     } catch (reconcileErr) {
       const detail = (reconcileErr as Error).message
@@ -356,7 +355,7 @@ function unloadExtensionMainModule(rootPath: string, id: string): void {
     try { cleanup() } catch {}
     loadedMains.delete(key)
   }
-  extensionToolsRegistry.delete(key)
+  toolRegistry.unregisterExtension(id, rootPath)
   unregisterExtensionHooks(key)
   closeAgentSessionsForOwner(key)
 }

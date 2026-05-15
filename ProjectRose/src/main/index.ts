@@ -8,6 +8,10 @@ import { buildAppMenu } from './menu'
 import { disposeAllTerminals } from './services/terminalService'
 import { stopLsp } from './services/lspManager'
 import { initAutoUpdater } from './services/updaterService'
+import { toolRegistry } from './services/toolRegistry'
+import { buildCoreTools } from './services/llmClient'
+import { buildSubagentTools } from './services/subagentTools'
+import { buildSkillTools } from './services/skillService'
 // Ensure single instance
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
@@ -30,6 +34,21 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  toolRegistry.registerCoreTools(buildCoreTools)
+  toolRegistry.registerSubagentSource((_ctx, turn) =>
+    buildSubagentTools(
+      turn.agentCtx,
+      turn.model,
+      turn.providerKeys,
+      turn.ollamaBaseUrl,
+      turn.openaiCompatBaseUrl,
+      turn.counter,
+      turn.systemPrompt
+    )
+  )
+  toolRegistry.registerSkillSource((ctx) =>
+    buildSkillTools(ctx.rootPath, ctx.toolCtx.sessionId, ctx.emit)
+  )
   registerAllHandlers()
   attachDisplayMediaHandler()
   buildAppMenu()
