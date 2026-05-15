@@ -11,7 +11,8 @@ vi.mock('../../hooks/useScreenWebcamShare', () => ({
   },
 }))
 
-import { useChat } from '../useChat'
+import { useChat, detectEmptyResponseError } from '../useChat'
+import type { UserMessage } from '../../types/chatMessages'
 import { useChatTimelineStore } from '../useChatTimelineStore'
 import { useChatUIStore } from '../useChatUIStore'
 import { useCompressionStore } from '../useCompressionStore'
@@ -303,6 +304,81 @@ describe('useChat slice', () => {
 
       await vi.advanceTimersByTimeAsync(250)
       await promise
+    })
+
+    it('detectEmptyResponseError returns null when the response has content', () => {
+      const userMsg: UserMessage = {
+        id: 'u1',
+        role: 'user',
+        content: 'hi',
+        timestamp: 0,
+      }
+      const result = detectEmptyResponseError({
+        response: { content: 'reply', modifiedFiles: [] },
+        lastMessageId: 'u1',
+        userMsg,
+        hasAttachment: false,
+        isManaged: false,
+      })
+      expect(result).toBeNull()
+    })
+
+    it('detectEmptyResponseError hint for an attachment + local model points at vision-capable alternatives', () => {
+      const userMsg: UserMessage = {
+        id: 'u1',
+        role: 'user',
+        content: 'look',
+        timestamp: 0,
+        attachments: [
+          { kind: 'screen', dataUrl: 'data:image/jpeg;base64,xx', mimeType: 'image/jpeg' },
+        ],
+      }
+      const result = detectEmptyResponseError({
+        response: { content: '', modifiedFiles: [] },
+        lastMessageId: 'u1',
+        userMsg,
+        hasAttachment: true,
+        isManaged: false,
+      })
+      expect(result).toContain('Error: The model returned an empty response.')
+      expect(result).toContain('vision-capable model')
+    })
+
+    it('detectEmptyResponseError hint for an attachment + managed host mentions server image support', () => {
+      const userMsg: UserMessage = {
+        id: 'u1',
+        role: 'user',
+        content: 'look',
+        timestamp: 0,
+        attachments: [
+          { kind: 'screen', dataUrl: 'data:image/jpeg;base64,xx', mimeType: 'image/jpeg' },
+        ],
+      }
+      const result = detectEmptyResponseError({
+        response: { content: '', modifiedFiles: [] },
+        lastMessageId: 'u1',
+        userMsg,
+        hasAttachment: true,
+        isManaged: true,
+      })
+      expect(result).toContain('Server image support is coming soon')
+    })
+
+    it('detectEmptyResponseError with no attachment returns the bare error (no hint suffix)', () => {
+      const userMsg: UserMessage = {
+        id: 'u1',
+        role: 'user',
+        content: 'hi',
+        timestamp: 0,
+      }
+      const result = detectEmptyResponseError({
+        response: { content: '', modifiedFiles: [] },
+        lastMessageId: 'u1',
+        userMsg,
+        hasAttachment: false,
+        isManaged: false,
+      })
+      expect(result).toBe('Error: The model returned an empty response.')
     })
 
     it('clearForProjectSwitch() wipes the chat-related slice state', () => {
