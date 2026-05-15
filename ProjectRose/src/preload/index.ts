@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipcChannels'
 import type { FileNode, RecentProject, ToolMeta } from '../shared/types'
 import type { Message } from '../shared/roseModelTypes'
+import { sessionIpc } from '../main/services/sessionService.ipc'
 
 const api = {
   // Theme
@@ -345,42 +346,7 @@ const api = {
   },
 
   // Chat Sessions
-  session: {
-    list: (rootPath: string): Promise<Array<{ id: string; title: string; createdAt: number; updatedAt: number }>> =>
-      ipcRenderer.invoke(IPC.SESSION_LIST, rootPath),
-    load: (
-      rootPath: string,
-      sessionId: string
-    ): Promise<{
-      id: string
-      title: string
-      createdAt: number
-      updatedAt: number
-      messages: unknown[]
-      compressedMessages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
-      compressedAt?: number
-      compressedFromCount?: number
-      compressedFromRawCount?: number
-    } | null> =>
-      ipcRenderer.invoke(IPC.SESSION_LOAD, rootPath, sessionId),
-    save: (
-      rootPath: string,
-      session: {
-        id: string
-        title: string
-        createdAt: number
-        updatedAt: number
-        messages: unknown[]
-        compressedMessages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
-        compressedAt?: number
-        compressedFromCount?: number
-        compressedFromRawCount?: number
-      }
-    ): Promise<void> =>
-      ipcRenderer.invoke(IPC.SESSION_SAVE, rootPath, session),
-    delete: (rootPath: string, sessionId: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.SESSION_DELETE, rootPath, sessionId)
-  },
+  session: sessionIpc.bindings,
 
   // Tools + Project settings
   tools: {

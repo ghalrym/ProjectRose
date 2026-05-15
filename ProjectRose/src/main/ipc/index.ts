@@ -8,7 +8,6 @@ import { registerRoseSetupHandlers } from './roseSetupHandlers'
 import { registerSettingsHandlers } from './settingsHandlers'
 import { registerWhisperHandlers } from './whisperHandlers'
 import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
-import { registerSessionHandlers } from './sessionHandlers'
 import { registerProjectSettingsHandlers } from './projectSettingsHandlers'
 import { registerExtensionHandlers } from './extensionHandlers'
 import { registerAuthHandlers } from './authHandlers'
@@ -16,6 +15,10 @@ import { registerSkillHandlers } from './skillHandlers'
 import { registerUpdaterHandlers } from './updaterHandlers'
 import { registerPromptHandlers } from './promptHandlers'
 import { registerScreenHandlers } from './screenHandlers'
+
+import { sessionIpc } from '../services/sessionService.ipc'
+import { listSessions, loadSession, saveSession, deleteSession } from '../services/sessionService'
+
 export function registerAllHandlers(): void {
   registerFileHandlers()
   registerDialogHandlers()
@@ -27,7 +30,6 @@ export function registerAllHandlers(): void {
   registerSettingsHandlers()
   registerWhisperHandlers()
   registerActiveSpeechHandlers()
-  registerSessionHandlers()
   registerProjectSettingsHandlers()
   registerExtensionHandlers()
   registerAuthHandlers()
@@ -35,4 +37,16 @@ export function registerAllHandlers(): void {
   registerUpdaterHandlers()
   registerPromptHandlers()
   registerScreenHandlers()
+}
+
+// Wires up every typed-manifest namespace. Coexists with registerAllHandlers
+// for the duration of the migration; each slice moves one service from the
+// switchboard above into this one.
+export function registerIpcManifests(): void {
+  sessionIpc.register({
+    list: listSessions,
+    load: loadSession,
+    save: saveSession,
+    delete: deleteSession
+  })
 }

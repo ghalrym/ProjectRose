@@ -67,12 +67,6 @@ export const IPC = {
   LSP_STARTED: 'lsp:started',
   LSP_STOPPED: 'lsp:stopped',
 
-  // Chat Sessions
-  SESSION_LIST: 'session:list',
-  SESSION_LOAD: 'session:load',
-  SESSION_SAVE: 'session:save',
-  SESSION_DELETE: 'session:delete',
-
   // Extensions
   EXTENSION_LIST: 'extension:list',
   EXTENSION_INSTALL_FROM_GIT: 'extension:installFromGit',
