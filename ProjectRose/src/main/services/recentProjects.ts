@@ -28,6 +28,10 @@ export function getRecentProjects(): RecentProject[] {
   return load()
 }
 
+export function getDefaultProjectPath(): string {
+  return join(app.getPath('home'), '.rose')
+}
+
 export function addRecentProject(projectPath: string): RecentProject[] {
   const projects = load().filter((p) => p.path !== projectPath)
   const name = projectPath.replace(/\\/g, '/').split('/').pop() || projectPath

@@ -1,13 +1,15 @@
+// Channels listed here are either:
+//   (a) event broadcasts (main → renderer via webContents.send + renderer-side
+//       `onX` subscriptions), or
+//   (b) handled by hand-written handlers that earn their keep — see
+//       dialog/terminal/lsp/screen handlers plus the SKILLS_UPLOAD and
+//       APP_QUIT one-offs.
+//
+// Request/response channels for service surfaces are derived from
+// `defineIpc(namespace, methods)` manifests and do NOT appear here. If you
+// add a new service method, declare it in `<service>.ipc.ts` instead of
+// inventing a constant here.
 export const IPC = {
-  FILE_READ: 'file:read',
-  FILE_WRITE: 'file:write',
-  FILE_CREATE: 'file:create',
-  FILE_DELETE: 'file:delete',
-  FILE_DELETE_DIR: 'file:deleteDir',
-  FILE_RENAME: 'file:rename',
-  FILE_CREATE_DIR: 'file:createDir',
-  FILE_READ_DIR_TREE: 'file:readDirTree',
-
   DIALOG_OPEN_FOLDER: 'dialog:openFolder',
   DIALOG_OPEN_FILE: 'dialog:openFile',
   DIALOG_SAVE_FILE: 'dialog:saveFile',
@@ -21,31 +23,15 @@ export const IPC = {
 
   WATCHER_CHANGE: 'watcher:change',
 
-  PROJECTS_GET_RECENT: 'projects:getRecent',
-  PROJECTS_ADD_RECENT: 'projects:addRecent',
-  PROJECTS_REMOVE_RECENT: 'projects:removeRecent',
-  PROJECTS_GET_DEFAULT_PATH: 'projects:getDefaultPath',
-
   APP_QUIT: 'app:quit',
-
-  ROSE_CHECK_MD: 'rose:checkMd',
-  ROSE_INIT_PROJECT: 'rose:initProject',
-  ROSE_ENSURE_SCAFFOLD: 'rose:ensureScaffold',
-
-  SETTINGS_GET: 'settings:get',
-  SETTINGS_SET: 'settings:set',
-
-  HEALTH_CHECK_ALL: 'health:checkAll',
-
-  WHISPER_TRANSCRIBE: 'whisper:transcribe',
 
   INDEXING_PROJECT: 'indexing:project',
   INDEXING_PROGRESS: 'indexing:progress',
 
-  AI_CHAT: 'ai:chat',
-  AI_CONTEXT_STATUS: 'ai:contextStatus',
-  AI_COMPRESS_TOOL_NOISE: 'ai:compressToolNoise',
-  AI_GET_SYSTEM_PROMPT: 'ai:getSystemPrompt',
+  // AI event broadcasts (main → renderer). Request channels — chat,
+  // contextStatus, compressToolNoise, getSystemPrompt, cancel,
+  // askUserResponse, captureScreenshotResult — are declared by
+  // services/aiService.ipc.ts.
   AI_MODEL_SELECTED: 'ai:modelSelected',
   AI_STREAM_RESET: 'ai:streamReset',
   AI_FILE_MODIFIED: 'ai:fileModified',
@@ -53,12 +39,9 @@ export const IPC = {
   AI_TOOL_CALL_END: 'ai:toolCallEnd',
   AI_THINKING: 'ai:thinking',
   AI_TOKEN: 'ai:token',
-  AI_CANCEL: 'ai:cancel',
   AI_ASK_USER: 'ai:askUser',
-  AI_ASK_USER_RESPONSE: 'ai:askUserResponse',
   AI_INJECTED_MESSAGE: 'ai:injectedMessage',
   AI_CAPTURE_SCREENSHOT: 'ai:captureScreenshot',
-  AI_CAPTURE_SCREENSHOT_RESULT: 'ai:captureScreenshotResult',
 
   LSP_PY_TO_SERVER: 'lsp:py:toServer',
   LSP_PY_FROM_SERVER: 'lsp:py:fromServer',
@@ -67,69 +50,21 @@ export const IPC = {
   LSP_STARTED: 'lsp:started',
   LSP_STOPPED: 'lsp:stopped',
 
-  // Chat Sessions
-  SESSION_LIST: 'session:list',
-  SESSION_LOAD: 'session:load',
-  SESSION_SAVE: 'session:save',
-  SESSION_DELETE: 'session:delete',
-
-  // Extensions
-  EXTENSION_LIST: 'extension:list',
-  EXTENSION_INSTALL_FROM_GIT: 'extension:installFromGit',
-  EXTENSION_INSTALL_FROM_DISK: 'extension:installFromDisk',
-  // Two-step install: preview reads the manifest from a temp clone/copy and
-  // returns it without finalising. The renderer shows the user what the
-  // extension declares it'll do, then either confirms (build + move into
-  // place) or cancels (delete temp).
-  EXTENSION_INSTALL_PREVIEW_FROM_GIT: 'extension:installPreviewFromGit',
-  EXTENSION_INSTALL_PREVIEW_FROM_DISK: 'extension:installPreviewFromDisk',
-  EXTENSION_INSTALL_CONFIRM: 'extension:installConfirm',
-  EXTENSION_INSTALL_CANCEL: 'extension:installCancel',
-  EXTENSION_UNINSTALL: 'extension:uninstall',
-  EXTENSION_ENABLE: 'extension:enable',
-  EXTENSION_DISABLE: 'extension:disable',
-  EXTENSION_LOAD_RENDERER: 'extension:loadRenderer',
-  EXTENSION_LOAD_MAIN: 'extension:loadMain',
-
-  // Skills
-  SKILLS_LIST: 'skills:list',
+  // Skills (SKILLS_UPLOAD stays — dialog needs to anchor to the caller window;
+  // list and delete are now declared via services/skillService.ipc.ts.)
   SKILLS_UPLOAD: 'skills:upload',
-  SKILLS_DELETE: 'skills:delete',
 
-  // Prompts (ROSE.md + per-extension system-prompt overrides)
-  PROMPTS_READ_ROSE: 'prompts:readRose',
-  PROMPTS_WRITE_ROSE: 'prompts:writeRose',
-  PROMPTS_LIST_EXTENSION: 'prompts:listExtension',
-  PROMPTS_READ_EXTENSION: 'prompts:readExtension',
-  PROMPTS_WRITE_EXTENSION: 'prompts:writeExtension',
-  PROMPTS_RESET_EXTENSION: 'prompts:resetExtension',
-
-  // Account auth
-  AUTH_LOGIN: 'auth:login',
-  AUTH_LOGOUT: 'auth:logout',
-  AUTH_CANCEL: 'auth:cancel',
-  AUTH_GET_STATUS: 'auth:getStatus',
-  AUTH_GET_USAGE: 'auth:getUsage',
+  // Account auth event broadcasts (main → renderer). Request channels are
+  // declared by services/authService.ipc.ts.
   AUTH_CHANGED: 'auth:changed',
   AUTH_PAIRING_PENDING: 'auth:pairingPending',
 
-  // Active Listening — session lifecycle
-  ACTIVE_LISTENING_OPEN_SESSION: 'activeSpeech:openSession',
+  // Active Listening — only the fire-and-forget and event-broadcast channels
+  // live in the enum now; the eleven invoke channels are declared by
+  // services/speech/activeSpeechService.ipc.ts.
   ACTIVE_LISTENING_SEND_CHUNK: 'activeSpeech:sendChunk',
-  ACTIVE_LISTENING_CLOSE_SESSION: 'activeSpeech:closeSession',
-  ACTIVE_LISTENING_DRAFT: 'activeSpeech:draft',
   ACTIVE_LISTENING_CANCEL_DRAFT: 'activeSpeech:cancelDraft',
-
-  // Speaker management + session history
-  ACTIVE_LISTENING_LABEL_SPEAKER: 'activeSpeech:labelSpeaker',
-  ACTIVE_LISTENING_TRAIN: 'activeSpeech:train',
-  ACTIVE_LISTENING_TRAIN_STATUS: 'activeSpeech:trainStatus',
-  ACTIVE_LISTENING_TRAIN_HISTORY: 'activeSpeech:trainHistory',
-  ACTIVE_LISTENING_GET_SPEAKERS: 'activeSpeech:getSpeakers',
-  ACTIVE_LISTENING_CREATE_SPEAKER: 'activeSpeech:createSpeaker',
-  ACTIVE_LISTENING_ADD_SAMPLE: 'activeSpeech:addSample',
-  ACTIVE_LISTENING_GET_UTTERANCES: 'activeSpeech:getUtterances',
-  ACTIVE_LISTENING_GET_SESSIONS: 'activeSpeech:getSessions',
+  ACTIVE_LISTENING_DRAFT: 'activeSpeech:draft',
   ACTIVE_LISTENING_UTTERANCE: 'activeSpeech:utterance',
 
   // Screen / window capture for chat share-screen
@@ -139,11 +74,9 @@ export const IPC = {
   // Status bar notifications (main → renderer)
   STATUS_NOTIFY: 'status:notify',
 
-  // Auto-updater
-  UPDATER_CHECK: 'updater:check',
-  UPDATER_DOWNLOAD: 'updater:download',
-  UPDATER_INSTALL: 'updater:install',
-  UPDATER_SKIP_VERSION: 'updater:skipVersion',
+  // Auto-updater event broadcasts (main → renderer). Request channels —
+  // check, download, install, skipVersion — are declared by the typed manifest
+  // in services/updaterService.ipc.ts.
   UPDATER_AVAILABLE: 'updater:available',
   UPDATER_NOT_AVAILABLE: 'updater:notAvailable',
   UPDATER_PROGRESS: 'updater:progress',

@@ -1,6 +1,6 @@
 import { routeRequest } from './llmClient'
 import { loadSession } from '../lib/session'
-import type { AppSettings, ModelConfig } from '../ipc/settingsHandlers'
+import type { AppSettings, ModelConfig } from './settingsService'
 
 /**
  * Pick the model to run a chat turn with.

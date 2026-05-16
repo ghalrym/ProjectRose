@@ -1,9 +1,7 @@
-import { ipcMain } from 'electron'
 import { join } from 'path'
 import { writeFile, mkdir, access } from 'fs/promises'
 import { execSync } from 'child_process'
-import { IPC } from '../../shared/ipcChannels'
-import { readSettings, writeSettings } from './settingsHandlers'
+import { readSettings, writeSettings } from './settingsService'
 import { prPath } from '../lib/projectPaths'
 
 const AUTONOMY_TEXT: Record<string, string> = {
@@ -107,57 +105,57 @@ async function touch(p: string): Promise<void> {
   await writeFile(p, '', { flag: 'wx' }).catch(() => {})
 }
 
-export function registerRoseSetupHandlers(): void {
-  ipcMain.handle(IPC.ROSE_CHECK_MD, async (_event, rootPath: string) => {
-    try {
-      await access(prPath(rootPath, 'ROSE.md'))
-      return true
-    } catch {
-      return false
-    }
-  })
+export interface InitProjectPayload {
+  rootPath: string
+  name: string
+  identity: string
+  autonomy: string
+  userName: string
+  commStyle: string
+  depth: string
+  proactivity: string
+}
 
-  ipcMain.handle(
-    IPC.ROSE_INIT_PROJECT,
-    async (_event, payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string; commStyle: string; depth: string; proactivity: string }) => {
-      const { rootPath, name, identity, autonomy, userName, commStyle = 'direct', depth = 'adaptive', proactivity = 'balanced' } = payload
+export async function checkRoseMd(rootPath: string): Promise<boolean> {
+  try {
+    await access(prPath(rootPath, 'ROSE.md'))
+    return true
+  } catch {
+    return false
+  }
+}
 
-      // Persist userName and agentName to settings
-      const current = await readSettings()
-      await writeSettings({ ...current, userName: userName.trim(), agentName: name.trim() })
+export async function ensureRoseScaffold(rootPath: string): Promise<void> {
+  const dirs = [
+    prPath(rootPath, 'heartbeat', 'tasks'),
+    prPath(rootPath, 'heartbeat', 'logs')
+  ]
+  for (const dir of dirs) {
+    await mkdirSafe(dir)
+    await touch(join(dir, '.gitkeep'))
+  }
+}
 
-      // Write ROSE.md
-      await writeFile(prPath(rootPath, 'ROSE.md'), buildRoseMd(name, identity, autonomy, userName, commStyle, depth, proactivity), 'utf-8')
+export async function initRoseProject(payload: InitProjectPayload): Promise<void> {
+  const { rootPath, name, identity, autonomy, userName, commStyle = 'direct', depth = 'adaptive', proactivity = 'balanced' } = payload
 
-      // Create scaffold directories
-      const dirs = [
-        prPath(rootPath, 'heartbeat', 'tasks'),
-        prPath(rootPath, 'heartbeat', 'logs')
-      ]
-      for (const dir of dirs) {
-        await mkdirSafe(dir)
-        await touch(join(dir, '.gitkeep'))
-      }
+  const current = await readSettings()
+  await writeSettings({ ...current, userName: userName.trim(), agentName: name.trim() })
 
-      // Init git repo and make the first commit
-      try {
-        execSync('git init', { cwd: rootPath, stdio: 'ignore' })
-        execSync('git add .projectrose/', { cwd: rootPath, stdio: 'ignore' })
-        execSync('git commit -m "Initialize agent home"', { cwd: rootPath, stdio: 'ignore' })
-      } catch {
-        // git may not be installed or the directory may already be a repo with conflicts
-      }
-    }
+  await writeFile(
+    prPath(rootPath, 'ROSE.md'),
+    buildRoseMd(name, identity, autonomy, userName, commStyle, depth, proactivity),
+    'utf-8'
   )
 
-  ipcMain.handle(IPC.ROSE_ENSURE_SCAFFOLD, async (_event, rootPath: string) => {
-    const dirs = [
-      prPath(rootPath, 'heartbeat', 'tasks'),
-      prPath(rootPath, 'heartbeat', 'logs')
-    ]
-    for (const dir of dirs) {
-      await mkdirSafe(dir)
-      await touch(join(dir, '.gitkeep'))
-    }
-  })
+  await ensureRoseScaffold(rootPath)
+
+  // git may not be installed or the directory may already be a repo with conflicts
+  try {
+    execSync('git init', { cwd: rootPath, stdio: 'ignore' })
+    execSync('git add .projectrose/', { cwd: rootPath, stdio: 'ignore' })
+    execSync('git commit -m "Initialize agent home"', { cwd: rootPath, stdio: 'ignore' })
+  } catch {
+    // ignored
+  }
 }

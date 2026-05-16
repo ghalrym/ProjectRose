@@ -1,9 +1,9 @@
 import { platform } from 'os'
 import { readFile } from 'fs/promises'
 import { prPath } from '../lib/projectPaths'
-import { readSettings } from '../ipc/settingsHandlers'
-import { buildRoseMd } from '../ipc/roseSetupHandlers'
-import { loadExtensionPrompts } from '../ipc/promptHandlers'
+import { readSettings } from './settingsService'
+import { buildRoseMd } from './roseSetupService'
+import { loadExtensionPrompts } from './promptService'
 
 /**
  * Compose the system prompt for a chat turn.

@@ -2,7 +2,7 @@ import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createWindow, setQuitting } from './window'
 import { createTray, destroyTray } from './tray'
-import { registerAllHandlers } from './ipc'
+import { registerAllHandlers, registerIpcManifests } from './ipc'
 import { attachDisplayMediaHandler } from './ipc/screenHandlers'
 import { buildAppMenu } from './menu'
 import { disposeAllTerminals } from './services/terminalService'
@@ -85,6 +85,7 @@ app.whenReady().then(async () => {
     buildSkillTools(ctx.rootPath, ctx.toolCtx.sessionId, ctx.emit)
   )
   registerAllHandlers()
+  registerIpcManifests()
   attachDisplayMediaHandler()
   buildAppMenu()
   createWindow()

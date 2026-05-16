@@ -28,7 +28,7 @@ import { reconcileToolCatalog, type ToolCatalogDrift } from '../extensions/recon
 // (llmClient/subagentTools/skillService import the registry; the registry
 // imports their types but not their runtime modules).
 import type { AgentContext, SubagentCounter } from './agentRunner'
-import type { ModelConfig } from '../ipc/settingsHandlers'
+import type { ModelConfig } from './settingsService'
 import type { ProviderKeys } from './llmClient'
 
 export type EmitFn = (channel: string, payload: unknown) => void

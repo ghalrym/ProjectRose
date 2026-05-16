@@ -1,8 +1,7 @@
-import { ipcMain, app } from 'electron'
+import { app } from 'electron'
 import { join, dirname } from 'path'
 import { readFile, writeFile, mkdir } from 'fs/promises'
-import { IPC } from '../../shared/ipcChannels'
-import { serviceStatus } from '../services/serviceStatus'
+import { serviceStatus } from './serviceStatus'
 
 export interface ModelConfig {
   id: string
@@ -152,18 +151,24 @@ export async function writeSettings(settings: AppSettings, rootPath?: string): P
 }
 
 
-export function registerSettingsHandlers(): void {
-  ipcMain.handle(IPC.SETTINGS_GET, (_event, rootPath?: string) => readSettings(rootPath))
+export async function applySettingsPatch(
+  patch: Partial<AppSettings>,
+  rootPath?: string
+): Promise<AppSettings> {
+  const current = await readSettings(rootPath)
+  const updated = { ...current, ...patch }
+  await writeSettings(updated, rootPath)
+  return updated
+}
 
-  ipcMain.handle(IPC.SETTINGS_SET, async (_event, patch: Partial<AppSettings>, rootPath?: string) => {
-    const current = await readSettings(rootPath)
-    const updated = { ...current, ...patch }
-    await writeSettings(updated, rootPath)
-    return updated
-  })
+export interface ServiceHealth {
+  name: string
+  url: string
+  status: 'up' | 'down'
+  latency?: number
+}
 
-  ipcMain.handle(IPC.HEALTH_CHECK_ALL, async () => {
-    serviceStatus.roseSpeech = true
-    return []
-  })
+export async function checkServicesHealth(): Promise<ServiceHealth[]> {
+  serviceStatus.roseSpeech = true
+  return []
 }

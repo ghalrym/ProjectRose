@@ -18,7 +18,7 @@ import {
 } from './toolHandlers'
 import type { ExtensionToolCtx } from '../../shared/extension-types'
 import type { Message } from '../../shared/roseModelTypes'
-import type { ModelConfig, RouterConfig } from '../ipc/settingsHandlers'
+import type { ModelConfig, RouterConfig } from './settingsService'
 import type { InjectionRecord } from '../../shared/extensionHooks'
 import { fireThoughtHook, fireMessageHook, fireTokenHook } from './extensionHooks'
 import { loadSession } from '../lib/session'

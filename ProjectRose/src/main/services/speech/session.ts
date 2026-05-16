@@ -73,14 +73,14 @@ export type WhisperModelProvider = () => Promise<string>
 const defaultWhisperModelProvider: WhisperModelProvider = async () => {
   // Deferred import so this module can be loaded under vitest, which has no
   // Electron runtime (settingsHandlers depends on electron transitively).
-  const { readSettings } = await import('../../ipc/settingsHandlers')
+  const { readSettings } = await import('../settingsService')
   const settings = await readSettings()
   return settings.whisperModel
 }
 
 const defaultDraftSettingsProvider: DraftSettingsProvider = async () => {
   // Deferred import — see note on defaultWhisperModelProvider.
-  const { readSettings } = await import('../../ipc/settingsHandlers')
+  const { readSettings } = await import('../settingsService')
   const settings = await readSettings()
   return {
     agentName: settings.agentName,

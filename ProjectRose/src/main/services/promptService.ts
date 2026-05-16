@@ -1,10 +1,8 @@
-import { ipcMain } from 'electron'
 import { readFile, writeFile, mkdir, rm, access } from 'fs/promises'
 import { resolve, sep } from 'path'
-import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
-import { listInstalledExtensions } from './extensionHandlers'
-import { readProjectSettings } from './projectSettingsHandlers'
+import { listInstalledExtensions } from './extensionService'
+import { readProjectSettings } from './projectSettingsService'
 
 function userPromptPath(rootPath: string, extId: string): string {
   return prPath(rootPath, 'prompts', `${extId}.md`)
@@ -87,7 +85,7 @@ export interface ExtensionPromptListEntry {
   hasUserFile: boolean
 }
 
-async function listExtensionPrompts(rootPath: string): Promise<ExtensionPromptListEntry[]> {
+export async function listExtensionPrompts(rootPath: string): Promise<ExtensionPromptListEntry[]> {
   const installed = await listInstalledExtensions(rootPath)
   const rows: ExtensionPromptListEntry[] = []
   for (const inst of installed) {
@@ -103,7 +101,7 @@ async function listExtensionPrompts(rootPath: string): Promise<ExtensionPromptLi
       name: inst.manifest.name,
       extensionEnabled: inst.enabled,
       hasDefault,
-      hasUserFile,
+      hasUserFile
     })
   }
   return rows
@@ -114,7 +112,7 @@ export interface ExtensionPromptRead {
   source: 'user' | 'default' | 'none'
 }
 
-async function readExtensionPrompt(rootPath: string, extId: string): Promise<ExtensionPromptRead> {
+export async function readExtensionPrompt(rootPath: string, extId: string): Promise<ExtensionPromptRead> {
   const installed = await listInstalledExtensions(rootPath)
   const inst = installed.find((e) => e.manifest.id === extId)
   if (!inst) return { content: '', source: 'none' }
@@ -148,35 +146,25 @@ async function assertKnownExtension(rootPath: string, extId: string): Promise<vo
   }
 }
 
-export function registerPromptHandlers(): void {
-  ipcMain.handle(IPC.PROMPTS_READ_ROSE, async (_ev, rootPath: string): Promise<string> => {
-    try {
-      return await readFile(prPath(rootPath, 'ROSE.md'), 'utf-8')
-    } catch {
-      return ''
-    }
-  })
+export async function readRosePrompt(rootPath: string): Promise<string> {
+  try {
+    return await readFile(prPath(rootPath, 'ROSE.md'), 'utf-8')
+  } catch {
+    return ''
+  }
+}
 
-  ipcMain.handle(IPC.PROMPTS_WRITE_ROSE, async (_ev, rootPath: string, content: string): Promise<void> => {
-    await writeFile(prPath(rootPath, 'ROSE.md'), content, 'utf-8')
-  })
+export async function writeRosePrompt(rootPath: string, content: string): Promise<void> {
+  await writeFile(prPath(rootPath, 'ROSE.md'), content, 'utf-8')
+}
 
-  ipcMain.handle(IPC.PROMPTS_LIST_EXTENSION, async (_ev, rootPath: string): Promise<ExtensionPromptListEntry[]> => {
-    return listExtensionPrompts(rootPath)
-  })
+export async function writeExtensionPrompt(rootPath: string, extId: string, content: string): Promise<void> {
+  await assertKnownExtension(rootPath, extId)
+  await mkdir(prPath(rootPath, 'prompts'), { recursive: true })
+  await writeFile(userPromptPath(rootPath, extId), content, 'utf-8')
+}
 
-  ipcMain.handle(IPC.PROMPTS_READ_EXTENSION, async (_ev, rootPath: string, extId: string): Promise<ExtensionPromptRead> => {
-    return readExtensionPrompt(rootPath, extId)
-  })
-
-  ipcMain.handle(IPC.PROMPTS_WRITE_EXTENSION, async (_ev, rootPath: string, extId: string, content: string): Promise<void> => {
-    await assertKnownExtension(rootPath, extId)
-    await mkdir(prPath(rootPath, 'prompts'), { recursive: true })
-    await writeFile(userPromptPath(rootPath, extId), content, 'utf-8')
-  })
-
-  ipcMain.handle(IPC.PROMPTS_RESET_EXTENSION, async (_ev, rootPath: string, extId: string): Promise<void> => {
-    await assertKnownExtension(rootPath, extId)
-    await rm(userPromptPath(rootPath, extId), { force: true })
-  })
+export async function resetExtensionPrompt(rootPath: string, extId: string): Promise<void> {
+  await assertKnownExtension(rootPath, extId)
+  await rm(userPromptPath(rootPath, extId), { force: true })
 }

@@ -2,6 +2,20 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipcChannels'
 import type { FileNode, RecentProject, ToolMeta } from '../shared/types'
 import type { Message } from '../shared/roseModelTypes'
+import { sessionIpc } from '../main/services/sessionService.ipc'
+import { promptIpc } from '../main/services/promptService.ipc'
+import { skillIpc } from '../main/services/skillService.ipc'
+import { fileIpc } from '../main/services/fileService.ipc'
+import { recentProjectsIpc } from '../main/services/recentProjects.ipc'
+import { settingsIpc, healthIpc } from '../main/services/settingsService.ipc'
+import { projectSettingsIpc, toolsIpc } from '../main/services/projectSettingsService.ipc'
+import { roseSetupIpc } from '../main/services/roseSetupService.ipc'
+import { whisperIpc } from '../main/services/whisperService.ipc'
+import { updaterIpc } from '../main/services/updaterService.ipc'
+import { authIpc } from '../main/services/authService.ipc'
+import { aiIpc } from '../main/services/aiService.ipc'
+import { activeSpeechIpc } from '../main/services/speech/activeSpeechService.ipc'
+import { extensionIpc } from '../main/services/extensionService.ipc'
 
 const api = {
   // Theme
@@ -31,29 +45,18 @@ const api = {
     return () => { ipcRenderer.removeListener('menu:save', handler) }
   },
 
-  readFile: (filePath: string): Promise<string> =>
-    ipcRenderer.invoke(IPC.FILE_READ, filePath),
-
+  // File operations — kept flat on api.* to avoid a renderer-side churn slice;
+  // a follow-up can namespace them under api.file.
+  readFile: fileIpc.bindings.read,
   writeFile: (filePath: string, content: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.FILE_WRITE, { filePath, content }),
-
-  createFile: (filePath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.FILE_CREATE, filePath),
-
-  deleteFile: (filePath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.FILE_DELETE, filePath),
-
-  deleteDirectory: (dirPath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.FILE_DELETE_DIR, dirPath),
-
+    fileIpc.bindings.write({ filePath, content }),
+  createFile: fileIpc.bindings.create,
+  deleteFile: fileIpc.bindings.delete,
+  deleteDirectory: fileIpc.bindings.deleteDir,
   renameFile: (oldPath: string, newPath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.FILE_RENAME, { oldPath, newPath }),
-
-  createDirectory: (dirPath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.FILE_CREATE_DIR, dirPath),
-
-  readDirectoryTree: (dirPath: string): Promise<FileNode | null> =>
-    ipcRenderer.invoke(IPC.FILE_READ_DIR_TREE, dirPath),
+    fileIpc.bindings.rename({ oldPath, newPath }),
+  createDirectory: fileIpc.bindings.createDir,
+  readDirectoryTree: fileIpc.bindings.readDirTree,
 
   openFolderDialog: (): Promise<string | null> =>
     ipcRenderer.invoke(IPC.DIALOG_OPEN_FOLDER),
@@ -102,61 +105,29 @@ const api = {
     }
   },
 
-  getRecentProjects: (): Promise<RecentProject[]> =>
-    ipcRenderer.invoke(IPC.PROJECTS_GET_RECENT),
+  getRecentProjects: recentProjectsIpc.bindings.getRecent,
+  getDefaultProjectPath: recentProjectsIpc.bindings.getDefaultPath,
 
-  getDefaultProjectPath: (): Promise<string> =>
-    ipcRenderer.invoke(IPC.PROJECTS_GET_DEFAULT_PATH),
+  checkRoseMd: roseSetupIpc.bindings.checkMd,
+  ensureScaffold: roseSetupIpc.bindings.ensureScaffold,
+  initProject: roseSetupIpc.bindings.initProject,
 
-  checkRoseMd: (rootPath: string): Promise<boolean> =>
-    ipcRenderer.invoke(IPC.ROSE_CHECK_MD, rootPath),
+  getSettings: settingsIpc.bindings.get,
+  setSettings: settingsIpc.bindings.set,
+  checkServicesHealth: healthIpc.bindings.checkAll,
 
-  ensureScaffold: (rootPath: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.ROSE_ENSURE_SCAFFOLD, rootPath),
+  transcribeAudio: whisperIpc.bindings.transcribe,
 
-  initProject: (payload: { rootPath: string; name: string; identity: string; autonomy: string; userName: string; commStyle: string; depth: string; proactivity: string }): Promise<void> =>
-    ipcRenderer.invoke(IPC.ROSE_INIT_PROJECT, payload),
-
-  getSettings: (rootPath?: string): Promise<Record<string, unknown>> =>
-    ipcRenderer.invoke(IPC.SETTINGS_GET, rootPath),
-
-  setSettings: (patch: Record<string, unknown>, rootPath?: string): Promise<Record<string, unknown>> =>
-    ipcRenderer.invoke(IPC.SETTINGS_SET, patch, rootPath),
-
-  checkServicesHealth: (): Promise<Array<{ name: string; url: string; status: 'up' | 'down'; latency?: number }>> =>
-    ipcRenderer.invoke(IPC.HEALTH_CHECK_ALL),
-
-  transcribeAudio: (audioBuffer: ArrayBuffer): Promise<string> =>
-    ipcRenderer.invoke(IPC.WHISPER_TRANSCRIBE, audioBuffer),
-
-  // Active Listening / RoseSpeech
+  // Active Listening / RoseSpeech — invoke methods come from the manifest;
+  // sendChunk / cancelDraft are fire-and-forget (ipcRenderer.send) and the
+  // onUtterance / onDraft subscriptions are event broadcasts. Both stay
+  // hand-written.
   activeSpeech: {
-    getSpeakers: (projectPath: string): Promise<Array<{ id: number; name: string; created_at: string }>> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_GET_SPEAKERS, projectPath),
-    createSpeaker: (payload: { name: string; projectPath: string }): Promise<{ id: number; name: string }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_CREATE_SPEAKER, payload),
-    addSample: (payload: { speakerId: number; source: string; audioBuffer: ArrayBuffer; projectId?: string; projectPath: string }): Promise<{ id: number }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_ADD_SAMPLE, payload),
-    labelSpeaker: (payload: { utteranceId: number; speakerId?: number; speakerName?: string; projectPath: string }): Promise<{ ok: boolean; speaker_id: number }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_LABEL_SPEAKER, payload),
-    train: (projectPath: string): Promise<{ job_id: number }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_TRAIN, projectPath),
-    trainStatus: (payload: { jobId: number; projectPath: string }): Promise<{ status: string; accuracy: number | null; deployed: boolean; error: string | null }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_TRAIN_STATUS, payload),
-    trainHistory: (projectPath: string): Promise<Array<{ id: number; accuracy: number; is_active: boolean; trained_at: string; sample_count: number; notes: string | null }>> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_TRAIN_HISTORY, projectPath),
-    openSession: (payload: { projectPath: string; projectId?: string }): Promise<{ sessionId: number }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_OPEN_SESSION, payload),
+    ...activeSpeechIpc.bindings,
     sendChunk: (payload: { sessionId: number; audioBuffer: ArrayBuffer }): void =>
       ipcRenderer.send(IPC.ACTIVE_LISTENING_SEND_CHUNK, payload),
-    closeSession: (payload: { sessionId: number; projectPath: string }): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_CLOSE_SESSION, payload),
     cancelDraft: (payload: { sessionId: number }): void =>
       ipcRenderer.send(IPC.ACTIVE_LISTENING_CANCEL_DRAFT, payload),
-    getUtterances: (payload: { sessionId: number; projectPath: string }): Promise<Array<{ id: number; text: string; speaker_name: string | null; speaker_id: number | null; created_at: string }>> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_GET_UTTERANCES, payload),
-    getSessions: (projectPath: string): Promise<Array<{ id: number; project_id: string | null; started_at: string; ended_at: string | null; utterance_count: number }>> =>
-      ipcRenderer.invoke(IPC.ACTIVE_LISTENING_GET_SESSIONS, projectPath),
     onUtterance: (callback: (evt: { sessionId: number; utterance_id: number; speaker_name: string | null; text: string }) => void): (() => void) => {
       const handler = (_e: unknown, evt: { sessionId: number; utterance_id: number; speaker_name: string | null; text: string }): void => callback(evt)
       ipcRenderer.on(IPC.ACTIVE_LISTENING_UTTERANCE, handler)
@@ -169,19 +140,17 @@ const api = {
     }
   },
 
-  addRecentProject: (projectPath: string): Promise<RecentProject[]> =>
-    ipcRenderer.invoke(IPC.PROJECTS_ADD_RECENT, projectPath),
-
-  removeRecentProject: (projectPath: string): Promise<RecentProject[]> =>
-    ipcRenderer.invoke(IPC.PROJECTS_REMOVE_RECENT, projectPath),
+  addRecentProject: recentProjectsIpc.bindings.addRecent,
+  removeRecentProject: recentProjectsIpc.bindings.removeRecent,
 
   quitApp: (): Promise<void> =>
     ipcRenderer.invoke(IPC.APP_QUIT),
 
-  // AI
-  aiChat: (messages: Message[], rootPath: string, sessionId: string): Promise<{ content: string; modifiedFiles: string[]; modelDisplay: string }> =>
-    ipcRenderer.invoke(IPC.AI_CHAT, { messages, rootPath, sessionId }),
-
+  // AI — request methods wrap the manifest payload-style bindings into the
+  // existing positional renderer API. Event subscriptions stay hand-written
+  // below (broadcasts aren't manifest-covered).
+  aiChat: (messages: Message[], rootPath: string, sessionId: string) =>
+    aiIpc.bindings.chat({ messages, rootPath, sessionId }),
   aiContextStatus: (
     rootPath: string,
     messages: Array<Record<string, unknown>>,
@@ -190,21 +159,10 @@ const api = {
       compressedFromCount: number
       compressedFromRawCount: number
     } | null
-  ): Promise<{ estimatedTokens: number; contextLength: number; percentUsed: number; totalToolSteps: number }> =>
-    ipcRenderer.invoke(IPC.AI_CONTEXT_STATUS, { rootPath, messages, compression }),
-
-  aiCompressToolNoise: (
-    rootPath: string,
-    messages: Array<Record<string, unknown>>
-  ): Promise<{
-    compressedMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
-    compressedFromCount: number
-    compressedFromRawCount: number
-  } | null> =>
-    ipcRenderer.invoke(IPC.AI_COMPRESS_TOOL_NOISE, { rootPath, messages }),
-
-  aiGetSystemPrompt: (rootPath: string): Promise<string> =>
-    ipcRenderer.invoke(IPC.AI_GET_SYSTEM_PROMPT, rootPath),
+  ) => aiIpc.bindings.contextStatus({ rootPath, messages, compression }),
+  aiCompressToolNoise: (rootPath: string, messages: Array<Record<string, unknown>>) =>
+    aiIpc.bindings.compressToolNoise({ rootPath, messages }),
+  aiGetSystemPrompt: aiIpc.bindings.getSystemPrompt,
 
   onAiFileModified: (callback: (data: { path: string }) => void): (() => void) => {
     const handler = (_event: unknown, data: { path: string }): void => callback(data)
@@ -249,7 +207,7 @@ const api = {
   },
 
   aiCancelGeneration: (sessionId: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.AI_CANCEL, { sessionId }),
+    aiIpc.bindings.cancel({ sessionId }),
 
   onAiAskUser: (callback: (data: { sessionId: string; questionId: string; question: string; options: string[] }) => void): (() => void) => {
     const handler = (_e: unknown, data: { sessionId: string; questionId: string; question: string; options: string[] }): void => callback(data)
@@ -257,8 +215,8 @@ const api = {
     return () => { ipcRenderer.removeListener(IPC.AI_ASK_USER, handler) }
   },
 
-  aiAskUserResponse: (sessionId: string, questionId: string, answer: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.AI_ASK_USER_RESPONSE, { sessionId, questionId, answer }),
+  aiAskUserResponse: (sessionId: string, questionId: string, answer: string) =>
+    aiIpc.bindings.askUserResponse({ sessionId, questionId, answer }),
 
   onAiInjectedMessage: (callback: (data: { sessionId: string; extensionId: string; extensionName: string; extensionIcon?: string; content: string }) => void): (() => void) => {
     const handler = (_e: unknown, data: { sessionId: string; extensionId: string; extensionName: string; extensionIcon?: string; content: string }): void => callback(data)
@@ -280,8 +238,7 @@ const api = {
     result:
       | { ok: true; dataUrl: string; mode: 'screen' | 'webcam'; sourceLabel: string | null }
       | { ok: false; reason: string }
-  ): Promise<void> =>
-    ipcRenderer.invoke(IPC.AI_CAPTURE_SCREENSHOT_RESULT, { sessionId, requestId, result }),
+  ) => aiIpc.bindings.captureScreenshotResult({ sessionId, requestId, result }),
 
   // Indexing / LSP startup
   indexProject: (rootPath: string): Promise<{ indexed: number; total: number; error?: string }> =>
@@ -345,121 +302,27 @@ const api = {
   },
 
   // Chat Sessions
-  session: {
-    list: (rootPath: string): Promise<Array<{ id: string; title: string; createdAt: number; updatedAt: number }>> =>
-      ipcRenderer.invoke(IPC.SESSION_LIST, rootPath),
-    load: (
-      rootPath: string,
-      sessionId: string
-    ): Promise<{
-      id: string
-      title: string
-      createdAt: number
-      updatedAt: number
-      messages: unknown[]
-      compressedMessages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
-      compressedAt?: number
-      compressedFromCount?: number
-      compressedFromRawCount?: number
-    } | null> =>
-      ipcRenderer.invoke(IPC.SESSION_LOAD, rootPath, sessionId),
-    save: (
-      rootPath: string,
-      session: {
-        id: string
-        title: string
-        createdAt: number
-        updatedAt: number
-        messages: unknown[]
-        compressedMessages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
-        compressedAt?: number
-        compressedFromCount?: number
-        compressedFromRawCount?: number
-      }
-    ): Promise<void> =>
-      ipcRenderer.invoke(IPC.SESSION_SAVE, rootPath, session),
-    delete: (rootPath: string, sessionId: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.SESSION_DELETE, rootPath, sessionId)
-  },
+  session: sessionIpc.bindings,
 
-  // Tools + Project settings
-  tools: {
-    list: (rootPath: string): Promise<ToolMeta[]> =>
-      ipcRenderer.invoke('tools:list', rootPath)
-  },
+  // Tools + Project settings — the hard-coded channel strings ('tools:list',
+  // 'project:getSettings', 'project:setSettings') that used to live here are
+  // gone; the manifest derives them from namespace + method.
+  tools: toolsIpc.bindings,
+  project: projectSettingsIpc.bindings,
 
-  project: {
-    getSettings: (rootPath: string): Promise<{ disabledTools: string[]; disabledPrompts: string[] }> =>
-      ipcRenderer.invoke('project:getSettings', rootPath),
-    setSettings: (
-      rootPath: string,
-      patch: { disabledTools?: string[]; disabledPrompts?: string[] }
-    ): Promise<{ disabledTools: string[]; disabledPrompts: string[] }> =>
-      ipcRenderer.invoke('project:setSettings', rootPath, patch)
-  },
-
-  prompts: {
-    readRose: (rootPath: string): Promise<string> =>
-      ipcRenderer.invoke(IPC.PROMPTS_READ_ROSE, rootPath),
-    writeRose: (rootPath: string, content: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.PROMPTS_WRITE_ROSE, rootPath, content),
-    listExtension: (
-      rootPath: string
-    ): Promise<Array<{ id: string; name: string; extensionEnabled: boolean; hasDefault: boolean; hasUserFile: boolean }>> =>
-      ipcRenderer.invoke(IPC.PROMPTS_LIST_EXTENSION, rootPath),
-    readExtension: (
-      rootPath: string,
-      extId: string
-    ): Promise<{ content: string; source: 'user' | 'default' | 'none' }> =>
-      ipcRenderer.invoke(IPC.PROMPTS_READ_EXTENSION, rootPath, extId),
-    writeExtension: (rootPath: string, extId: string, content: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.PROMPTS_WRITE_EXTENSION, rootPath, extId, content),
-    resetExtension: (rootPath: string, extId: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.PROMPTS_RESET_EXTENSION, rootPath, extId)
-  },
+  prompts: promptIpc.bindings,
 
   // Extensions
-  extension: {
-    list: (rootPath: string): Promise<{ installed: import('../shared/extension-types').InstalledExtension[] }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_LIST, rootPath),
-    installFromGit: (rootPath: string, url: string): Promise<{ ok: boolean; error?: string; manifest?: import('../shared/extension-types').ExtensionManifest }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_FROM_GIT, rootPath, url),
-    installFromDisk: (rootPath: string, sourcePath: string): Promise<{ ok: boolean; error?: string; warning?: string; manifest?: import('../shared/extension-types').ExtensionManifest }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_FROM_DISK, rootPath, sourcePath),
-    installPreviewFromGit: (rootPath: string, url: string): Promise<{ ok: boolean; error?: string; token?: string; manifest?: import('../shared/extension-types').ExtensionManifest }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_PREVIEW_FROM_GIT, rootPath, url),
-    installPreviewFromDisk: (rootPath: string, sourcePath: string): Promise<{ ok: boolean; error?: string; token?: string; manifest?: import('../shared/extension-types').ExtensionManifest }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_PREVIEW_FROM_DISK, rootPath, sourcePath),
-    installConfirm: (token: string): Promise<{ ok: boolean; error?: string; warning?: string; manifest?: import('../shared/extension-types').ExtensionManifest }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_CONFIRM, token),
-    installCancel: (token: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_INSTALL_CANCEL, token),
-    uninstall: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_UNINSTALL, rootPath, id),
-    enable: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_ENABLE, rootPath, id),
-    disable: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_DISABLE, rootPath, id),
-    loadRendererCode: (rootPath: string, id: string): Promise<{ ok: boolean; code: string | null; css?: string | null }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_LOAD_RENDERER, rootPath, id),
-    loadMainModule: (rootPath: string, id: string): Promise<{ ok: boolean }> =>
-      ipcRenderer.invoke(IPC.EXTENSION_LOAD_MAIN, rootPath, id)
-  },
+  extension: extensionIpc.bindings,
 
-  // Account auth
+  // Account auth — request methods from the manifest; event subscriptions
+  // (onChanged, onPairingPending) stay hand-written.
   auth: {
-    login: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.AUTH_LOGIN),
-    logout: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.AUTH_LOGOUT),
-    cancel: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.AUTH_CANCEL),
-    getStatus: (): Promise<{ loggedIn: boolean; email: string; name: string; avatar: string }> =>
-      ipcRenderer.invoke(IPC.AUTH_GET_STATUS),
-    getUsage: (): Promise<
-      | { ok: true; usage: { plan: string; plan_budget_usd: number; month_cost_usd: number; month_remaining_usd: number; pct: number; over_budget: boolean } }
-      | { ok: false; error: string }
-    > => ipcRenderer.invoke(IPC.AUTH_GET_USAGE),
+    login: authIpc.bindings.login,
+    logout: authIpc.bindings.logout,
+    cancel: authIpc.bindings.cancel,
+    getStatus: authIpc.bindings.getStatus,
+    getUsage: authIpc.bindings.getUsage,
     onChanged: (callback: (data: { loggedIn: boolean; email: string; name: string; avatar: string }) => void): (() => void) => {
       const handler = (_e: unknown, data: { loggedIn: boolean; email: string; name: string; avatar: string }): void => callback(data)
       ipcRenderer.on(IPC.AUTH_CHANGED, handler)
@@ -472,16 +335,13 @@ const api = {
     }
   },
 
-  // Auto-updater
+  // Auto-updater — request methods come from the manifest; the on* event
+  // subscriptions stay hand-written because broadcasts aren't manifest-covered.
   updater: {
-    checkForUpdates: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.UPDATER_CHECK),
-    downloadUpdate: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.UPDATER_DOWNLOAD),
-    installUpdate: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.UPDATER_INSTALL),
-    skipVersion: (version: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.UPDATER_SKIP_VERSION, version),
+    checkForUpdates: updaterIpc.bindings.check,
+    downloadUpdate: updaterIpc.bindings.download,
+    installUpdate: updaterIpc.bindings.install,
+    skipVersion: updaterIpc.bindings.skipVersion,
     onAvailable: (callback: (info: { version: string; releaseNotes: string | null }) => void): (() => void) => {
       const handler = (_e: unknown, info: { version: string; releaseNotes: string | null }): void => callback(info)
       ipcRenderer.on(IPC.UPDATER_AVAILABLE, handler)
@@ -517,14 +377,14 @@ const api = {
       ipcRenderer.invoke(IPC.SCREEN_SET_ACTIVE_SOURCE, sourceId)
   },
 
-  // Skills
+  // Skills — manifest bindings (list, delete) plus the hand-written upload
+  // handler that has to stay in main because it opens a file dialog anchored
+  // to the calling window. The merge pattern (spread bindings, then add
+  // hand-written entries) is the template later mixed-namespace slices copy.
   skills: {
-    list: (rootPath: string): Promise<{ name: string; description: string }[]> =>
-      ipcRenderer.invoke(IPC.SKILLS_LIST, rootPath),
+    ...skillIpc.bindings,
     upload: (rootPath: string): Promise<{ ok: boolean; canceled?: boolean; skills?: { name: string; description: string }[] }> =>
-      ipcRenderer.invoke(IPC.SKILLS_UPLOAD, rootPath),
-    delete: (rootPath: string, name: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.SKILLS_DELETE, rootPath, name)
+      ipcRenderer.invoke(IPC.SKILLS_UPLOAD, rootPath)
   },
 
   // Generic IPC bridge — used by dynamically-loaded extensions
