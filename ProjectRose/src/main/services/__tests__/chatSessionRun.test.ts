@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // All of these modules are pulled in by ChatSession.run() at load time and
 // would otherwise reach into the filesystem / Electron IPC. The stubs return
 // the minimum shape run() needs to walk the loop without crashing.
-vi.mock('../../ipc/settingsHandlers', () => ({
+vi.mock('../settingsService', () => ({
   readSettings: vi.fn(async () => ({
     userName: 'tester',
     agentName: 'rose',
@@ -25,10 +25,10 @@ vi.mock('../../ipc/settingsHandlers', () => ({
     includeThinkingInContext: false,
   })),
 }))
-vi.mock('../../ipc/projectSettingsHandlers', () => ({
+vi.mock('../projectSettingsService', () => ({
   readProjectSettings: vi.fn(async () => ({ disabledTools: [], disabledPrompts: [] })),
 }))
-vi.mock('../../ipc/extensionHandlers', () => ({
+vi.mock('../extensionService', () => ({
   listInstalledExtensions: vi.fn(async () => []),
 }))
 vi.mock('../extensionHooks', () => ({
