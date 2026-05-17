@@ -57,3 +57,5 @@ desktop.ini
 .cursor/
 .projectrose/
 ProjectRose/hf-models/
+RoseExtensions/rose-aws/
+docs/
