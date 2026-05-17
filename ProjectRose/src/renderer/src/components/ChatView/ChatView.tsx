@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { SessionSidebar } from './SessionSidebar'
 import { BloomStage } from './BloomStage'
 import { ChatPanel } from './ChatPanel'
+import { SessionPrepModal } from './SessionPrepModal'
 import { useActiveListen } from '../../hooks/useActiveListen'
 import { useActiveListeningStore } from '../../stores/useActiveListeningStore'
 import { useProjectStore } from '../../stores/useProjectStore'
@@ -18,6 +19,7 @@ export function ChatView(): JSX.Element {
       <SessionSidebar />
       {!isChatFullWidth && <BloomStage />}
       <ChatPanel />
+      <SessionPrepModal />
     </div>
   )
 }

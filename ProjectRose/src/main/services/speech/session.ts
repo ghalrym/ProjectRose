@@ -70,22 +70,31 @@ export type RecordingSink = (
  */
 export type WhisperModelProvider = () => Promise<string>
 
-const defaultWhisperModelProvider: WhisperModelProvider = async () => {
-  // Deferred import so this module can be loaded under vitest, which has no
-  // Electron runtime (settingsHandlers depends on electron transitively).
-  const { readSettings } = await import('../settingsService')
-  const settings = await readSettings()
-  return settings.whisperModel
+// agentName, whisperModel, etc. live in {rootPath}/.projectrose/config.json
+// (non-sensitive keys go to the repo config; the global userData file only
+// holds sensitive ones). So readSettings() with no rootPath returns the
+// hard-coded DEFAULT_SETTINGS — agentName='' would silently break the wake
+// word. Both providers below bind the session's projectPath at construction.
+function makeDefaultWhisperModelProvider(projectPath: string): WhisperModelProvider {
+  return async () => {
+    // Deferred import so this module can be loaded under vitest, which has no
+    // Electron runtime (settingsHandlers depends on electron transitively).
+    const { readSettings } = await import('../settingsService')
+    const settings = await readSettings(projectPath)
+    return settings.whisperModel
+  }
 }
 
-const defaultDraftSettingsProvider: DraftSettingsProvider = async () => {
-  // Deferred import — see note on defaultWhisperModelProvider.
-  const { readSettings } = await import('../settingsService')
-  const settings = await readSettings()
-  return {
-    agentName: settings.agentName,
-    roseSpeechSpeakerId: settings.roseSpeechSpeakerId,
-    activeListeningDraftSeconds: settings.activeListeningDraftSeconds
+function makeDefaultDraftSettingsProvider(projectPath: string): DraftSettingsProvider {
+  return async () => {
+    // Deferred import — see note on makeDefaultWhisperModelProvider.
+    const { readSettings } = await import('../settingsService')
+    const settings = await readSettings(projectPath)
+    return {
+      agentName: settings.agentName,
+      roseSpeechSpeakerId: settings.roseSpeechSpeakerId,
+      activeListeningDraftSeconds: settings.activeListeningDraftSeconds
+    }
   }
 }
 
@@ -138,10 +147,10 @@ export class SpeechSession {
     this.identifier = deps.identifier ?? defaultIdentifier
     this.saveRecording = deps.saveRecording ?? saveRecording
     this.emit = deps.emit ?? emitToRenderer
-    this.whisperModelProvider = deps.whisperModel ?? defaultWhisperModelProvider
+    this.whisperModelProvider = deps.whisperModel ?? makeDefaultWhisperModelProvider(this.projectPath)
 
     this.draftAssembler = deps.draftAssembler
-      ?? new DraftAssembler({ settings: deps.draftSettings ?? defaultDraftSettingsProvider })
+      ?? new DraftAssembler({ settings: deps.draftSettings ?? makeDefaultDraftSettingsProvider(this.projectPath) })
     this.draftAssembler.onDraft((evt) => this.handleDraft(evt))
 
     // Pre-warm the worker so the first chunk doesn't pay for boot.

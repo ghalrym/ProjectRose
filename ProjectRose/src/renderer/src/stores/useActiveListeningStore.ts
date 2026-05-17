@@ -32,6 +32,10 @@ interface ActiveListeningState {
   isDrafting: boolean
   draftText: string
   draftSecondsLeft: number | null
+  // True while main is warming the whisper + speaker-embedding models for a
+  // newly enabled session. Drives the "Preparing session…" modal.
+  preparing: boolean
+  prepError: string | null
 
   setActive: (v: boolean) => void
   setSessionId: (id: number | null) => void
@@ -69,6 +73,8 @@ export const useActiveListeningStore = create<ActiveListeningState>()((set, get)
   isDrafting: false,
   draftText: '',
   draftSecondsLeft: null,
+  preparing: false,
+  prepError: null,
 
   setActive: (v) => set({ isActive: v }),
   setSessionId: (id) => set({ sessionId: id }),
@@ -95,7 +101,9 @@ export const useActiveListeningStore = create<ActiveListeningState>()((set, get)
       draftText: '',
       draftSecondsLeft: null,
       sessionId: null,
-      viewingSessionId: null
+      viewingSessionId: null,
+      preparing: false,
+      prepError: null
     }),
   init: (projectPath, opts) => {
     let mounted = true
@@ -105,10 +113,19 @@ export const useActiveListeningStore = create<ActiveListeningState>()((set, get)
 
     ;(async () => {
       try {
+        set({ preparing: true, prepError: null })
+
+        const prep = await window.api.activeSpeech.prepareSession({ projectPath })
+        if (!mounted) return
+        if (!prep.ok) {
+          set({ preparing: false, prepError: prep.error ?? 'Failed to prepare session' })
+          return
+        }
+
         const { sessionId: id } = await window.api.activeSpeech.openSession({ projectPath })
         if (!mounted) return
         capturedSessionId = id
-        set({ sessionId: id, viewingSessionId: id, utterances: [] })
+        set({ sessionId: id, viewingSessionId: id, utterances: [], preparing: false, prepError: null })
 
         const fetchedSpeakers = await window.api.activeSpeech.getSpeakers(projectPath)
         if (mounted) set({ speakers: fetchedSpeakers })
@@ -135,8 +152,12 @@ export const useActiveListeningStore = create<ActiveListeningState>()((set, get)
             get().clearDraft()
           } else get().clearDraft()
         })
-      } catch {
-        /* session open failed silently */
+      } catch (err) {
+        if (!mounted) return
+        set({
+          preparing: false,
+          prepError: err instanceof Error ? err.message : 'Failed to prepare session'
+        })
       }
     })()
 
@@ -148,7 +169,7 @@ export const useActiveListeningStore = create<ActiveListeningState>()((set, get)
       if (sid !== null) {
         window.api.activeSpeech.closeSession({ sessionId: sid, projectPath }).catch(() => {})
       }
-      set({ sessionId: null })
+      set({ sessionId: null, preparing: false, prepError: null })
       get().clearDraft()
     }
   }

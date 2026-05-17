@@ -91,8 +91,8 @@ export class DraftAssembler {
       || settings.roseSpeechSpeakerId === null
       || speakerId === settings.roseSpeechSpeakerId
 
-    const wakeWord = settings.agentName
-    const hasWakeWord = Boolean(wakeWord)
+    const wakeWord = settings.agentName.trim()
+    const hasWakeWord = wakeWord.length > 0
       && utterance.text.toLowerCase().includes(wakeWord.toLowerCase())
 
     if (!this.isDrafting && isUser && hasWakeWord) {

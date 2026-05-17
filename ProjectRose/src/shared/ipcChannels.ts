@@ -74,6 +74,11 @@ export const IPC = {
   // Status bar notifications (main → renderer)
   STATUS_NOTIFY: 'status:notify',
 
+  // Whisper model install progress (main → renderer). The whisper request
+  // channels — transcribe, preloadModel, getPreloadStatus, clearPreloadStatus —
+  // are declared in services/whisperService.ipc.ts.
+  WHISPER_PRELOAD_PROGRESS: 'whisper:preloadProgress',
+
   // Auto-updater event broadcasts (main → renderer). Request channels —
   // check, download, install, skipVersion — are declared by the typed manifest
   // in services/updaterService.ipc.ts.

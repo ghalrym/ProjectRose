@@ -170,3 +170,40 @@ export function openSession(payload: { projectPath: string; projectId?: string }
 export async function closeSession(payload: { sessionId: number; projectPath: string }): Promise<{ ok: boolean }> {
   return closeSpeechSession(sessionRegistry, payload)
 }
+
+/**
+ * Warm both the whisper model the project is configured to use and the
+ * speaker-embedding model in the worker thread. Resolves once both are hot
+ * in worker memory, so the first audio chunk doesn't pay a multi-minute
+ * model-load tax that strands and drops the user's wake-word utterance.
+ *
+ * Called by the renderer when the user enables active listening; the
+ * "Preparing session…" modal stays up until this resolves.
+ */
+export async function prepareSession(payload: { projectPath: string }): Promise<{
+  ok: boolean
+  error?: string
+}> {
+  // Deferred imports — keeps this module loadable under vitest without
+  // Electron / worker_threads.
+  const { readSettings } = await import('../settingsService')
+  const { sharedTranscriptionWorker } = await import('./transcriptionWorkerHandle')
+
+  try {
+    const settings = await readSettings(payload.projectPath)
+    const worker = sharedTranscriptionWorker()
+
+    // Whisper first — it's the bigger model, and during its load the worker
+    // can't service speaker preload anyway because both jobs serialize
+    // through the worker queue.
+    const whisper = await worker.preload(settings.whisperModel)
+    if (!whisper.ok) return { ok: false, error: whisper.error ?? 'Whisper load failed' }
+
+    const speaker = await worker.preloadSpeaker()
+    if (!speaker.ok) return { ok: false, error: speaker.error ?? 'Speaker embedder load failed' }
+
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}

@@ -28,5 +28,6 @@ export const activeSpeechIpc = defineIpc('activeSpeech', {
     Array<{ id: number; project_id: string | null; started_at: string; ended_at: string | null; utterance_count: number }>
   >(),
   openSession: method<[payload: { projectPath: string; projectId?: string }], { sessionId: number }>(),
-  closeSession: method<[payload: { sessionId: number; projectPath: string }], { ok: boolean }>()
+  closeSession: method<[payload: { sessionId: number; projectPath: string }], { ok: boolean }>(),
+  prepareSession: method<[payload: { projectPath: string }], { ok: boolean; error?: string }>()
 })

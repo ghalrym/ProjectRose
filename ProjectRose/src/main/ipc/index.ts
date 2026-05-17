@@ -53,6 +53,11 @@ import { checkRoseMd, initRoseProject, ensureRoseScaffold } from '../services/ro
 
 import { whisperIpc } from '../services/whisperService.ipc'
 import { transcribeAudio } from '../services/whisperService'
+import {
+  preloadWhisperModel,
+  getPreloadStatus as getWhisperPreloadStatus,
+  clearPreloadStatus as clearWhisperPreloadStatus
+} from '../services/speech/modelPreloader'
 
 import { updaterIpc } from '../services/updaterService.ipc'
 import {
@@ -98,7 +103,8 @@ import {
   getUtterances,
   getSessions,
   openSession,
-  closeSession
+  closeSession,
+  prepareSession
 } from '../services/speech/activeSpeechService'
 
 // Hand-written handlers that don't fit the manifest pattern: dialog (needs
@@ -173,7 +179,10 @@ export function registerIpcManifests(): void {
     ensureScaffold: ensureRoseScaffold
   })
   whisperIpc.register({
-    transcribe: transcribeAudio
+    transcribe: transcribeAudio,
+    preloadModel: preloadWhisperModel,
+    getPreloadStatus: getWhisperPreloadStatus,
+    clearPreloadStatus: clearWhisperPreloadStatus
   })
   updaterIpc.register({
     check: checkForUpdatesNow,
@@ -213,7 +222,8 @@ export function registerIpcManifests(): void {
     getUtterances,
     getSessions,
     openSession,
-    closeSession
+    closeSession,
+    prepareSession
   })
   aiIpc.register({
     chat: ({ messages, rootPath, sessionId }) => chat(messages, rootPath, sessionId),

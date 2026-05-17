@@ -24,7 +24,7 @@ export function setModel(modelId: string): void {
   _pipelineModelId = null
 }
 
-async function getPipeline(): Promise<TranscriptionPipeline> {
+async function getPipeline(onProgress?: (data: unknown) => void): Promise<TranscriptionPipeline> {
   if (_pipeline && _pipelineModelId === _currentModelId) return _pipeline
 
   const { pipeline, env } = await import('@huggingface/transformers')
@@ -32,12 +32,36 @@ async function getPipeline(): Promise<TranscriptionPipeline> {
 
   console.log(`[Speech] Loading Whisper model ${_currentModelId} (first use — may take a moment)...`)
   _pipeline = (await pipeline('automatic-speech-recognition', _currentModelId, {
-    dtype: 'q8'
+    dtype: 'q8',
+    progress_callback: onProgress
   })) as unknown as TranscriptionPipeline
   _pipelineModelId = _currentModelId
   console.log('[Speech] Whisper ready')
 
   return _pipeline
+}
+
+/**
+ * Eagerly load the pipeline for a model. Used by the model-install flow so
+ * the worker has the weights hot in memory before the user starts active
+ * listening — without this, switching to a large model strands the first
+ * minute or two of audio chunks in the queue (and the queue drops them).
+ *
+ * Returns `alreadyCached: true` when no `progress` events fired (i.e. the
+ * weights were already on disk and read straight in).
+ */
+export async function loadModel(
+  modelId: string,
+  onProgress?: (data: unknown) => void
+): Promise<{ alreadyCached: boolean }> {
+  setModel(modelId)
+  let sawDownload = false
+  const wrapped = (data: unknown): void => {
+    if ((data as { status?: string })?.status === 'progress') sawDownload = true
+    onProgress?.(data)
+  }
+  await getPipeline(wrapped)
+  return { alreadyCached: !sawDownload }
 }
 
 // ~-40 dBFS. Silence and ambient noise sit well below this; normal speech well above.

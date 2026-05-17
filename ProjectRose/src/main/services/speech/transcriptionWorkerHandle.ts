@@ -14,6 +14,28 @@ interface PendingJob {
   reject: (e: Error) => void
 }
 
+export interface PreloadResult {
+  ok: boolean
+  alreadyCached: boolean
+  error?: string
+}
+
+interface PendingPreload {
+  resolve: (r: PreloadResult) => void
+  reject: (e: Error) => void
+  onProgress?: (data: unknown) => void
+}
+
+export interface SpeakerPreloadResult {
+  ok: boolean
+  error?: string
+}
+
+interface PendingSpeakerPreload {
+  resolve: (r: SpeakerPreloadResult) => void
+  reject: (e: Error) => void
+}
+
 /**
  * Minimal surface of `worker_threads.Worker` that this handle exercises.
  * Lets tests inject a fake without faking the entire Worker class.
@@ -42,6 +64,8 @@ export class TranscriptionWorkerHandle {
   private worker: WorkerLike | null = null
   private nextJobId = 0
   private pending = new Map<number, PendingJob>()
+  private pendingPreloads = new Map<number, PendingPreload>()
+  private pendingSpeakerPreloads = new Map<number, PendingSpeakerPreload>()
 
   constructor(private deps: TranscriptionWorkerHandleDeps) {}
 
@@ -57,9 +81,36 @@ export class TranscriptionWorkerHandle {
         text?: string | null
         embedding?: number[] | null
         message?: string
+        ok?: boolean
+        alreadyCached?: boolean
+        error?: string
+        data?: unknown
       }
       if (msg.type === 'log') { console.log(msg.message); return }
       if (msg.type === 'error') { console.error('[SpeechWorker]', msg.message); return }
+      if (msg.type === 'preloadProgress' && msg.jobId !== undefined) {
+        const p = this.pendingPreloads.get(msg.jobId)
+        try { p?.onProgress?.(msg.data) } catch { /* progress listeners are best-effort */ }
+        return
+      }
+      if (msg.type === 'preloadDone' && msg.jobId !== undefined) {
+        const p = this.pendingPreloads.get(msg.jobId)
+        if (!p) return
+        this.pendingPreloads.delete(msg.jobId)
+        p.resolve({
+          ok: msg.ok ?? false,
+          alreadyCached: msg.alreadyCached ?? false,
+          error: msg.error
+        })
+        return
+      }
+      if (msg.type === 'speakerPreloadDone' && msg.jobId !== undefined) {
+        const p = this.pendingSpeakerPreloads.get(msg.jobId)
+        if (!p) return
+        this.pendingSpeakerPreloads.delete(msg.jobId)
+        p.resolve({ ok: msg.ok ?? false, error: msg.error })
+        return
+      }
       if (msg.type !== 'result' || msg.jobId === undefined) return
 
       const job = this.pending.get(msg.jobId)
@@ -76,6 +127,14 @@ export class TranscriptionWorkerHandle {
         job.reject(new Error('Speech worker exited'))
       }
       this.pending.clear()
+      for (const p of this.pendingPreloads.values()) {
+        p.reject(new Error('Speech worker exited'))
+      }
+      this.pendingPreloads.clear()
+      for (const p of this.pendingSpeakerPreloads.values()) {
+        p.reject(new Error('Speech worker exited'))
+      }
+      this.pendingSpeakerPreloads.clear()
     })
 
     this.worker = w
@@ -107,6 +166,31 @@ export class TranscriptionWorkerHandle {
         audioBuffer: audioBuffer.slice(0),
         whisperModel
       })
+    })
+  }
+
+  /**
+   * Eagerly load a whisper model into the worker. Resolves when the pipeline
+   * is hot in worker memory. Progress events come through `onProgress`
+   * (matches transformers.js progress_callback shape).
+   */
+  preload(modelId: string, onProgress?: (data: unknown) => void): Promise<PreloadResult> {
+    const jobId = this.nextJobId++
+    return new Promise<PreloadResult>((resolve, reject) => {
+      this.pendingPreloads.set(jobId, { resolve, reject, onProgress })
+      this.getWorker().postMessage({ type: 'preloadModel', jobId, modelId })
+    })
+  }
+
+  /**
+   * Eagerly load the speaker-embedding model into the worker. Pairs with
+   * `preload()` to fully prepare the worker for an active-listening session.
+   */
+  preloadSpeaker(): Promise<SpeakerPreloadResult> {
+    const jobId = this.nextJobId++
+    return new Promise<SpeakerPreloadResult>((resolve, reject) => {
+      this.pendingSpeakerPreloads.set(jobId, { resolve, reject })
+      this.getWorker().postMessage({ type: 'preloadSpeakerEmbedder', jobId })
     })
   }
 }

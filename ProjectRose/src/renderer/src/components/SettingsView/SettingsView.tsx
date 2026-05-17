@@ -5,9 +5,19 @@ import { UpdatesTab } from './UpdatesTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useViewStore } from '../../stores/useViewStore'
+import { useWhisperPreloadStore } from '../../stores/useWhisperPreloadStore'
 import { subscribeToExtensionsChange } from '../../extensions/registry'
 import type { ModelConfig, ToolMeta } from '@shared/types'
 import styles from './SettingsView.module.css'
+import { WhisperModelInstallModal, type WhisperModelOption } from './WhisperModelInstallModal'
+import whisperModalStyles from './WhisperModelInstallModal.module.css'
+
+const WHISPER_MODEL_OPTIONS: WhisperModelOption[] = [
+  { id: 'Xenova/whisper-tiny.en',   label: 'Tiny (English) — fastest',            size: '40 MB'  },
+  { id: 'Xenova/whisper-base.en',   label: 'Base (English)',                      size: '150 MB' },
+  { id: 'Xenova/whisper-small.en',  label: 'Small (English) — recommended',       size: '500 MB' },
+  { id: 'Xenova/whisper-medium.en', label: 'Medium (English) — best quality',     size: '1.5 GB' }
+]
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -473,6 +483,78 @@ export function SettingsView(): JSX.Element {
   // ── behavior (local — store additions possible later) ──
   const [streamToolResults, setStreamToolResults] = useState(false)
 
+  // ── whisper model install modal ──
+  const preloadModelId = useWhisperPreloadStore((s) => s.modelId)
+  const preloadStatus = useWhisperPreloadStore((s) => s.status)
+  const preloadPercent = useWhisperPreloadStore((s) => s.percent)
+  const initPreload = useWhisperPreloadStore((s) => s.init)
+  const startPreload = useWhisperPreloadStore((s) => s.start)
+  const clearPreload = useWhisperPreloadStore((s) => s.clear)
+  const [pendingWhisperModel, setPendingWhisperModel] = useState<WhisperModelOption | null>(null)
+  const [installModalOpen, setInstallModalOpen] = useState(false)
+
+  useEffect(() => { void initPreload() }, [initPreload])
+
+  const activeWhisperOption = WHISPER_MODEL_OPTIONS.find((o) => o.id === preloadModelId) ?? null
+  const installInFlight =
+    activeWhisperOption !== null &&
+    (preloadStatus === 'preparing' || preloadStatus === 'downloading')
+
+  // Commits a finished install to the saved setting. Handles the case where
+  // the user backgrounded the modal (or navigated away) before completion.
+  useEffect(() => {
+    if (preloadStatus === 'ready' && preloadModelId && preloadModelId !== whisperModel) {
+      update({ whisperModel: preloadModelId })
+      void clearPreload()
+      setInstallModalOpen(false)
+      setPendingWhisperModel(null)
+    }
+  }, [preloadStatus, preloadModelId, whisperModel, update, clearPreload])
+
+  function handleWhisperModelChange(newId: string): void {
+    if (newId === whisperModel) return
+    const target = WHISPER_MODEL_OPTIONS.find((o) => o.id === newId)
+    if (!target) return
+    setPendingWhisperModel(target)
+    setInstallModalOpen(true)
+  }
+
+  async function handleWhisperInstallConfirm(): Promise<void> {
+    if (!pendingWhisperModel) return
+    await startPreload(pendingWhisperModel.id)
+    // start() resolves once the pipeline is loaded; the auto-commit effect
+    // above promotes status==='ready' into a saved setting + cleared store.
+  }
+
+  function handleWhisperInstallCancel(): void {
+    setInstallModalOpen(false)
+    setPendingWhisperModel(null)
+    if (preloadStatus === 'idle' || preloadStatus === 'error') {
+      void clearPreload()
+    }
+  }
+
+  function handleWhisperInstallHide(): void {
+    setInstallModalOpen(false)
+    // pendingWhisperModel stays so the dropdown still shows the in-flight pick.
+  }
+
+  function handleWhisperInstallComplete(): void {
+    const target = pendingWhisperModel ?? activeWhisperOption
+    if (target) update({ whisperModel: target.id })
+    setInstallModalOpen(false)
+    setPendingWhisperModel(null)
+    void clearPreload()
+  }
+
+  function reopenInstallModal(): void {
+    const target = pendingWhisperModel ?? activeWhisperOption
+    if (target) {
+      setPendingWhisperModel(target)
+      setInstallModalOpen(true)
+    }
+  }
+
   // ── skills ──
   const [skills, setSkills] = useState<{ name: string; description: string }[]>([])
 
@@ -881,18 +963,31 @@ export function SettingsView(): JSX.Element {
             <div className={styles.settingInfo}>
               <div className={styles.settingLabel}>Speech-to-text model</div>
               <div className={styles.settingDesc}>
-                Larger models transcribe more accurately but use more CPU. The new model downloads on its first use (~40 MB to ~1.5 GB depending on size) and is cached after.
+                Larger models transcribe more accurately but use more CPU. The model is downloaded once when you pick it (~40 MB to ~1.5 GB depending on size) and cached on disk after.
               </div>
+              {installInFlight && !installModalOpen && activeWhisperOption && (
+                <button
+                  type="button"
+                  className={whisperModalStyles.pill}
+                  onClick={reopenInstallModal}
+                  title="Show install progress"
+                >
+                  <span className={whisperModalStyles.pillDot} />
+                  Installing {activeWhisperOption.label} · {preloadPercent.toFixed(0)}%
+                </button>
+              )}
             </div>
             <select
               className={styles.select}
-              value={whisperModel}
-              onChange={(e) => update({ whisperModel: e.target.value })}
+              value={pendingWhisperModel?.id ?? whisperModel}
+              disabled={installInFlight}
+              onChange={(e) => handleWhisperModelChange(e.target.value)}
             >
-              <option value="Xenova/whisper-tiny.en">Tiny (English) — fastest, ~40 MB</option>
-              <option value="Xenova/whisper-base.en">Base (English) — ~150 MB</option>
-              <option value="Xenova/whisper-small.en">Small (English) — recommended, ~500 MB</option>
-              <option value="Xenova/whisper-medium.en">Medium (English) — best quality, ~1.5 GB</option>
+              {WHISPER_MODEL_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label} · ~{opt.size}
+                </option>
+              ))}
             </select>
           </div>
         </section>
@@ -1546,6 +1641,14 @@ export function SettingsView(): JSX.Element {
         </div>
       </div>
 
+      <WhisperModelInstallModal
+        open={installModalOpen}
+        targetModel={pendingWhisperModel}
+        onConfirm={handleWhisperInstallConfirm}
+        onCancel={handleWhisperInstallCancel}
+        onHide={handleWhisperInstallHide}
+        onComplete={handleWhisperInstallComplete}
+      />
     </div>
   )
 }

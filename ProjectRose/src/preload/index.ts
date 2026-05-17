@@ -118,6 +118,35 @@ const api = {
 
   transcribeAudio: whisperIpc.bindings.transcribe,
 
+  whisper: {
+    preloadModel: whisperIpc.bindings.preloadModel,
+    getPreloadStatus: whisperIpc.bindings.getPreloadStatus,
+    clearPreloadStatus: whisperIpc.bindings.clearPreloadStatus,
+    onPreloadProgress: (
+      callback: (payload: {
+        modelId: string | null
+        status: 'idle' | 'preparing' | 'downloading' | 'ready' | 'error'
+        percent: number
+        loaded: number
+        total: number
+        fileLabel: string
+        error: string
+      }) => void
+    ): (() => void) => {
+      const handler = (_e: unknown, payload: {
+        modelId: string | null
+        status: 'idle' | 'preparing' | 'downloading' | 'ready' | 'error'
+        percent: number
+        loaded: number
+        total: number
+        fileLabel: string
+        error: string
+      }): void => callback(payload)
+      ipcRenderer.on(IPC.WHISPER_PRELOAD_PROGRESS, handler)
+      return () => { ipcRenderer.removeListener(IPC.WHISPER_PRELOAD_PROGRESS, handler) }
+    }
+  },
+
   // Active Listening / RoseSpeech — invoke methods come from the manifest;
   // sendChunk / cancelDraft are fire-and-forget (ipcRenderer.send) and the
   // onUtterance / onDraft subscriptions are event broadcasts. Both stay
