@@ -7,7 +7,7 @@ import { spawn } from 'child_process'
 import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
 import { agentExtensionsDir, ensureAgentHome } from '../lib/agentHome'
-import { readSettings, writeSettings, registerSensitiveExtensionFields } from './settingsService'
+import { registerSensitiveExtensionFields } from './settingsService'
 import { runAgentOnce } from './aiService'
 import {
   registerHooks as registerExtensionHooks,
@@ -118,6 +118,27 @@ async function writeEnabledState(rootPath: string, id: string, enabled: boolean)
   await mkdir(overlayDir, { recursive: true })
   const statePath = join(overlayDir, 'state.json')
   await writeFile(statePath, JSON.stringify({ enabled }), 'utf-8')
+}
+
+// Per-workspace extension settings — the backing store for ctx.getSettings()
+// and ctx.updateSettings(). Distinct from AppSettings (agent-global host
+// settings) and from state.json (the enable flag).
+async function readExtensionSettings(rootPath: string, id: string): Promise<Record<string, unknown>> {
+  try {
+    const path = join(getWorkspaceExtensionsDir(rootPath), id, 'settings.json')
+    return JSON.parse(await readFile(path, 'utf-8')) as Record<string, unknown>
+  } catch {
+    return {}
+  }
+}
+
+async function writeExtensionSettings(rootPath: string, id: string, patch: Record<string, unknown>): Promise<void> {
+  const overlayDir = join(getWorkspaceExtensionsDir(rootPath), id)
+  await mkdir(overlayDir, { recursive: true })
+  const path = join(overlayDir, 'settings.json')
+  const current = await readExtensionSettings(rootPath, id)
+  const merged = { ...current, ...patch }
+  await writeFile(path, JSON.stringify(merged, null, 2), 'utf-8')
 }
 
 function runCommand(cmd: string, args: string[], cwd: string): Promise<void> {
@@ -300,11 +321,8 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
 
     const host: HostExtensionSurface = {
       rootPath,
-      getSettings: async () => readSettings(rootPath) as unknown as Record<string, unknown>,
-      updateSettings: async (patch: Record<string, unknown>) => {
-        const current = await readSettings(rootPath)
-        await writeSettings({ ...current, ...(patch as object) } as Parameters<typeof writeSettings>[0], rootPath)
-      },
+      getSettings: () => readExtensionSettings(rootPath, id),
+      updateSettings: (patch: Record<string, unknown>) => writeExtensionSettings(rootPath, id, patch),
       broadcast: (channel: string, data: unknown) => {
         for (const win of BrowserWindow.getAllWindows()) {
           if (!win.isDestroyed()) win.webContents.send(channel, data)

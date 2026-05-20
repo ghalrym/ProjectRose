@@ -123,10 +123,17 @@ export interface ExtensionMainContext {
   /** Absolute path to the currently-open project root. */
   rootPath: string
 
-  /** Read the host's merged settings object (sensitive fields are inlined). */
+  /**
+   * Read this extension's per-workspace settings object.
+   * Backed by <workspace>/.projectrose/extensions/<id>/settings.json. Other
+   * extensions cannot see these settings.
+   */
   getSettings: () => Promise<Record<string, unknown>>
 
-  /** Merge a patch into the host's settings. */
+  /**
+   * Merge a patch into this extension's per-workspace settings object.
+   * Backed by <workspace>/.projectrose/extensions/<id>/settings.json.
+   */
   updateSettings: (patch: Record<string, unknown>) => Promise<void>
 
   /** Send a message to all renderer windows on the given IPC channel. */
@@ -142,8 +149,11 @@ export interface ExtensionMainContext {
   registerTools: (tools: ExtensionToolEntry[]) => void
 
   /**
-   * Mark settings keys as sensitive so they're stored in userData/settings.json
-   * instead of the project repo config (where they could be committed).
+   * @deprecated No-op. Settings are now stored in per-workspace per-extension
+   * files (<workspace>/.projectrose/extensions/<id>/settings.json) and are
+   * never written to a shared store, so sensitive vs non-sensitive is no
+   * longer a host-side distinction. Calls are silently ignored.
+   * This method is scheduled for removal in a future release.
    */
   registerSensitiveFields: (keys: string[]) => void
 
