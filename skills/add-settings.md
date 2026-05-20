@@ -21,7 +21,7 @@ Missing the default value causes `undefined` to leak into the renderer on first 
 
 ## When to use flat AppSettings vs. namespaced extension settings
 
-**Use flat `AppSettings` fields** for core app settings that are not extension-specific (e.g. `heartbeatEnabled`, `userName`).
+**Use flat `AppSettings` fields** for core app settings that are not extension-specific (e.g. `userName`, `micDeviceId`).
 
 **Use the `extensions` namespace** for settings that belong to a specific extension. This avoids polluting `AppSettings` and keeps all extension state co-located:
 

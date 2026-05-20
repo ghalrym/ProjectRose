@@ -17,8 +17,6 @@ export interface RouterConfig {
 }
 
 export interface AppSettings {
-  heartbeatEnabled: boolean
-  heartbeatIntervalMinutes: number
   micDeviceId: string
   userName: string
   agentName: string
@@ -46,8 +44,6 @@ export interface AppSettings {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  heartbeatEnabled: true,
-  heartbeatIntervalMinutes: 5,
   micDeviceId: '',
   userName: '',
   agentName: '',

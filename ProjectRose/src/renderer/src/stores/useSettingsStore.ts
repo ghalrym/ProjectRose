@@ -4,8 +4,6 @@ import { useProjectStore } from './useProjectStore'
 import { useStatusStore } from './useStatusStore'
 
 interface SettingsState {
-  heartbeatEnabled: boolean
-  heartbeatIntervalMinutes: number
   micDeviceId: string
   userName: string
   agentName: string
@@ -37,8 +35,6 @@ let loadGeneration = 0
 let saveNotifyTimer: ReturnType<typeof setTimeout> | null = null
 
 export const useSettingsStore = create<SettingsState>()((set) => ({
-  heartbeatEnabled: true,
-  heartbeatIntervalMinutes: 5,
   micDeviceId: '',
   userName: '',
   agentName: 'Rose',
@@ -66,9 +62,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     const rootPath = useProjectStore.getState().rootPath ?? undefined
     const s = await window.api.getSettings(rootPath)
     if (gen !== loadGeneration) return
-    // Only mark loaded:true once we have a project rootPath.
-    // A rootPath-less load returns global defaults (heartbeatEnabled:true) which
-    // must not unblock the heartbeat before the project-specific settings arrive.
+    // Only mark loaded:true once we have a project rootPath. A rootPath-less
+    // load returns global defaults, which must not unblock project-scoped
+    // consumers (extension settings, hostMode, etc.) before the project's
+    // own config.json has been merged in.
     set({ ...s, loaded: rootPath !== undefined })
   },
 
