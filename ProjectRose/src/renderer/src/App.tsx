@@ -283,7 +283,7 @@ function App(): JSX.Element {
           />
         </div>
       )}
-      <main className={`${styles.mainContent} ${activeView === 'chat' ? styles.mainContentChat : ''} ${activeView === 'settings' ? styles.mainContentSettings : ''} ${activeView === 'editor' && isChatFullWidth ? styles.mainContentEditorFullWidth : ''}`}>
+      <main className={`${styles.mainContent} ${activeView === 'chat' ? styles.mainContentChat : ''} ${activeView === 'settings' ? styles.mainContentSettings : ''} ${activeView === 'editor' ? styles.mainContentEditor : ''} ${activeView === 'editor' && isChatFullWidth ? styles.mainContentEditorFullWidth : ''}`}>
         {!(activeView === 'editor' && isChatFullWidth) && (
           <div className={styles.viewArea}>
             {activeView === 'editor' && <EditorView />}

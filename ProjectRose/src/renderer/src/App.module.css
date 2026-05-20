@@ -46,6 +46,12 @@
   grid-template-columns: 1fr;
 }
 
+.mainContentEditor {
+  /* Marker class. Used by the FAB-shelf rule below to skip the viewArea
+     bottom shelf in editor mode, so the fob overlaps the editor content
+     rather than reserving space above it. */
+}
+
 .mainContentEditorFullWidth {
   grid-template-columns: 1fr;
 }
@@ -80,7 +86,7 @@
      left  : 50vw − offsetX − 356px
      right : offsetX − 50vw + 444px
 */
-.mainContent:not(.mainContentChat):not(.mainContentSettings) > .viewArea {
+.mainContent:not(.mainContentChat):not(.mainContentSettings):not(.mainContentEditor) > .viewArea {
   padding-bottom: clamp(0px, calc(50vw - var(--fab-offset-x, 0px) - 356px), 60px);
 }
 
