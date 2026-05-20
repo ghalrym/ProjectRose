@@ -6,6 +6,7 @@ import { createRequire } from 'module'
 import { spawn } from 'child_process'
 import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
+import { agentExtensionsDir, ensureAgentHome } from '../lib/agentHome'
 import { readSettings, writeSettings, registerSensitiveExtensionFields } from './settingsService'
 import { runAgentOnce } from './aiService'
 import {
@@ -26,12 +27,24 @@ import { buildContext, type HostExtensionSurface } from '../extensions/buildCont
 import { toolRegistry } from './toolRegistry'
 import { withAugmentedPath } from '../lib/childProcessEnv'
 
-function getExtensionsDir(rootPath: string): string {
+// Where the extension code lives — one copy per machine, shared across all
+// workspaces.
+function getInstallDir(): string {
+  return agentExtensionsDir()
+}
+
+async function ensureInstallDir(): Promise<void> {
+  await ensureAgentHome()
+}
+
+// Where per-workspace overlays live: enable/disable flag (state.json) and
+// per-workspace extension config (settings.json, added in a later commit).
+function getWorkspaceExtensionsDir(rootPath: string): string {
   return prPath(rootPath, 'extensions')
 }
 
-async function ensureExtensionsDir(rootPath: string): Promise<void> {
-  await mkdir(getExtensionsDir(rootPath), { recursive: true })
+async function ensureWorkspaceExtensionsDir(rootPath: string): Promise<void> {
+  await mkdir(getWorkspaceExtensionsDir(rootPath), { recursive: true })
 }
 
 interface ManifestReadOk {
@@ -86,18 +99,24 @@ function reportManifestWarnings(extensionId: string, warnings: ManifestValidatio
   broadcastStatus(`Extension "${extensionId}" manifest: ${summary}`, 'warning')
 }
 
+// Default state in a workspace with no overlay file is *disabled*. The
+// install flow opts the install-time workspace in by writing state.json
+// with enabled=true; every other workspace must toggle the extension on
+// explicitly. This matches ADR 0005 ("install once, opt in per project").
 async function readEnabledState(rootPath: string, id: string): Promise<boolean> {
   try {
-    const statePath = join(getExtensionsDir(rootPath), id, '.state.json')
+    const statePath = join(getWorkspaceExtensionsDir(rootPath), id, 'state.json')
     const raw = await readFile(statePath, 'utf-8')
-    return JSON.parse(raw).enabled !== false
+    return JSON.parse(raw).enabled === true
   } catch {
-    return true
+    return false
   }
 }
 
 async function writeEnabledState(rootPath: string, id: string, enabled: boolean): Promise<void> {
-  const statePath = join(getExtensionsDir(rootPath), id, '.state.json')
+  const overlayDir = join(getWorkspaceExtensionsDir(rootPath), id)
+  await mkdir(overlayDir, { recursive: true })
+  const statePath = join(overlayDir, 'state.json')
   await writeFile(statePath, JSON.stringify({ enabled }), 'utf-8')
 }
 
@@ -246,7 +265,7 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
   const key = `${rootPath}/${id}`
   if (loadedMains.has(key)) return
 
-  const installDir = join(getExtensionsDir(rootPath), id)
+  const installDir = join(getInstallDir(), id)
   const mainPath = join(installDir, 'main.js')
   if (!existsSync(mainPath)) return
 
@@ -404,19 +423,22 @@ function readManifestSync(extensionPath: string): ExtensionManifest | null {
 }
 
 export async function listInstalledExtensions(rootPath: string): Promise<InstalledExtension[]> {
+  // rootPath is required to look up the per-workspace enable state; without
+  // an open workspace there is no overlay to read against, so the answer is
+  // "no extensions are enabled here", which means an empty list.
   if (!rootPath) return []
-  const extensionsDir = getExtensionsDir(rootPath)
-  await mkdir(extensionsDir, { recursive: true })
+  await ensureInstallDir()
+  const installDir = getInstallDir()
   let entries: string[]
   try {
-    entries = await readdir(extensionsDir)
+    entries = await readdir(installDir)
   } catch {
     return []
   }
 
   const results: InstalledExtension[] = []
   for (const entry of entries) {
-    const extensionPath = join(extensionsDir, entry)
+    const extensionPath = join(installDir, entry)
     const manifest = await readManifest(extensionPath)
     if (!manifest) continue
     const enabled = await readEnabledState(rootPath, manifest.id)
@@ -449,15 +471,18 @@ async function finalizePendingInstall(pending: PendingInstall): Promise<{
   warning?: string
 }> {
   const { rootPath, tmpDir, manifest } = pending
-  const extensionsDir = getExtensionsDir(rootPath)
+  const installDir = getInstallDir()
   await buildExtension(tmpDir)
-  const destDir = join(extensionsDir, manifest.id)
+  const destDir = join(installDir, manifest.id)
   if (existsSync(destDir)) {
     unloadExtensionMainModule(rootPath, manifest.id)
     await rm(destDir, { recursive: true, force: true })
   }
   await rename(tmpDir, destDir)
   await applyDefaultDisabledTools(rootPath, manifest)
+  // Opt the install-time workspace in by default; every other workspace
+  // stays disabled until the user explicitly toggles it.
+  await writeEnabledState(rootPath, manifest.id, true)
   const warning = hasInstalledBundle(destDir)
     ? undefined
     : 'Installed, but no main.js or renderer.js was found. Run the extension\'s build (e.g. npm run build) and reinstall.'
@@ -486,9 +511,9 @@ export async function installFromGit(rootPath: string, url: string): Promise<Ins
   const trimmedUrl = String(url ?? '').trim()
   if (!trimmedUrl) return { ok: false, error: 'Repository URL is required' }
 
-  await ensureExtensionsDir(rootPath)
-  const extensionsDir = getExtensionsDir(rootPath)
-  const tmpDir = join(extensionsDir, `_clone_${Date.now()}`)
+  await ensureInstallDir()
+  const installDir = getInstallDir()
+  const tmpDir = join(installDir, `_clone_${Date.now()}`)
 
   try {
     await cloneRepo(trimmedUrl, tmpDir)
@@ -506,13 +531,14 @@ export async function installFromGit(rootPath: string, url: string): Promise<Ins
 
     await buildExtension(tmpDir)
 
-    const destDir = join(extensionsDir, manifest.id)
+    const destDir = join(installDir, manifest.id)
     if (existsSync(destDir)) {
       unloadExtensionMainModule(rootPath, manifest.id)
       await rm(destDir, { recursive: true, force: true })
     }
     await rename(tmpDir, destDir)
     await applyDefaultDisabledTools(rootPath, manifest)
+    await writeEnabledState(rootPath, manifest.id, true)
     return { ok: true, manifest }
   } catch (err) {
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
@@ -534,13 +560,13 @@ export async function installFromDisk(rootPath: string, sourcePath: string): Pro
   }
   if (!st.isDirectory()) return { ok: false, error: 'Source path is not a directory' }
 
-  await ensureExtensionsDir(rootPath)
-  const extensionsDir = getExtensionsDir(rootPath)
+  await ensureInstallDir()
+  const installDir = getInstallDir()
 
   // Prevent self-overwrite: if the user picked a folder inside the destination,
   // the rename step would try to move a directory onto itself.
-  const absExtensionsDir = resolvePath(extensionsDir)
-  if (absSource === absExtensionsDir || absSource.startsWith(absExtensionsDir + (process.platform === 'win32' ? '\\' : '/'))) {
+  const absInstallDir = resolvePath(installDir)
+  if (absSource === absInstallDir || absSource.startsWith(absInstallDir + (process.platform === 'win32' ? '\\' : '/'))) {
     return { ok: false, error: 'Cannot install from a folder inside the extensions directory' }
   }
 
@@ -553,7 +579,7 @@ export async function installFromDisk(rootPath: string, sourcePath: string): Pro
     return { ok: false, error: message }
   }
 
-  const tmpDir = join(extensionsDir, `_install_${Date.now()}`)
+  const tmpDir = join(installDir, `_install_${Date.now()}`)
   try {
     await copyLocalSource(absSource, tmpDir)
 
@@ -570,13 +596,14 @@ export async function installFromDisk(rootPath: string, sourcePath: string): Pro
 
     await buildExtension(tmpDir)
 
-    const destDir = join(extensionsDir, manifest.id)
+    const destDir = join(installDir, manifest.id)
     if (existsSync(destDir)) {
       unloadExtensionMainModule(rootPath, manifest.id)
       await rm(destDir, { recursive: true, force: true })
     }
     await rename(tmpDir, destDir)
     await applyDefaultDisabledTools(rootPath, manifest)
+    await writeEnabledState(rootPath, manifest.id, true)
 
     const warning = hasInstalledBundle(destDir)
       ? undefined
@@ -604,9 +631,9 @@ export async function installPreviewFromGit(rootPath: string, url: string): Prom
   const trimmedUrl = String(url ?? '').trim()
   if (!trimmedUrl) return { ok: false, error: 'Repository URL is required' }
 
-  await ensureExtensionsDir(rootPath)
-  const extensionsDir = getExtensionsDir(rootPath)
-  const tmpDir = join(extensionsDir, `_clone_${Date.now()}`)
+  await ensureInstallDir()
+  const installDir = getInstallDir()
+  const tmpDir = join(installDir, `_clone_${Date.now()}`)
 
   try {
     await cloneRepo(trimmedUrl, tmpDir)
@@ -631,7 +658,7 @@ export async function installPreviewFromGit(rootPath: string, url: string): Prom
 }
 
 // Preview install from a local folder. Copies into a temp directory under the
-// project's extensions dir (so the rename step on confirm is on the same
+// agent-global install dir (so the rename step on confirm is on the same
 // volume) and reads the manifest WITHOUT building or moving it into place.
 export async function installPreviewFromDisk(rootPath: string, sourcePath: string): Promise<InstallPreviewResult> {
   if (!rootPath) return { ok: false, error: 'No project open' }
@@ -647,10 +674,10 @@ export async function installPreviewFromDisk(rootPath: string, sourcePath: strin
   }
   if (!st.isDirectory()) return { ok: false, error: 'Source path is not a directory' }
 
-  await ensureExtensionsDir(rootPath)
-  const extensionsDir = getExtensionsDir(rootPath)
-  const absExtensionsDir = resolvePath(extensionsDir)
-  if (absSource === absExtensionsDir || absSource.startsWith(absExtensionsDir + (process.platform === 'win32' ? '\\' : '/'))) {
+  await ensureInstallDir()
+  const installDir = getInstallDir()
+  const absInstallDir = resolvePath(installDir)
+  if (absSource === absInstallDir || absSource.startsWith(absInstallDir + (process.platform === 'win32' ? '\\' : '/'))) {
     return { ok: false, error: 'Cannot install from a folder inside the extensions directory' }
   }
 
@@ -663,7 +690,7 @@ export async function installPreviewFromDisk(rootPath: string, sourcePath: strin
     return { ok: false, error: message }
   }
 
-  const tmpDir = join(extensionsDir, `_install_${Date.now()}`)
+  const tmpDir = join(installDir, `_install_${Date.now()}`)
   try {
     await copyLocalSource(absSource, tmpDir)
     const manifestRead = await readManifestStrict(tmpDir)
@@ -713,22 +740,23 @@ export async function installCancel(token: string): Promise<{ ok: boolean }> {
 
 export async function uninstallExtension(rootPath: string, id: string): Promise<{ ok: boolean }> {
   unloadExtensionMainModule(rootPath, id)
-  const extensionPath = join(getExtensionsDir(rootPath), id)
-  await rm(extensionPath, { recursive: true, force: true })
+  // Remove the agent-global install. Per-workspace overlays (state.json /
+  // settings.json) become orphaned, which is harmless — readEnabledState
+  // already treats a missing install as a no-op.
+  const installPath = join(getInstallDir(), id)
+  await rm(installPath, { recursive: true, force: true })
   return { ok: true }
 }
 
 export async function enableExtension(rootPath: string, id: string): Promise<{ ok: boolean }> {
-  await ensureExtensionsDir(rootPath)
-  await mkdir(join(getExtensionsDir(rootPath), id), { recursive: true })
+  await ensureWorkspaceExtensionsDir(rootPath)
   await writeEnabledState(rootPath, id, true)
   return { ok: true }
 }
 
 export async function disableExtension(rootPath: string, id: string): Promise<{ ok: boolean }> {
   unloadExtensionMainModule(rootPath, id)
-  await ensureExtensionsDir(rootPath)
-  await mkdir(join(getExtensionsDir(rootPath), id), { recursive: true })
+  await ensureWorkspaceExtensionsDir(rootPath)
   await writeEnabledState(rootPath, id, false)
   return { ok: true }
 }
@@ -739,8 +767,8 @@ export interface LoadRendererResult {
   css?: string | null
 }
 
-export async function loadRendererCode(rootPath: string, id: string): Promise<LoadRendererResult> {
-  const installDir = join(getExtensionsDir(rootPath), id)
+export async function loadRendererCode(_rootPath: string, id: string): Promise<LoadRendererResult> {
+  const installDir = join(getInstallDir(), id)
   let code: string | null = null
   let css: string | null = null
   try { code = await readFile(join(installDir, 'renderer.js'), 'utf-8') } catch { /* missing */ }
