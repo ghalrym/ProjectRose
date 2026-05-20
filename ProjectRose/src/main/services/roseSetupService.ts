@@ -1,8 +1,9 @@
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { writeFile, mkdir, access } from 'fs/promises'
 import { execSync } from 'child_process'
 import { readSettings, writeSettings } from './settingsService'
 import { prPath } from '../lib/projectPaths'
+import { agentRoseMdPath, ensureAgentHome } from '../lib/agentHome'
 
 const AUTONOMY_TEXT: Record<string, string> = {
   high: 'Once you have determined a task requires tool use, proceed without asking for confirmation between steps. Execute completely. Do not ask "shall I proceed?" — just act.',
@@ -116,9 +117,16 @@ export interface InitProjectPayload {
   proactivity: string
 }
 
-export async function checkRoseMd(rootPath: string): Promise<boolean> {
+/**
+ * True once the agent has been initialised — i.e. ~/.rose/ROSE.md exists.
+ * The rootPath parameter is retained for IPC back-compat but ignored;
+ * agent initialisation is a once-per-machine event, not per-workspace.
+ * The renderer uses this to decide whether to show the first-time setup
+ * wizard before opening any workspace UI.
+ */
+export async function checkRoseMd(_rootPath: string): Promise<boolean> {
   try {
-    await access(prPath(rootPath, 'ROSE.md'))
+    await access(agentRoseMdPath())
     return true
   } catch {
     return false
@@ -142,8 +150,12 @@ export async function initRoseProject(payload: InitProjectPayload): Promise<void
   const current = await readSettings()
   await writeSettings({ ...current, userName: userName.trim(), agentName: name.trim() })
 
+  // Agent identity is machine-level: the setup wizard's answers populate
+  // ~/.rose/ROSE.md, not a workspace ROSE.md. Workspace ROSE.md is optional
+  // and authored by the user when they want project-specific instructions.
+  await ensureAgentHome()
   await writeFile(
-    prPath(rootPath, 'ROSE.md'),
+    agentRoseMdPath(),
     buildRoseMd(name, identity, autonomy, userName, commStyle, depth, proactivity),
     'utf-8'
   )
@@ -158,4 +170,32 @@ export async function initRoseProject(payload: InitProjectPayload): Promise<void
   } catch {
     // ignored
   }
+}
+
+/**
+ * Idempotent: ensure ~/.rose/ exists with a default ROSE.md if one was never
+ * written. Called on app-ready before any window opens so the system prompt
+ * builder always has a file to read. If the user has not run the setup
+ * wizard yet, checkRoseMd() still returns false and the renderer routes them
+ * through it; the file we write here is only a placeholder.
+ */
+export async function ensureAgentRoseMd(): Promise<void> {
+  await ensureAgentHome()
+  const path = agentRoseMdPath()
+  try {
+    await access(path)
+    return
+  } catch { /* file missing — write a placeholder */ }
+  const settings = await readSettings().catch(() => ({ userName: '', agentName: '' }))
+  const body = buildRoseMd(
+    settings.agentName || 'Rose',
+    'A coding assistant embedded in the ProjectRose IDE.',
+    'high',
+    settings.userName || 'User',
+    'adaptive',
+    'adaptive',
+    'balanced'
+  )
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, body, { flag: 'wx' }).catch(() => { /* lost a race */ })
 }

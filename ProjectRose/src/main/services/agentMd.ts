@@ -1,6 +1,7 @@
 import { platform } from 'os'
 import { readFile } from 'fs/promises'
 import { prPath } from '../lib/projectPaths'
+import { agentRoseMdPath } from '../lib/agentHome'
 import { readSettings } from './settingsService'
 import { buildRoseMd } from './roseSetupService'
 import { loadExtensionPrompts } from './promptService'
@@ -11,6 +12,13 @@ import { loadExtensionPrompts } from './promptService'
  * Lives in its own module (rather than alongside the chat loop) so the
  * `ChatSession.run()` body and the `AI_GET_SYSTEM_PROMPT` IPC handler can
  * both reach it without forming an import cycle through `aiService.ts`.
+ *
+ * The prompt is composed of:
+ *   1. The agent's identity, from ~/.rose/ROSE.md (or a buildRoseMd fallback
+ *      if the agent home hasn't been initialised yet).
+ *   2. The workspace's optional ROSE.md at <workspace>/.projectrose/ROSE.md,
+ *      appended as a "## Project Operating Instructions" section if present.
+ *   3. Extension prompt contributions and the standard host blocks.
  */
 export async function buildAgentMd(rootPath: string): Promise<string> {
   const os = platform() === 'win32' ? 'Windows' : platform() === 'darwin' ? 'macOS' : 'Linux'
@@ -19,9 +27,9 @@ export async function buildAgentMd(rootPath: string): Promise<string> {
 
   let rose: string
   try {
-    rose = await readFile(prPath(rootPath, 'ROSE.md'), 'utf-8')
+    rose = await readFile(agentRoseMdPath(), 'utf-8')
   } catch {
-    const settings = await readSettings(rootPath).catch(() => ({ userName: '', agentName: '' }))
+    const settings = await readSettings().catch(() => ({ userName: '', agentName: '' }))
     rose = buildRoseMd(
       settings.agentName || 'Rose',
       'A coding assistant embedded in the ProjectRose IDE.',
@@ -31,6 +39,16 @@ export async function buildAgentMd(rootPath: string): Promise<string> {
       'adaptive',
       'balanced'
     )
+  }
+
+  let projectInstructions = ''
+  try {
+    const project = (await readFile(prPath(rootPath, 'ROSE.md'), 'utf-8')).trim()
+    if (project) {
+      projectInstructions = `\n## Project Operating Instructions\n\n${project}\n`
+    }
+  } catch {
+    /* no workspace ROSE.md is the common case */
   }
 
   let extensionPromptBlock = ''
@@ -48,7 +66,7 @@ export async function buildAgentMd(rootPath: string): Promise<string> {
   }
 
   return `${rose}
-${extensionPromptBlock}
+${projectInstructions}${extensionPromptBlock}
 ## Environment
 - Operating system: ${os}
 - Shell: ${shell} (run_command uses ${shell})

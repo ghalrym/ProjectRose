@@ -12,6 +12,8 @@ import { toolRegistry } from './services/toolRegistry'
 import { buildCoreTools } from './services/llmClient'
 import { buildSubagentTools } from './services/subagentTools'
 import { buildSkillTools } from './services/skillService'
+import { ensureAgentRoseMd } from './services/roseSetupService'
+import { ensureAgentHome } from './lib/agentHome'
 import { IPC } from '../shared/ipcChannels'
 import log from 'electron-log/main'
 
@@ -58,6 +60,13 @@ app.on('open-url', (event, url) => {
 
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.projectrose.app')
+
+  // Materialise the agent home before anything reads from it. ensureAgentHome
+  // creates ~/.rose/extensions/ if missing; ensureAgentRoseMd writes a
+  // default ~/.rose/ROSE.md so the system prompt builder always has a file
+  // to read, even if the user hasn't run the setup wizard yet.
+  await ensureAgentHome().catch((err) => log.error('[main] ensureAgentHome', err))
+  await ensureAgentRoseMd().catch((err) => log.error('[main] ensureAgentRoseMd', err))
 
   // Register the projectrose:// scheme. electron-builder installs this for
   // packaged Windows/Linux builds via the `protocols` config and for Mac via
