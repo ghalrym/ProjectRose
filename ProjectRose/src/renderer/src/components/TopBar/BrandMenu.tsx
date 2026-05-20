@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useFileStore } from '../../stores/useFileStore'
 import { useChat } from '../../stores/useChat'
+import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useViewStore } from '../../stores/useViewStore'
 import { RoseMark } from './RoseMark'
 import styles from './BrandMenu.module.css'
 
@@ -29,6 +31,9 @@ export function BrandMenu({ projectName }: BrandMenuProps): JSX.Element {
   const recentProjects = useProjectStore((s) => s.recentProjects)
   const loadRecentProjects = useProjectStore((s) => s.loadRecentProjects)
   const rootPath = useProjectStore((s) => s.rootPath)
+  const lastMainView = useSettingsStore((s) => s.lastMainView)
+  const updateSettings = useSettingsStore((s) => s.update)
+  const setActiveView = useViewStore((s) => s.setActiveView)
 
   const [open, setOpen] = useState(false)
   const [recentOpen, setRecentOpen] = useState(false)
@@ -100,6 +105,13 @@ export function BrandMenu({ projectName }: BrandMenuProps): JSX.Element {
   const handleExit = (): void => {
     closeNow()
     window.api.quitApp().catch(() => {})
+  }
+
+  const handleToggleMainView = (): void => {
+    closeNow()
+    const next: 'bloom' | 'editor' = lastMainView === 'editor' ? 'bloom' : 'editor'
+    setActiveView(next === 'editor' ? 'editor' : 'chat')
+    updateSettings({ lastMainView: next }).catch(() => {})
   }
 
   const filteredRecents = recentProjects.filter((p) => p.path !== rootPath)
@@ -175,6 +187,18 @@ export function BrandMenu({ projectName }: BrandMenuProps): JSX.Element {
               </div>
             )}
           </div>
+
+          <div className={styles.divider} />
+
+          <button
+            type="button"
+            className={styles.menuItem}
+            role="menuitem"
+            onMouseEnter={() => setRecentOpen(false)}
+            onClick={handleToggleMainView}
+          >
+            {lastMainView === 'editor' ? 'Switch to Bloom' : 'Switch to Editor'}
+          </button>
 
           <div className={styles.divider} />
 

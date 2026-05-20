@@ -31,6 +31,7 @@ export interface AppSettings {
   hostMode: 'projectrose' | 'self'
   includeThinkingInContext: boolean
   agentStartsExpanded: boolean
+  lastMainView: 'bloom' | 'editor'
   ollamaBaseUrl: string
   openaiCompatBaseUrl: string
   // Fraction (0..1) of the model's context window at which the compression
@@ -56,6 +57,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   hostMode: 'self',
   includeThinkingInContext: false,
   agentStartsExpanded: false,
+  lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
   openaiCompatBaseUrl: '',
   openaiCompatApiKey: '',

@@ -18,6 +18,7 @@ interface SettingsState {
   hostMode: 'projectrose' | 'self'
   includeThinkingInContext: boolean
   agentStartsExpanded: boolean
+  lastMainView: 'bloom' | 'editor'
   ollamaBaseUrl: string
   openaiCompatBaseUrl: string
   openaiCompatApiKey: string
@@ -49,6 +50,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   hostMode: 'self',
   includeThinkingInContext: false,
   agentStartsExpanded: false,
+  lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
   openaiCompatBaseUrl: '',
   openaiCompatApiKey: '',

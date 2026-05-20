@@ -39,8 +39,10 @@ function App(): JSX.Element {
   const { load: loadSettings } = useSettingsStore()
   const settingsLoaded = useSettingsStore((s) => s.loaded)
   const agentStartsExpanded = useSettingsStore((s) => s.agentStartsExpanded)
+  const isChatFullWidth = useViewStore((s) => s.isChatFullWidth)
   const [needsSetup, setNeedsSetup] = useState(false)
   const initialExpandApplied = useRef(false)
+  const initialMainViewApplied = useRef(false)
 
   // Bridge: when the agent invokes the `screenshot` tool, capture a frame from
   // the active share stream and send it back to main. The sessionId rides on
@@ -122,6 +124,19 @@ function App(): JSX.Element {
       useViewStore.setState({ isChatFullWidth: true })
     }
   }, [settingsLoaded, agentStartsExpanded])
+
+  // Restore the user's last bloom/editor choice on first settings load. Runs
+  // after the stale-activeView reset above (which narrows to base views but
+  // doesn't know about the persisted preference).
+  useEffect(() => {
+    if (!settingsLoaded || initialMainViewApplied.current) return
+    initialMainViewApplied.current = true
+    const lastMainView = useSettingsStore.getState().lastMainView
+    const desired = lastMainView === 'editor' ? 'editor' : 'chat'
+    if (useViewStore.getState().activeView !== desired) {
+      useViewStore.getState().setActiveView(desired)
+    }
+  }, [settingsLoaded])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -268,13 +283,15 @@ function App(): JSX.Element {
           />
         </div>
       )}
-      <main className={`${styles.mainContent} ${activeView === 'chat' ? styles.mainContentChat : ''} ${activeView === 'settings' ? styles.mainContentSettings : ''}`}>
-        <div className={styles.viewArea}>
-          {activeView === 'editor' && <EditorView />}
-          {activeView === 'chat' && <ChatView />}
-          {activeView === 'settings' && <SettingsView />}
-          {activeView === 'account' && <AccountView />}
-        </div>
+      <main className={`${styles.mainContent} ${activeView === 'chat' ? styles.mainContentChat : ''} ${activeView === 'settings' ? styles.mainContentSettings : ''} ${activeView === 'editor' && isChatFullWidth ? styles.mainContentEditorFullWidth : ''}`}>
+        {!(activeView === 'editor' && isChatFullWidth) && (
+          <div className={styles.viewArea}>
+            {activeView === 'editor' && <EditorView />}
+            {activeView === 'chat' && <ChatView />}
+            {activeView === 'settings' && <SettingsView />}
+            {activeView === 'account' && <AccountView />}
+          </div>
+        )}
         {activeView !== 'chat' && activeView !== 'settings' && <ChatPanel />}
       </main>
       <AppsDrawer />

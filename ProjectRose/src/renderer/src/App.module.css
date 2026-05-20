@@ -46,6 +46,10 @@
   grid-template-columns: 1fr;
 }
 
+.mainContentEditorFullWidth {
+  grid-template-columns: 1fr;
+}
+
 .viewArea {
   display: flex;
   overflow: hidden;
