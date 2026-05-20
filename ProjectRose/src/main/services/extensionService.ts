@@ -336,6 +336,9 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
       registerTools: (tools: ExtensionToolEntry[]) => {
         toolRegistry.registerExtensionTools(id, rootPath, tools)
       },
+      registerSensitiveFields: (_keys: string[]) => {
+        /* deprecated no-op; per-workspace per-extension settings replaced the sensitive-fields machinery */
+      },
       runBackgroundAgent: async (prompt: string, systemPrompt: string) => {
         const { content } = await runAgentOnce(
           [{ role: 'user', content: prompt }],

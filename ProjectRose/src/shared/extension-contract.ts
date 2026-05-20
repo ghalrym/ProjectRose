@@ -149,6 +149,14 @@ export interface ExtensionMainContext {
   registerTools: (tools: ExtensionToolEntry[]) => void
 
   /**
+   * @deprecated No-op. Settings are now stored in per-workspace per-extension
+   * files (<workspace>/.projectrose/extensions/<id>/settings.json); sensitive
+   * vs non-sensitive is no longer a host-side distinction. Existing extensions
+   * may continue to call this, but the call has no effect.
+   */
+  registerSensitiveFields: (keys: string[]) => void
+
+  /**
    * Run a one-shot background agent turn with the supplied prompt and system
    * prompt. The host returns the assistant's final text content. Hooks do
    * NOT fire during background-agent runs.

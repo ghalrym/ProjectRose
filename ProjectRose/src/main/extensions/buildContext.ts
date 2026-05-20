@@ -38,6 +38,8 @@ export interface HostExtensionSurface {
   rootPath: string
   getSettings: () => Promise<Record<string, unknown>>
   updateSettings: (patch: Record<string, unknown>) => Promise<void>
+  /** @deprecated No-op. Kept for backward compatibility with older extensions. */
+  registerSensitiveFields: (keys: string[]) => void
   broadcast: (channel: string, data: unknown) => void
   notifyStatus: (
     text: string,
@@ -113,6 +115,7 @@ export function buildContext(opts: {
     rootPath: host.rootPath,
     getSettings: host.getSettings,
     updateSettings: host.updateSettings,
+    registerSensitiveFields: host.registerSensitiveFields,
     broadcast,
     notifyStatus,
     registerTools,

@@ -7,6 +7,7 @@ function makeHost(): HostExtensionSurface {
     rootPath: '/proj',
     getSettings: vi.fn(async () => ({ k: 'v' })),
     updateSettings: vi.fn(async () => {}),
+    registerSensitiveFields: vi.fn(),
     broadcast: vi.fn(),
     notifyStatus: vi.fn(),
     registerTools: vi.fn(),

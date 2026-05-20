@@ -168,9 +168,13 @@ function App(): JSX.Element {
       setNeedsSetup(false)
       return
     }
+    // The workspace scaffold (.projectrose/heartbeat/...) is workspace-scoped
+    // and must exist regardless of whether the agent has been initialised.
+    // Run it unconditionally; checkRoseMd only governs whether the SetupWizard
+    // appears for first-time agent identity.
+    window.api.ensureScaffold(rootPath).catch(() => {})
     window.api.checkRoseMd(rootPath).then((hasMd) => {
       setNeedsSetup(!hasMd)
-      if (hasMd) window.api.ensureScaffold(rootPath).catch(() => {})
     })
   }, [rootPath])
 
