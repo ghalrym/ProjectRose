@@ -9,12 +9,8 @@ The product itself — the Electron app that hosts agents and the extensions the
 _Avoid_: IDE, assistant, harness, app (when referring to ProjectRose as a whole)
 
 **Agent**:
-A persistent, named identity inside a **Workspace** with its own **Persona** and memory. The user can have multiple agents per workspace and switch between them. Running an agent means starting a **Turn** inside a **Conversation** with it; the LLM-loop instance is the **Turn**, not the agent itself. Code reality today: each workspace has a single implicit default agent — a degenerate case of the general model.
+A single persistent identity on a machine, stored at `~/.rose/`, that operates on **Workspaces**. One Agent per machine — there is no notion of multiple Agents to switch between. The Agent owns its system prompt (`~/.rose/ROSE.md`), model + provider configuration, and memory; a **Workspace** contributes optional project-specific operating instructions and per-project enable/disable + settings for installed **Extensions**. Running an agent means starting a **Turn** inside a **Conversation** with it; the LLM-loop instance is the **Turn**, not the agent itself.
 _Avoid_: bot, assistant (lowercase), AI
-
-**Persona**:
-What makes one **Agent** distinct from another inside the same **Workspace**: system prompt, model + provider choice, and the subset of installed **Extensions** / **Tools** the agent is permitted to use. An agent has exactly one persona; switching agents switches personas.
-_Avoid_: profile, character, configuration, agent config
 
 **Conversation**:
 A persistent, resumable thread of turns the user holds with an agent in the chat panel. Identified in the code as `sessionId`.
@@ -70,10 +66,8 @@ _Avoid_: cron job, recurring agent, deferred work item, todo
 
 ## Relationships
 
-- An **Agent Desktop** hosts many **Workspaces** and many **Extensions**.
-- A **Workspace** contains one or more **Agents** (one default today).
-- Each **Agent** has exactly one **Persona**.
-- An **Agent** participates in one or more **Conversations** with the user.
+- An **Agent Desktop** hosts a single **Agent** and many **Extensions**, and lets the **Agent** operate on many **Workspaces**.
+- An **Agent** participates in one or more **Conversations** with the user, scoped to the **Workspace** the conversation is in.
 - A **Conversation** is a sequence of **Turns**, each one a single message→response cycle.
 - An **Agent** may dispatch **Workers** during a **Turn**.
 - An **Extension** contributes tools, hooks, and optionally a UI panel that the user opens from the Apps Drawer (UI rename to "Extensions Drawer" is implied but not yet done).
