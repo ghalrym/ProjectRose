@@ -1,6 +1,6 @@
-import { app } from 'electron'
-import { join, dirname } from 'path'
 import { readFile, writeFile, mkdir } from 'fs/promises'
+import { dirname } from 'path'
+import { agentSettingsPath } from '../lib/agentHome'
 import { serviceStatus } from './serviceStatus'
 
 export interface ModelConfig {
@@ -37,9 +37,7 @@ export interface AppSettings {
   // toast suggests the user compress older turns. Pairs with a separate
   // tool-step threshold in the renderer.
   compressionThresholdPct: number
-  // Namespaced extension settings: { 'rose-discord': { global: {...}, project: {...} } }
-  extensions: Record<string, Record<string, unknown>>
-  // Allow extensions to write arbitrary keys without the host knowing about them.
+  // Allow callers to read/write arbitrary keys we don't enumerate.
   [key: string]: unknown
 }
 
@@ -61,64 +59,22 @@ const DEFAULT_SETTINGS: AppSettings = {
   ollamaBaseUrl: 'http://localhost:11434',
   openaiCompatBaseUrl: '',
   openaiCompatApiKey: '',
-  compressionThresholdPct: 0.70,
-  extensions: {}
+  compressionThresholdPct: 0.70
 }
 
-const GLOBAL_SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
-
-// Host-owned secret fields (stored in userData/settings.json, not the
-// project repo config). Extensions declare their own sensitive keys via
-// registerSensitiveExtensionFields() — the host doesn't enumerate them.
-const HOST_SENSITIVE_FIELDS = ['providerKeys'] as const
-const extensionSensitiveFields: Set<string> = new Set()
-
-export function registerSensitiveExtensionFields(keys: string[]): void {
-  for (const k of keys) extensionSensitiveFields.add(k)
+// Kept as a no-op so extensions still compiling against the old contract do
+// not break at runtime. Removed entirely in a follow-up commit once
+// first-party extensions stop calling it.
+export function registerSensitiveExtensionFields(_keys: string[]): void {
+  /* no-op: extension settings are per-workspace files now, not merged */
 }
 
-function getSensitiveFields(): string[] {
-  return [...HOST_SENSITIVE_FIELDS, ...extensionSensitiveFields]
-}
+export async function readSettings(_rootPath?: string): Promise<AppSettings> {
+  const path = agentSettingsPath()
+  let stored: Partial<AppSettings> = {}
+  try { stored = JSON.parse(await readFile(path, 'utf-8')) } catch { /* defaults */ }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function pick(obj: any, keys: readonly string[]): any {
-  const result: Record<string, unknown> = {}
-  for (const k of keys) if (k in obj) result[k] = obj[k]
-  return result
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function omit(obj: any, keys: readonly string[]): any {
-  const keySet = new Set(keys)
-  const result: Record<string, unknown> = {}
-  for (const k of Object.keys(obj)) if (!keySet.has(k)) result[k] = obj[k]
-  return result
-}
-
-function getRepoConfigPath(rootPath: string): string {
-  return join(rootPath, '.projectrose', 'config.json')
-}
-
-export async function readSettings(rootPath?: string): Promise<AppSettings> {
-  let globalSettings: Partial<AppSettings> = {}
-  try { globalSettings = JSON.parse(await readFile(GLOBAL_SETTINGS_PATH, 'utf-8')) } catch { /* defaults */ }
-
-  const sensitiveKeys = getSensitiveFields()
-  // Non-sensitive fields from old userData file serve as migration fallback
-  const nonSensitiveFallback: Partial<AppSettings> = omit(globalSettings, sensitiveKeys)
-
-  let repoConfig: Partial<AppSettings> = {}
-  if (rootPath) {
-    try { repoConfig = JSON.parse(await readFile(getRepoConfigPath(rootPath), 'utf-8')) } catch { /* not created yet */ }
-  }
-
-  const merged: AppSettings = {
-    ...DEFAULT_SETTINGS,
-    ...nonSensitiveFallback,
-    ...repoConfig,
-    ...pick(globalSettings, sensitiveKeys)
-  }
+  const merged: AppSettings = { ...DEFAULT_SETTINGS, ...stored }
 
   // Drop any legacy navItems entry — the host no longer has a navigation bar.
   delete (merged as Record<string, unknown>).navItems
@@ -130,22 +86,19 @@ export async function readSettings(rootPath?: string): Promise<AppSettings> {
     delete (merged.providerKeys as Record<string, unknown>).projectrose
   }
 
+  // Strip the legacy per-extension namespaced blob if a pre-refactor
+  // ~/.rose/settings.json (or the carried-over userData/settings.json) still
+  // has it. Extensions read/write their own per-workspace settings now.
+  delete (merged as Record<string, unknown>).extensions
+
   return merged
 }
 
-export async function writeSettings(settings: AppSettings, rootPath?: string): Promise<void> {
-  const sensitiveKeys = getSensitiveFields()
-  let existing: Partial<AppSettings> = {}
-  try { existing = JSON.parse(await readFile(GLOBAL_SETTINGS_PATH, 'utf-8')) } catch { /* ok */ }
-  await writeFile(GLOBAL_SETTINGS_PATH, JSON.stringify({ ...existing, ...pick(settings, sensitiveKeys) }, null, 2), 'utf-8')
-
-  if (rootPath) {
-    const repoData = omit(settings, sensitiveKeys)
-    await mkdir(dirname(getRepoConfigPath(rootPath)), { recursive: true })
-    await writeFile(getRepoConfigPath(rootPath), JSON.stringify(repoData, null, 2), 'utf-8')
-  }
+export async function writeSettings(settings: AppSettings, _rootPath?: string): Promise<void> {
+  const path = agentSettingsPath()
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, JSON.stringify(settings, null, 2), 'utf-8')
 }
-
 
 export async function applySettingsPatch(
   patch: Partial<AppSettings>,

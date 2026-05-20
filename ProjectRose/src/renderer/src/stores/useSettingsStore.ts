@@ -62,11 +62,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     const rootPath = useProjectStore.getState().rootPath ?? undefined
     const s = await window.api.getSettings(rootPath)
     if (gen !== loadGeneration) return
-    // Only mark loaded:true once we have a project rootPath. A rootPath-less
-    // load returns global defaults, which must not unblock project-scoped
-    // consumers (extension settings, hostMode, etc.) before the project's
-    // own config.json has been merged in.
-    set({ ...s, loaded: rootPath !== undefined })
+    // Settings are agent-global; rootPath is passed for back-compat but
+    // ignored by the host. Mark loaded regardless so the WelcomeView and
+    // Settings panel work without a workspace open.
+    set({ ...s, loaded: true })
   },
 
   update: async (patch) => {

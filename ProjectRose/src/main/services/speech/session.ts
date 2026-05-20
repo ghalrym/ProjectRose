@@ -70,11 +70,10 @@ export type RecordingSink = (
  */
 export type WhisperModelProvider = () => Promise<string>
 
-// agentName, whisperModel, etc. live in {rootPath}/.projectrose/config.json
-// (non-sensitive keys go to the repo config; the global userData file only
-// holds sensitive ones). So readSettings() with no rootPath returns the
-// hard-coded DEFAULT_SETTINGS — agentName='' would silently break the wake
-// word. Both providers below bind the session's projectPath at construction.
+// agentName, whisperModel, etc. live in ~/.rose/settings.json. The
+// rootPath parameter to readSettings() is retained for back-compat but
+// ignored — settings are agent-global, not per-workspace. Providers below
+// pass through the session's projectPath unchanged.
 function makeDefaultWhisperModelProvider(projectPath: string): WhisperModelProvider {
   return async () => {
     // Deferred import so this module can be loaded under vitest, which has no
