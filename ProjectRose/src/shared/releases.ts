@@ -12,9 +12,20 @@ export const RELEASES: ReleaseEntry[] = [
     version: '1.5.2',
     tag: null,
     date: null,
-    title: 'Code architecture improvements',
+    title: 'Editor returns, smoother voice, and macOS fixes',
     unreleased: true,
     highlights: [
+      'Editor is back — switch between Bloom and Editor from the ProjectRose menu in the top-left; your choice is remembered across launches and the chat panel stays visible alongside the editor',
+      'The floating dock button now slides over the editor instead of pushing its content up',
+      'Active listening and the speech session feel smoother',
+      'Extensions install once but enable, disable, and configure separately in each workspace',
+      'Fix: macOS app opens from Finder again — a language-server crash on launch is resolved',
+      'Fix: unsigned macOS builds now launch',
+      'Fix: extensions installed in older versions are no longer blocked at startup',
+      'Fix: the .projectrose workspace folder is always created when you open a project',
+      'Fix: scheduled-task code no longer leaks into unrelated parts of the app',
+      'Fix: removed a stale "default project" button on the welcome screen',
+      'Fix: assistant message rendering edge case',
       'Improving code architecture under the hood for a more maintainable foundation'
     ]
   },
