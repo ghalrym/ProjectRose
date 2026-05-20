@@ -48,7 +48,11 @@ implicit nine-method `ExtensionMainContext` and tolerated reaches into
 | `broadcast` | `ctx.broadcast(channel, data)` | Send IPC events to renderer windows |
 
 The free-tier methods every extension gets are: `rootPath`,
-`getSettings`, `updateSettings`, `registerSensitiveFields`.
+`getSettings`, `updateSettings`. `getSettings` / `updateSettings` read
+and write a per-workspace per-extension JSON file at
+`<workspace>/.projectrose/extensions/<id>/settings.json` — other
+extensions cannot see your settings, and changes do not leak between
+workspaces.
 
 ## Migration steps
 

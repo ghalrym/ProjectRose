@@ -25,11 +25,11 @@ async function mockOpenFolderDialog(app: ElectronApplication, dir: string): Prom
 // from the test runner (Node) since `require` isn't available inside
 // `app.evaluate` with electron-vite's ESM bundle.
 async function clearRecentProjects(app: ElectronApplication): Promise<void> {
-  const userData = await app.evaluate(({ app: electronApp }) =>
-    electronApp.getPath('userData')
+  const home = await app.evaluate(({ app: electronApp }) =>
+    electronApp.getPath('home')
   )
   try {
-    writeFileSync(join(userData, 'recent-projects.json'), '[]', 'utf-8')
+    writeFileSync(join(home, '.rose', 'recent-workspaces.json'), '[]', 'utf-8')
   } catch {
     // ignore — file may not exist on a clean machine
   }
@@ -141,7 +141,7 @@ test.describe('Brand Menu', () => {
   })
 
   test('Open Recent Project is disabled when there are no other recents', async ({ app, win }) => {
-    // recent-projects.json persists in userData across runs; start clean so the
+    // ~/.rose/recent-workspaces.json persists across runs; start clean so the
     // only entry is the project we open in this test.
     await clearRecentProjects(app)
 

@@ -7,7 +7,6 @@ function makeHost(): HostExtensionSurface {
     rootPath: '/proj',
     getSettings: vi.fn(async () => ({ k: 'v' })),
     updateSettings: vi.fn(async () => {}),
-    registerSensitiveFields: vi.fn(),
     broadcast: vi.fn(),
     notifyStatus: vi.fn(),
     registerTools: vi.fn(),
@@ -33,7 +32,7 @@ function manifest(provides: ExtensionManifest['provides']): ExtensionManifest {
 
 describe('buildContext', () => {
   describe('always-present surface', () => {
-    it('always exposes rootPath, getSettings, updateSettings, registerSensitiveFields', () => {
+    it('always exposes rootPath, getSettings, updateSettings', () => {
       const ctx = buildContext({
         extensionId: 'rose-fake',
         manifest: manifest({}),
@@ -42,7 +41,6 @@ describe('buildContext', () => {
       expect(ctx.rootPath).toBe('/proj')
       expect(typeof ctx.getSettings).toBe('function')
       expect(typeof ctx.updateSettings).toBe('function')
-      expect(typeof ctx.registerSensitiveFields).toBe('function')
     })
 
     it('always-present methods work even with zero capabilities', async () => {
@@ -54,8 +52,8 @@ describe('buildContext', () => {
       })
       await ctx.getSettings()
       expect(host.getSettings).toHaveBeenCalled()
-      ctx.registerSensitiveFields(['secret'])
-      expect(host.registerSensitiveFields).toHaveBeenCalledWith(['secret'])
+      await ctx.updateSettings({ foo: 'bar' })
+      expect(host.updateSettings).toHaveBeenCalledWith({ foo: 'bar' })
     })
   })
 
@@ -183,7 +181,7 @@ describe('buildContext', () => {
   describe('listGrantedMethods', () => {
     it('lists only always-present for UI-only', () => {
       expect(listGrantedMethods(manifest({ pageView: true })).sort()).toEqual(
-        ['getSettings', 'registerSensitiveFields', 'rootPath', 'updateSettings'].sort()
+        ['getSettings', 'rootPath', 'updateSettings'].sort()
       )
     })
 

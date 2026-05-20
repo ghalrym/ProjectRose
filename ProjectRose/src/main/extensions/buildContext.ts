@@ -6,7 +6,8 @@
 //
 //   1. Always exposes the "free" surface — fields that don't talk to host
 //      services and are safe for any extension: `rootPath`, `getSettings`,
-//      `updateSettings`, `registerSensitiveFields`.
+//      `updateSettings`. The first two persist per-workspace per-extension
+//      data and have no cross-extension reach.
 //
 //   2. Conditionally exposes capability-gated methods according to
 //      `manifest.provides`:
@@ -37,7 +38,6 @@ export interface HostExtensionSurface {
   rootPath: string
   getSettings: () => Promise<Record<string, unknown>>
   updateSettings: (patch: Record<string, unknown>) => Promise<void>
-  registerSensitiveFields: (keys: string[]) => void
   broadcast: (channel: string, data: unknown) => void
   notifyStatus: (
     text: string,
@@ -113,7 +113,6 @@ export function buildContext(opts: {
     rootPath: host.rootPath,
     getSettings: host.getSettings,
     updateSettings: host.updateSettings,
-    registerSensitiveFields: host.registerSensitiveFields,
     broadcast,
     notifyStatus,
     registerTools,
@@ -129,7 +128,7 @@ export function buildContext(opts: {
  * read your settings, ...".
  */
 export function listGrantedMethods(manifest: ExtensionManifest): string[] {
-  const always = ['rootPath', 'getSettings', 'updateSettings', 'registerSensitiveFields']
+  const always = ['rootPath', 'getSettings', 'updateSettings']
   const provides = manifest.provides ?? {}
   const gated: string[] = []
   for (const [cap, method] of Object.entries(CAPABILITY_TO_METHOD) as Array<[keyof typeof CAPABILITY_TO_METHOD, GatedMethod]>) {

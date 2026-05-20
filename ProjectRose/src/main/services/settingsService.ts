@@ -62,13 +62,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   compressionThresholdPct: 0.70
 }
 
-// Kept as a no-op so extensions still compiling against the old contract do
-// not break at runtime. Removed entirely in a follow-up commit once
-// first-party extensions stop calling it.
-export function registerSensitiveExtensionFields(_keys: string[]): void {
-  /* no-op: extension settings are per-workspace files now, not merged */
-}
-
 export async function readSettings(_rootPath?: string): Promise<AppSettings> {
   const path = agentSettingsPath()
   let stored: Partial<AppSettings> = {}

@@ -7,7 +7,6 @@ import { spawn } from 'child_process'
 import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
 import { agentExtensionsDir, ensureAgentHome } from '../lib/agentHome'
-import { registerSensitiveExtensionFields } from './settingsService'
 import { runAgentOnce } from './aiService'
 import {
   registerHooks as registerExtensionHooks,
@@ -336,9 +335,6 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
       },
       registerTools: (tools: ExtensionToolEntry[]) => {
         toolRegistry.registerExtensionTools(id, rootPath, tools)
-      },
-      registerSensitiveFields: (keys: string[]) => {
-        registerSensitiveExtensionFields(keys)
       },
       runBackgroundAgent: async (prompt: string, systemPrompt: string) => {
         const { content } = await runAgentOnce(
