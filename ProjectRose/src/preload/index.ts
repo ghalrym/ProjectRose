@@ -106,7 +106,6 @@ const api = {
   },
 
   getRecentProjects: recentProjectsIpc.bindings.getRecent,
-  getDefaultProjectPath: recentProjectsIpc.bindings.getDefaultPath,
 
   checkRoseMd: roseSetupIpc.bindings.checkMd,
   ensureScaffold: roseSetupIpc.bindings.ensureScaffold,

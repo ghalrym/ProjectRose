@@ -3,6 +3,7 @@ import { useProjectStore } from '../../stores/useProjectStore'
 import { useThemeStore } from '../../stores/useThemeStore'
 import styles from './WelcomeView.module.css'
 
+
 interface WelcomeViewProps {
   onOpenFolder: () => void
 }
@@ -81,12 +82,10 @@ export function WelcomeView({ onOpenFolder }: WelcomeViewProps): JSX.Element {
   const removeRecent = useProjectStore((s) => s.removeRecent)
   const theme = useThemeStore((s) => s.theme)
   const toggleTheme = useThemeStore((s) => s.toggleTheme)
-  const [defaultProjectPath, setDefaultProjectPath] = useState<string | null>(null)
   const [showLearn, setShowLearn] = useState(false)
 
   useEffect(() => {
     loadRecentProjects()
-    window.api.getDefaultProjectPath().then(setDefaultProjectPath)
   }, [loadRecentProjects])
 
   const handleRecentClick = (path: string): void => {
@@ -112,11 +111,6 @@ export function WelcomeView({ onOpenFolder }: WelcomeViewProps): JSX.Element {
       </div>
 
       <div className={styles.actions}>
-        {defaultProjectPath && (
-          <button className={styles.defaultBtn} onClick={() => openFolder(defaultProjectPath)}>
-            Default Project
-          </button>
-        )}
         <button className={styles.openBtn} onClick={onOpenFolder}>
           Open Project
         </button>

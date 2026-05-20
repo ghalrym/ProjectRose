@@ -38,8 +38,7 @@ import { recentProjectsIpc } from '../services/recentProjects.ipc'
 import {
   getRecentProjects,
   addRecentProject,
-  removeRecentProject,
-  getDefaultProjectPath
+  removeRecentProject
 } from '../services/recentProjects'
 
 import { settingsIpc, healthIpc } from '../services/settingsService.ipc'
@@ -156,8 +155,7 @@ export function registerIpcManifests(): void {
   recentProjectsIpc.register({
     getRecent: getRecentProjects,
     addRecent: addRecentProject,
-    removeRecent: removeRecentProject,
-    getDefaultPath: getDefaultProjectPath
+    removeRecent: removeRecentProject
   })
   settingsIpc.register({
     get: readSettings,

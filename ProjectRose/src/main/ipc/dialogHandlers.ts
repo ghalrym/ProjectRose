@@ -1,5 +1,4 @@
-import { ipcMain, dialog, BrowserWindow, app } from 'electron'
-import { join } from 'path'
+import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
 
 export function registerDialogHandlers(): void {
@@ -8,8 +7,7 @@ export function registerDialogHandlers(): void {
     if (!win) return null
 
     const result = await dialog.showOpenDialog(win, {
-      properties: ['openDirectory'],
-      defaultPath: join(app.getPath('home'), '.rose')
+      properties: ['openDirectory']
     })
 
     return result.canceled ? null : result.filePaths[0]

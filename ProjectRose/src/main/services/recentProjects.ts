@@ -1,6 +1,6 @@
-import { app } from 'electron'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { join } from 'path'
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
+import { dirname } from 'path'
+import { recentWorkspacesPath } from '../lib/agentHome'
 
 export interface RecentProject {
   path: string
@@ -9,10 +9,10 @@ export interface RecentProject {
 }
 
 const MAX_RECENT = 20
-const filePath = join(app.getPath('userData'), 'recent-projects.json')
 
 function load(): RecentProject[] {
   try {
+    const filePath = recentWorkspacesPath()
     if (existsSync(filePath)) {
       return JSON.parse(readFileSync(filePath, 'utf-8'))
     }
@@ -21,15 +21,13 @@ function load(): RecentProject[] {
 }
 
 function save(projects: RecentProject[]): void {
+  const filePath = recentWorkspacesPath()
+  mkdirSync(dirname(filePath), { recursive: true })
   writeFileSync(filePath, JSON.stringify(projects, null, 2), 'utf-8')
 }
 
 export function getRecentProjects(): RecentProject[] {
   return load()
-}
-
-export function getDefaultProjectPath(): string {
-  return join(app.getPath('home'), '.rose')
 }
 
 export function addRecentProject(projectPath: string): RecentProject[] {
