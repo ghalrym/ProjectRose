@@ -4,7 +4,8 @@ import {
   memoryBehaviorRecordsDir,
   memoryContactDir,
   memoryConversationsDir,
-  memoryAgentActivityDir
+  memoryAgentActivityDir,
+  memoryCalendarDir
 } from '../../lib/agentHome'
 
 // All memory paths live under ~/.rose/memory/. These helpers wrap the
@@ -37,6 +38,22 @@ export function conversationLogPath(dateKey: string): string {
 
 export function activityLogPath(dateKey: string): string {
   return join(memoryAgentActivityDir(), `${dateKey}.jsonl`)
+}
+
+export function calendarYearDir(year: string): string {
+  return join(memoryCalendarDir(), year)
+}
+
+export function calendarMonthDir(year: string, month: string): string {
+  return join(memoryCalendarDir(), year, month)
+}
+
+export function calendarDayDir(year: string, month: string, day: string): string {
+  return join(memoryCalendarDir(), year, month, day)
+}
+
+export function calendarEventPath(date: { year: string; month: string; day: string }, slug: string): string {
+  return join(memoryCalendarDir(), date.year, date.month, date.day, `${slug}.md`)
 }
 
 // yyyy-mm-dd today key in local time. Memory keys by the user's local day,

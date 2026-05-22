@@ -32,6 +32,14 @@ import {
   handleMemorySetContactKind
 } from './memory/tools'
 import {
+  handleCalendarCreateEvent,
+  handleCalendarEditEvent,
+  handleCalendarGetEvent,
+  handleCalendarListEvents,
+  handleCalendarInviteToEvent,
+  handleCalendarDeleteEvent
+} from './memory/calendarTools'
+import {
   handleEmailListMessages,
   handleEmailSearch,
   handleEmailGetMessage,
@@ -531,6 +539,80 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
         note: z.string().describe('The note text to remove')
       }),
       execute: wrapExecute('memory_remove_contact_note', handleMemoryRemoveContactNote, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    // ─── rose-calendar (Memory.Event) ──────────────────────────────────
+    memory_create_event: tool({
+      description: 'Create a calendar event in agent memory. Events store as markdown under ~/.rose/memory/calendar/{yyyy}/{mm}/{dd}/. Times are ISO 8601 — `2026-05-22T14:00` for timed events (pair with `timeZone`), `2026-05-22` for all-day (set `allDay: true`). For recurring events pass `recurrence` as an array of RRULE/RDATE/EXDATE strings (e.g. ["RRULE:FREQ=WEEKLY;BYDAY=TU"]).',
+      inputSchema: z.object({
+        summary: z.string().describe('Event title'),
+        start: z.string().describe('ISO 8601 start time (or date for all-day)'),
+        end: z.string().optional().describe('ISO 8601 end time. Defaults to start if omitted.'),
+        allDay: z.boolean().optional().describe('Mark as an all-day event (uses date-only values for start/end)'),
+        timeZone: z.string().optional().describe('IANA timezone, e.g. America/New_York. Ignored for all-day.'),
+        description: z.string().optional(),
+        location: z.string().optional(),
+        attendees: z.array(z.union([z.string(), z.object({ email: z.string(), displayName: z.string().optional(), responseStatus: z.string().optional() })])).optional().describe('Attendee emails (strings) or {email, displayName?, responseStatus?} objects'),
+        recurrence: z.array(z.string()).optional().describe('Array of RRULE/RDATE/EXDATE strings, e.g. ["RRULE:FREQ=WEEKLY;BYDAY=TU"]'),
+        calendarId: z.string().optional().describe('Target Google calendar id (defaults to "primary" on push)')
+      }),
+      execute: wrapExecute('memory_create_event', handleCalendarCreateEvent, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_edit_event: tool({
+      description: 'Edit an existing event. Identify it either by `date` + `slug` (the local ref returned by memory_list_events) or by `google_id`. Pass only the fields you want to change.',
+      inputSchema: z.object({
+        date: z.string().optional().describe('yyyy-mm-dd of the event\'s storage directory'),
+        slug: z.string().optional().describe('Filename slug without .md'),
+        google_id: z.string().optional().describe('Google iCalUID, as stored in the event\'s google-id bullet'),
+        summary: z.string().optional(),
+        description: z.string().optional(),
+        location: z.string().optional(),
+        status: z.enum(['confirmed', 'tentative', 'cancelled']).optional(),
+        start: z.string().optional(),
+        end: z.string().optional(),
+        allDay: z.boolean().optional(),
+        timeZone: z.string().optional(),
+        attendees: z.array(z.union([z.string(), z.object({ email: z.string(), displayName: z.string().optional(), responseStatus: z.string().optional() })])).optional(),
+        recurrence: z.array(z.string()).optional()
+      }),
+      execute: wrapExecute('memory_edit_event', handleCalendarEditEvent, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_get_event: tool({
+      description: 'Fetch the full record of an event (summary, times, description, attendees, recurrence, google ids). Identify by date+slug or google_id.',
+      inputSchema: z.object({
+        date: z.string().optional(),
+        slug: z.string().optional(),
+        google_id: z.string().optional()
+      }),
+      execute: wrapExecute('memory_get_event', handleCalendarGetEvent, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_list_events: tool({
+      description: 'List events whose occurrences fall inside a date-time range. Recurring events are expanded via RRULE — you see one row per occurrence. Both bounds are ISO 8601; the upper bound is exclusive.',
+      inputSchema: z.object({
+        start: z.string().describe('Inclusive lower bound, ISO 8601'),
+        end: z.string().describe('Exclusive upper bound, ISO 8601'),
+        calendarIds: z.array(z.string()).optional().describe('Restrict to specific Google calendarIds. Local-only events are always included.'),
+        limit: z.number().optional().describe('Max occurrences to return (default 100)')
+      }),
+      execute: wrapExecute('memory_list_events', handleCalendarListEvents, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_invite_to_event: tool({
+      description: 'Add attendees to a synced event and trigger Google\'s native invitation email (Google sends the standard calendar invite to each new attendee). The event must already be synced — push it first if it has no google-id.',
+      inputSchema: z.object({
+        date: z.string().optional(),
+        slug: z.string().optional(),
+        google_id: z.string().optional(),
+        attendees: z.array(z.union([z.string(), z.object({ email: z.string(), displayName: z.string().optional() })])).describe('Attendees to invite — email strings or {email, displayName?} objects')
+      }),
+      execute: wrapExecute('memory_invite_to_event', handleCalendarInviteToEvent, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_delete_event: tool({
+      description: 'Delete an event. If the event is synced to Google, the remote copy is removed first (and attendees are notified). Local-only events are removed from disk.',
+      inputSchema: z.object({
+        date: z.string().optional(),
+        slug: z.string().optional(),
+        google_id: z.string().optional()
+      }),
+      execute: wrapExecute('memory_delete_event', handleCalendarDeleteEvent, projectRoot, emit, toolCtx, hookCtx)
     }),
     // ─── rose-email: read group ───────────────────────────────────────
     email_list_messages: tool({

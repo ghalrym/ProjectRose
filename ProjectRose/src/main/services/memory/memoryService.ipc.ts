@@ -1,16 +1,27 @@
 import { defineIpc, method } from '../../../shared/ipc/defineIpc'
 import type {
   BehaviorRecord,
+  CalendarEvent,
+  CalendarRangeQuery,
   ContactEntity,
   ContactKind,
   ContactSearchResult,
   ContactsUpdaterStatus,
+  CreateEventInput,
   DiaryIndexRow,
   DiaryScheduleStatus,
+  EventAttendee,
+  EventRef,
   GoogleApplyResult,
+  GoogleCalendarPullPlan,
+  GoogleCalendarPushPlan,
+  GoogleCalendarRow,
+  GoogleCalendarSyncStatus,
   GooglePullPlan,
   GooglePushPlan,
-  GoogleSyncStatus
+  GoogleSyncStatus,
+  ResolvedEventOccurrence,
+  UpdateEventPatch
 } from '../../../shared/memory'
 
 // IPC manifest for the host memory subsystem (~/.rose/memory/). Bound flat on
@@ -66,5 +77,19 @@ export const memoryIpc = defineIpc('memory', {
   googlePreviewPull: method<[], GooglePullPlan>(),
   googleApplyPull: method<[plan: GooglePullPlan], GoogleApplyResult>(),
   googlePreviewPush: method<[], GooglePushPlan>(),
-  googleApplyPush: method<[plan: GooglePushPlan], GoogleApplyResult>()
+  googleApplyPush: method<[plan: GooglePushPlan], GoogleApplyResult>(),
+
+  // Calendar / Memory.Event — local CRUD + Google Calendar sync (see ADR 0012).
+  listEvents: method<[range: CalendarRangeQuery], ResolvedEventOccurrence[]>(),
+  getEvent: method<[ref: EventRef], CalendarEvent | null>(),
+  createEvent: method<[input: CreateEventInput], CalendarEvent>(),
+  updateEvent: method<[payload: { ref: EventRef; patch: UpdateEventPatch }], CalendarEvent | null>(),
+  deleteEvent: method<[ref: EventRef], void>(),
+  inviteToEvent: method<[payload: { ref: EventRef; attendees: EventAttendee[] }], GoogleApplyResult>(),
+  googleCalendarGetStatus: method<[], GoogleCalendarSyncStatus>(),
+  googleCalendarListCalendars: method<[], GoogleCalendarRow[]>(),
+  googleCalendarPreviewPull: method<[], GoogleCalendarPullPlan>(),
+  googleCalendarApplyPull: method<[plan: GoogleCalendarPullPlan], GoogleApplyResult>(),
+  googleCalendarPreviewPush: method<[], GoogleCalendarPushPlan>(),
+  googleCalendarApplyPush: method<[plan: GoogleCalendarPushPlan], GoogleApplyResult>()
 })

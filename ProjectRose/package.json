@@ -119,6 +119,7 @@
     "pyright": "^1.1.409",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "rrule": "^2.8.1",
     "sonner": "^2.0.7",
     "typescript-language-server": "^4.4.1",
     "zod": "^3.25.76",

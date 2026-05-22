@@ -96,6 +96,45 @@ const BUILTIN_EXTENSION_TOOLS: Record<string, BuiltinExtensionToolMeta> = {
     displayName: 'Remove Contact Note',
     description: 'Remove a note from a contact, matched case-insensitively'
   },
+  // ── rose-calendar ─────────────────────────────────────────────────────
+  memory_create_event: {
+    extensionId: 'rose-calendar',
+    extensionName: 'Calendar',
+    displayName: 'Create Event',
+    description: 'Create a calendar event in agent memory; can be pushed to Google Calendar'
+  },
+  memory_edit_event: {
+    extensionId: 'rose-calendar',
+    extensionName: 'Calendar',
+    displayName: 'Edit Event',
+    description: 'Modify an existing calendar event (summary, times, attendees, recurrence, etc.)'
+  },
+  memory_get_event: {
+    extensionId: 'rose-calendar',
+    extensionName: 'Calendar',
+    displayName: 'Get Event',
+    description: 'Read the full record of a calendar event by ref or Google ID'
+  },
+  memory_list_events: {
+    extensionId: 'rose-calendar',
+    extensionName: 'Calendar',
+    displayName: 'List Events',
+    description: 'List events in a date-time range, expanding recurring rules into occurrences'
+  },
+  memory_invite_to_event: {
+    extensionId: 'rose-calendar',
+    extensionName: 'Calendar',
+    displayName: 'Invite to Event',
+    description: 'Send Google Calendar invitations to attendees of a synced event.',
+    defaultDisabled: true
+  },
+  memory_delete_event: {
+    extensionId: 'rose-calendar',
+    extensionName: 'Calendar',
+    displayName: 'Delete Event',
+    description: 'Delete a calendar event (also removes the remote copy if synced).',
+    defaultDisabled: true
+  },
   // ── rose-email ────────────────────────────────────────────────────────
   email_list_messages: {
     extensionId: 'rose-email',

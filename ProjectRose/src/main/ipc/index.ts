@@ -163,7 +163,19 @@ import {
   googlePreviewPull,
   googleApplyPull,
   googlePreviewPush,
-  googleApplyPush
+  googleApplyPush,
+  createEvent as createCalendarEvent,
+  updateEvent as updateCalendarEvent,
+  deleteEvent as deleteCalendarEvent,
+  readEvent as readCalendarEvent,
+  listEventsForRange,
+  googleCalendarGetStatus,
+  googleCalendarListCalendars,
+  googleCalendarPreviewPull,
+  googleCalendarApplyPull,
+  googleCalendarPreviewPush,
+  googleCalendarApplyPush,
+  googleCalendarSendInvite
 } from '../services/memory'
 
 // Hand-written handlers that don't fit the manifest pattern: dialog (needs
@@ -316,7 +328,39 @@ export function registerIpcManifests(): void {
     googlePreviewPull,
     googleApplyPull,
     googlePreviewPush,
-    googleApplyPush
+    googleApplyPush,
+    listEvents: listEventsForRange,
+    getEvent: readCalendarEvent,
+    createEvent: createCalendarEvent,
+    updateEvent: ({ ref, patch }) => updateCalendarEvent(ref, patch),
+    deleteEvent: deleteCalendarEvent,
+    inviteToEvent: async ({ ref, attendees }) => {
+      const event = await readCalendarEvent(ref)
+      if (!event) return { appliedAt: Date.now(), ok: false, message: `No event at ${ref.date}/${ref.slug}.` }
+      if (!event.googleId || !event.googleCalendarId) {
+        return { appliedAt: Date.now(), ok: false, message: 'Event not synced to Google. Push it first.' }
+      }
+      const result = await googleCalendarSendInvite({
+        googleId: event.googleId,
+        googleCalendarId: event.googleCalendarId,
+        additionalAttendees: attendees
+      })
+      if (result.ok) {
+        const existingEmails = new Set(event.attendees.map((a) => a.email.toLowerCase()))
+        const merged = [...event.attendees]
+        for (const att of attendees) {
+          if (!existingEmails.has(att.email.toLowerCase())) merged.push(att)
+        }
+        await updateCalendarEvent(ref, { attendees: merged })
+      }
+      return result
+    },
+    googleCalendarGetStatus,
+    googleCalendarListCalendars,
+    googleCalendarPreviewPull,
+    googleCalendarApplyPull,
+    googleCalendarPreviewPush,
+    googleCalendarApplyPush
   })
   emailIpc.register({
     getStatus: getEmailStatus,

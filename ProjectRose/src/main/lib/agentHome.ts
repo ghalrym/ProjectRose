@@ -52,6 +52,10 @@ export function memoryAgentActivityDir(): string {
   return join(agentMemoryDir(), 'agent-activity')
 }
 
+export function memoryCalendarDir(): string {
+  return join(agentMemoryDir(), 'calendar')
+}
+
 async function ensureKeepFile(dir: string): Promise<void> {
   const keep = join(dir, '.gitkeep')
   try {
@@ -70,7 +74,8 @@ export async function ensureAgentHome(): Promise<void> {
     memoryBehaviorRecordsDir(),
     memoryContactDir(),
     memoryConversationsDir(),
-    memoryAgentActivityDir()
+    memoryAgentActivityDir(),
+    memoryCalendarDir()
   ]
   for (const d of memoryDirs) {
     await mkdir(d, { recursive: true })

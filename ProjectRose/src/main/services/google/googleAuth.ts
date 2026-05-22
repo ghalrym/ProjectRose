@@ -26,14 +26,16 @@ import { applySettingsPatch, readSettings } from '../settingsService'
 
 // ── Scopes ───────────────────────────────────────────────────────────────
 //
-// One scope set powers Contacts (People API) + Email (Gmail API). Widening
-// this triggers re-consent for everyone, which is the price ADR 0009 accepts
-// for sharing a single OAuth client across integrations.
+// One scope set powers Contacts (People API), Email (Gmail API), and Calendar
+// (Google Calendar API). Widening this triggers re-consent for everyone,
+// which is the price ADR 0009 accepts for sharing a single OAuth client
+// across integrations (and ADR 0012 reaffirms for Calendar).
 
 export const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/contacts',
   'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/gmail.modify'
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/calendar'
 ]
 
 // ── Token storage ────────────────────────────────────────────────────────

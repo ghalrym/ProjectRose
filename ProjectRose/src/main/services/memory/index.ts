@@ -34,3 +34,21 @@ export {
   googlePreviewPush,
   googleApplyPush
 } from './googleContacts'
+export {
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  readEvent,
+  listEventsForRange,
+  findEventByGoogleId,
+  listAllEvents
+} from './calendar'
+export {
+  googleCalendarGetStatus,
+  googleCalendarListCalendars,
+  googleCalendarPreviewPull,
+  googleCalendarApplyPull,
+  googleCalendarPreviewPush,
+  googleCalendarApplyPush,
+  googleCalendarSendInvite
+} from './googleCalendar'
