@@ -15,9 +15,15 @@ import type {
   GooglePullPlan,
   GooglePushEntry,
   GooglePushPlan,
+  GooglePushUpdate,
   GoogleSyncStatus
 } from '../../../shared/memory'
-import { resolveGoogleClientId } from '../../../shared/googleOAuth'
+import type { GoogleOAuthCredentials } from '../../../shared/googleOAuth'
+import {
+  readGoogleOAuthCredentials,
+  saveGoogleOAuthCredentials,
+  clearGoogleOAuthCredentials
+} from '../google/googleOAuthCredentialsStore'
 
 import { applySettingsPatch, readSettings } from '../settingsService'
 import {
@@ -26,7 +32,13 @@ import {
   newContact,
   readContactParsed
 } from './contacts'
-import { mapPerson, type MappedContact } from './googleContactsMapping'
+import {
+  buildPersonForCreate,
+  mapPerson,
+  mergeFieldsIntoPerson,
+  parseBulletsToFields,
+  type MappedContact
+} from './googleContactsMapping'
 
 // ── Token storage ────────────────────────────────────────────────────────
 //
@@ -61,8 +73,7 @@ async function clearRefreshToken(): Promise<void> {
 
 // ── Settings helpers ─────────────────────────────────────────────────────
 
-async function readGoogleSettings(): Promise<{
-  resolvedClientId: string
+async function readGoogleSyncSettings(): Promise<{
   accountEmail: string | null
   lastPullAt: number | null
   lastPushAt: number | null
@@ -72,9 +83,6 @@ async function readGoogleSettings(): Promise<{
   const block = settings.memory?.googleSync
   const defaults: Record<ContactKind, boolean> = { person: true, business: true, website: false, other: false }
   return {
-    // Falls through to MAIN_VITE_GOOGLE_CLIENT_ID env or the baked-in
-    // constant. There is no per-install override path anymore.
-    resolvedClientId: resolveGoogleClientId(),
     accountEmail: block?.accountEmail ?? null,
     lastPullAt: block?.lastPullAt ?? null,
     lastPushAt: block?.lastPushAt ?? null,
@@ -111,29 +119,31 @@ const PERSON_FIELDS =
   'names,emailAddresses,phoneNumbers,addresses,organizations,urls,biographies'
 
 /**
- * Build an OAuth2Client without a client_secret. Per RFC 8252 the Electron
- * renderer is a public OAuth client; PKCE (RFC 7636) is the protection at
- * the token endpoint. Google's docs list client_secret as Optional for the
- * loopback flow's token exchange, and google-auth-library omits the param
- * from the request body when the secret is undefined.
+ * Build an OAuth2Client with the user-supplied {clientId, clientSecret}.
+ * ProjectRose used to run a PKCE-only public-client flow (ADR 0008), but
+ * Google's token endpoint kept demanding a client_secret in practice for the
+ * OAuth client types we needed. ADR 0009 switched to BYO-credentials: the
+ * user creates their own OAuth client in Google Cloud Console and pastes
+ * both halves into Settings → Providers → Google. The secret never leaves
+ * the local machine (encrypted with safeStorage).
  */
-function newOAuthClient(clientId: string, redirectUri?: string): OAuth2Client {
-  return new google.auth.OAuth2({ clientId, redirectUri })
+function newOAuthClient(creds: GoogleOAuthCredentials, redirectUri?: string): OAuth2Client {
+  return new google.auth.OAuth2({
+    clientId: creds.clientId,
+    clientSecret: creds.clientSecret,
+    redirectUri
+  })
 }
 
 async function buildAuthedClient(): Promise<OAuth2Client | null> {
   const refreshToken = await readRefreshToken()
   if (!refreshToken) return null
-  const s = await readGoogleSettings()
-  if (!s.resolvedClientId) return null
+  const creds = await readGoogleOAuthCredentials()
+  if (!creds) return null
   // Refresh the access token manually so we know it's fresh and we never
-  // depend on the SDK's auto-refresh path (which has the same client_secret
-  // serialization quirk that bit us on initial sign-in).
-  const fresh = await refreshAccessToken({
-    clientId: s.resolvedClientId,
-    refreshToken
-  })
-  const client = newOAuthClient(s.resolvedClientId)
+  // depend on the SDK's auto-refresh path.
+  const fresh = await refreshAccessToken({ creds, refreshToken })
+  const client = newOAuthClient(creds)
   client.setCredentials({
     refresh_token: refreshToken,
     access_token: fresh.access_token,
@@ -143,12 +153,13 @@ async function buildAuthedClient(): Promise<OAuth2Client | null> {
 }
 
 async function refreshAccessToken(args: {
-  clientId: string
+  creds: GoogleOAuthCredentials
   refreshToken: string
 }): Promise<TokenResponse> {
   const params = new URLSearchParams({
     refresh_token: args.refreshToken,
-    client_id: args.clientId,
+    client_id: args.creds.clientId,
+    client_secret: args.creds.clientSecret,
     grant_type: 'refresh_token'
   })
   const res = await fetch('https://oauth2.googleapis.com/token', {
@@ -174,19 +185,35 @@ async function refreshAccessToken(args: {
 // ── Status / sign-in / sign-out ─────────────────────────────────────────
 
 export async function googleGetStatus(): Promise<GoogleSyncStatus> {
-  const s = await readGoogleSettings()
-  const hasClientId = !!s.resolvedClientId
+  const s = await readGoogleSyncSettings()
+  const creds = await readGoogleOAuthCredentials()
   const hasToken = !!(await readRefreshToken())
   return {
-    // With a baked-in client_id this is true by default. Stays here as a
-    // defensive signal in case an OSS fork strips the constant AND the env
-    // var AND the user hasn't pasted an override.
-    credentialsConfigured: hasClientId,
-    signedIn: hasClientId && hasToken,
+    credentialsConfigured: !!creds,
+    signedIn: !!creds && hasToken,
     accountEmail: s.accountEmail,
     lastPullAt: s.lastPullAt,
     lastPushAt: s.lastPushAt
   }
+}
+
+export async function googleSaveCredentials(
+  payload: { clientId: string; clientSecret: string }
+): Promise<GoogleSyncStatus> {
+  await saveGoogleOAuthCredentials(payload)
+  return googleGetStatus()
+}
+
+/**
+ * Wipe the user's OAuth credentials and the refresh-token cache. Used by the
+ * "Clear" button in Settings → Providers → Google so the user can switch to
+ * a different Google Cloud project without leftover state.
+ */
+export async function googleClearCredentials(): Promise<GoogleSyncStatus> {
+  await clearRefreshToken()
+  await clearGoogleOAuthCredentials()
+  await patchGoogleSettings({ accountEmail: null })
+  return googleGetStatus()
 }
 
 /**
@@ -200,21 +227,24 @@ export async function googleGetStatus(): Promise<GoogleSyncStatus> {
  * defeat that).
  */
 export async function googleSignIn(): Promise<GoogleSyncStatus> {
-  const s = await readGoogleSettings()
-  if (!s.resolvedClientId) {
-    throw new Error('Google Contacts sync is unavailable in this build (no OAuth client_id). Set MAIN_VITE_GOOGLE_CLIENT_ID at build time to enable it.')
+  const creds = await readGoogleOAuthCredentials()
+  if (!creds) {
+    throw new Error(
+      'Google OAuth credentials are not configured. Add a clientId and clientSecret in Settings → Providers → Google.'
+    )
   }
 
   const { port, server } = await startLoopbackServer()
   const redirectUri = `http://127.0.0.1:${port}/callback`
-  const flow = await startPkceFlow(s.resolvedClientId, redirectUri)
+  const flow = await startPkceFlow(creds, redirectUri)
 
   const authUrl = flow.client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
     scope: SCOPES,
-    // PKCE per RFC 7636 — Google's token endpoint verifies that the SHA-256
-    // of code_verifier (sent on exchange) matches code_challenge (sent now).
+    // PKCE per RFC 7636 — kept on top of the confidential-client flow for
+    // defense-in-depth (see ADR 0009). Google verifies that the SHA-256 of
+    // code_verifier (sent on exchange) matches code_challenge (sent now).
     code_challenge_method: CodeChallengeMethod.S256,
     code_challenge: flow.codeChallenge
   })
@@ -222,14 +252,11 @@ export async function googleSignIn(): Promise<GoogleSyncStatus> {
   try {
     await shell.openExternal(authUrl)
     const code = await waitForCode(server)
-    // Manual token exchange instead of OAuth2Client.getToken() — the SDK
-    // serializes an undefined client_secret as the literal string
-    // "undefined" in some code paths, which Google rejects as
-    // `invalid_request`. By POSTing the form body ourselves we can omit
-    // client_secret cleanly (Google's loopback flow docs mark it Optional)
-    // and we surface the actual error_description on failure.
+    // Manual token exchange instead of OAuth2Client.getToken() so we can
+    // surface Google's actual error_description on failure instead of a
+    // bare "invalid_request".
     const tokens = await exchangeCodeForTokens({
-      clientId: s.resolvedClientId,
+      creds,
       redirectUri,
       code,
       codeVerifier: flow.codeVerifier
@@ -271,22 +298,21 @@ interface TokenResponse {
 
 /**
  * POST to https://oauth2.googleapis.com/token with the loopback-flow params
- * Google's native-app docs prescribe — and crucially, *without* a
- * client_secret field, since this is a public client using PKCE.
- *
- * On failure the response body is parsed for `error` / `error_description`
- * and rethrown verbatim so the caller sees something actionable instead of
- * a bare "invalid_request".
+ * Google's docs prescribe, including the user-supplied client_secret. On
+ * failure the response body is parsed for `error` / `error_description` and
+ * rethrown verbatim so the caller sees something actionable instead of a
+ * bare "invalid_request".
  */
 async function exchangeCodeForTokens(args: {
-  clientId: string
+  creds: GoogleOAuthCredentials
   redirectUri: string
   code: string
   codeVerifier: string
 }): Promise<TokenResponse> {
   const params = new URLSearchParams({
     code: args.code,
-    client_id: args.clientId,
+    client_id: args.creds.clientId,
+    client_secret: args.creds.clientSecret,
     code_verifier: args.codeVerifier,
     grant_type: 'authorization_code',
     redirect_uri: args.redirectUri
@@ -312,12 +338,12 @@ async function exchangeCodeForTokens(args: {
   }
 }
 
-async function startPkceFlow(clientId: string, redirectUri: string): Promise<{
+async function startPkceFlow(creds: GoogleOAuthCredentials, redirectUri: string): Promise<{
   client: OAuth2Client
   codeVerifier: string
   codeChallenge: string
 }> {
-  const client = newOAuthClient(clientId, redirectUri)
+  const client = newOAuthClient(creds, redirectUri)
   const codes = await client.generateCodeVerifierAsync()
   // The SDK types both fields as optional but the implementation always
   // returns non-empty strings — defensive guard so a future SDK change
@@ -329,6 +355,9 @@ async function startPkceFlow(clientId: string, redirectUri: string): Promise<{
 }
 
 export async function googleSignOut(): Promise<GoogleSyncStatus> {
+  // Sign-out wipes the refresh token only — the user keeps their clientId
+  // and clientSecret so they can sign in again without re-pasting them. Use
+  // googleClearCredentials() to wipe both halves.
   await clearRefreshToken()
   await patchGoogleSettings({ accountEmail: null })
   return googleGetStatus()
@@ -357,7 +386,7 @@ export async function googlePreviewPull(): Promise<GooglePullPlan> {
   const client = await buildAuthedClient()
   if (!client) throw new Error('Not signed in to Google.')
 
-  const settings = await readGoogleSettings()
+  const settings = await readGoogleSyncSettings()
   const persons = await listAllGooglePeople(client)
   const create: GooglePullEntry[] = []
   const update: GooglePullEntry[] = []
@@ -443,16 +472,20 @@ export async function googlePreviewPush(): Promise<GooglePushPlan> {
   const client = await buildAuthedClient()
   if (!client) throw new Error('Not signed in to Google.')
 
-  const settings = await readGoogleSettings()
+  const settings = await readGoogleSyncSettings()
   const local = await listContacts()
   const googlePersons = await listAllGooglePeople(client)
-  const googleNamesLower = new Set<string>()
+  // Index Google's contacts by lowercase display name so we can decide
+  // create vs. update for each local entity, and recover the resourceName for
+  // updates.
+  const googleByName = new Map<string, people_v1.Schema$Person>()
   for (const p of googlePersons) {
     const name = mapPerson(p)?.entity
-    if (name) googleNamesLower.add(name.toLowerCase())
+    if (name) googleByName.set(name.toLowerCase(), p)
   }
 
   const create: GooglePushEntry[] = []
+  const update: GooglePushUpdate[] = []
   const skip: { entity: string; kind: ContactKind; reason: string }[] = []
   for (const entity of local) {
     const parsed = await readContactParsed(entity)
@@ -462,14 +495,59 @@ export async function googlePreviewPush(): Promise<GooglePushPlan> {
       skip.push({ entity, kind, reason: `kind '${kind}' is not enabled for sync` })
       continue
     }
-    if (googleNamesLower.has(entity.toLowerCase())) {
-      skip.push({ entity, kind, reason: 'already in Google' })
+    const fields = parseBulletsToFields(parsed?.notes ?? [])
+    const existingGoogle = googleByName.get(entity.toLowerCase())
+
+    if (!existingGoogle) {
+      create.push({
+        entity,
+        kind,
+        reason: 'missing-in-google',
+        fields: formatFieldsPreview(fields)
+      })
       continue
     }
-    create.push({ entity, kind, reason: 'missing-in-google' })
+
+    if (!existingGoogle.resourceName) {
+      // Defensive — every Person from connections.list has a resourceName,
+      // but the SDK types it as optional. Skip rather than crash.
+      skip.push({ entity, kind, reason: 'matching Google contact has no resourceName' })
+      continue
+    }
+
+    const merge = mergeFieldsIntoPerson(existingGoogle, fields)
+    if (!merge) {
+      skip.push({ entity, kind, reason: 'already in Google (no new fields)' })
+      continue
+    }
+    update.push({
+      entity,
+      kind,
+      googleResourceName: existingGoogle.resourceName,
+      additions: merge.additions
+    })
   }
 
-  return { localCount: local.length, create, skip }
+  return { localCount: local.length, create, update, skip }
+}
+
+/**
+ * Format the parsed local fields back into bullet strings for the confirm
+ * modal preview. Mirrors the format `flattenPersonToNotes` produces so the
+ * UI shows the same vocabulary on both sides of the sync.
+ */
+function formatFieldsPreview(fields: ReturnType<typeof parseBulletsToFields>): string[] {
+  const out: string[] = []
+  for (const e of fields.emails)    out.push(`email: ${e.value}${e.type ? ` (${e.type})` : ''}`)
+  for (const p of fields.phones)    out.push(`phone: ${p.value}${p.type ? ` (${p.type})` : ''}`)
+  for (const a of fields.addresses) out.push(`address: ${a.value}${a.type ? ` (${a.type})` : ''}`)
+  for (const u of fields.urls)      out.push(`url: ${u.value}${u.type ? ` (${u.type})` : ''}`)
+  for (const o of fields.orgs) {
+    if (o.name)  out.push(`org: ${o.name}`)
+    if (o.title) out.push(`title: ${o.title}`)
+  }
+  for (const line of fields.biographyLines) out.push(line)
+  return out
 }
 
 export async function googleApplyPush(plan: GooglePushPlan): Promise<GoogleApplyResult> {
@@ -478,19 +556,46 @@ export async function googleApplyPush(plan: GooglePushPlan): Promise<GoogleApply
 
   const people = google.people({ version: 'v1', auth: client })
   let created = 0
+  let updated = 0
   try {
     for (const entry of plan.create) {
-      await people.people.createContact({
-        requestBody: { names: [{ givenName: entry.entity }] }
-      })
+      const parsed = await readContactParsed(entry.entity)
+      const fields = parseBulletsToFields(parsed?.notes ?? [])
+      const body = buildPersonForCreate(entry.entity, fields)
+      await people.people.createContact({ requestBody: body })
       created += 1
+    }
+    for (const entry of plan.update) {
+      // Refetch the Google Person so we get a current etag (updateContact
+      // requires it as an optimistic-concurrency guard) and a fresh view of
+      // Google's fields in case the user changed something between preview
+      // and apply. Then recompute the additive merge against the fresh data
+      // — the `additions` we stored in the plan was just for the UI.
+      const fresh = await people.people.get({
+        resourceName: entry.googleResourceName,
+        personFields: PERSON_FIELDS
+      })
+      const parsed = await readContactParsed(entry.entity)
+      const fields = parseBulletsToFields(parsed?.notes ?? [])
+      const merge = mergeFieldsIntoPerson(fresh.data, fields)
+      if (!merge) continue // someone else added the same fields between preview and apply
+      await people.people.updateContact({
+        resourceName: entry.googleResourceName,
+        updatePersonFields: merge.updatePersonFields,
+        requestBody: merge.merged
+      })
+      updated += 1
     }
     const appliedAt = Date.now()
     await patchGoogleSettings({ lastPushAt: appliedAt })
+    const parts: string[] = []
+    if (created) parts.push(`created ${created}`)
+    if (updated) parts.push(`updated ${updated}`)
+    const summary = parts.length ? parts.join(', ') : 'no changes'
     return {
       appliedAt,
       ok: true,
-      message: `Created ${created} contact${created === 1 ? '' : 's'} in Google.`
+      message: `Pushed to Google: ${summary}.`
     }
   } catch (err) {
     log.error('[google-contacts] applyPush failed', err)

@@ -53,8 +53,14 @@ export const memoryIpc = defineIpc('memory', {
 
   // Google Contacts sync (Settings > Contacts > Google Sync). Each direction
   // is a two-step preview/apply so the renderer can show a dry-run modal
-  // before any write happens — per design note in docs/adr/0008.
+  // before any write happens.
+  //
+  // saveCredentials / clearCredentials manage the BYO OAuth pair the user
+  // pastes into Settings → Providers → Google (see ADR 0009). signOut wipes
+  // only the refresh token; clearCredentials wipes both halves of the pair.
   googleGetStatus: method<[], GoogleSyncStatus>(),
+  googleSaveCredentials: method<[payload: { clientId: string; clientSecret: string }], GoogleSyncStatus>(),
+  googleClearCredentials: method<[], GoogleSyncStatus>(),
   googleSignIn: method<[], GoogleSyncStatus>(),
   googleSignOut: method<[], GoogleSyncStatus>(),
   googlePreviewPull: method<[], GooglePullPlan>(),

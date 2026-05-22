@@ -16,10 +16,10 @@ const SUBTABS: { id: SubTab; label: string }[] = [
   { id: 'schedule', label: 'Schedule' }
 ]
 
-// Contacts used to be a sub-tab here. It's now a top-level Settings tab — see
-// SettingsView.tsx and ContactsTab.tsx. The contacts-updater schedule card
-// also moved to ContactsTab, leaving the diary as the only thing on the
-// Schedule sub-tab.
+// Contacts used to live here as a sub-tab. It now lives in the rose-contacts
+// built-in extension (src/renderer/src/extensions/builtins/rose-contacts/),
+// where the contacts-updater schedule card and Google sync card also live —
+// leaving the diary as the only thing on the Schedule sub-tab.
 
 // ── Diary sub-tab ────────────────────────────────────────────────────────
 

@@ -25,6 +25,8 @@ export * from './conversationLog'
 export * from './agentActivity'
 export {
   googleGetStatus,
+  googleSaveCredentials,
+  googleClearCredentials,
   googleSignIn,
   googleSignOut,
   googlePreviewPull,

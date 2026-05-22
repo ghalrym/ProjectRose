@@ -7,7 +7,7 @@ import {
 } from '../../../../shared/extension-contract'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { loadDynamicExtensions } from '../../extensions/registry'
-import { BUILTIN_CATALOG, type CatalogEntry } from '../../extensions/builtinCatalog'
+import { FEATURED_CATALOG, type CatalogEntry } from '../../extensions/featuredCatalog'
 import styles from './SettingsView.module.css'
 
 type ExtensionPane = 'discover' | 'installed'
@@ -324,7 +324,7 @@ export function ExtensionsTab(): JSX.Element {
 
         {rootPath && activePane === 'discover' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {BUILTIN_CATALOG.map((entry) => (
+            {FEATURED_CATALOG.map((entry) => (
               <CatalogRow
                 key={entry.id}
                 entry={entry}

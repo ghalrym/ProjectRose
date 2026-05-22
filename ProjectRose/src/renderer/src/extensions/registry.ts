@@ -1,6 +1,15 @@
 import type { ComponentType } from 'react'
 import type { ExtensionManifest } from '../../../shared/extension-types'
 import { legacyViewIdAliases } from '../../../shared/extension-contract'
+import { BUILTIN_EXTENSIONS } from './builtins'
+
+/**
+ * 'builtin'  — ships inside the host repo, statically registered, always
+ *              enabled, cannot be uninstalled. See builtins/index.ts.
+ * 'dynamic'  — installed by the user from disk or git, loaded at runtime
+ *              via loadRendererCode().
+ */
+export type ExtensionProvenance = 'builtin' | 'dynamic'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface RendererExtension {
@@ -8,9 +17,12 @@ export interface RendererExtension {
   PageView?: ComponentType<any>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   SettingsView?: ComponentType<any>
+  provenance?: ExtensionProvenance
 }
 
-// All extensions are loaded dynamically at runtime from the installed list.
+// User-installed extensions are loaded dynamically at runtime from the
+// installed list. Built-ins live in BUILTIN_EXTENSIONS (imported above)
+// and are merged ahead of dynamic ones in getAllExtensions().
 const DYNAMIC_EXTENSIONS: RendererExtension[] = []
 
 // Listeners notified whenever DYNAMIC_EXTENSIONS changes.
@@ -33,11 +45,14 @@ export function migrateViewId(viewId: string): string {
 
 export function getExtensionByViewId(viewId: string): RendererExtension | undefined {
   const id = legacyViewIdAliases[viewId] ?? viewId
-  return DYNAMIC_EXTENSIONS.find((e) => e.manifest.id === id)
+  return (
+    BUILTIN_EXTENSIONS.find((e) => e.manifest.id === id) ??
+    DYNAMIC_EXTENSIONS.find((e) => e.manifest.id === id)
+  )
 }
 
 export function getAllExtensions(): RendererExtension[] {
-  return [...DYNAMIC_EXTENSIONS]
+  return [...BUILTIN_EXTENSIONS, ...DYNAMIC_EXTENSIONS]
 }
 
 const STYLE_DATA_ATTR = 'data-rose-extension'
@@ -87,7 +102,7 @@ export async function loadDynamicExtensions(rootPath: string): Promise<void> {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const SettingsView = mod.exports['SettingsView'] as ComponentType<any> | undefined
         if (typeof PageView === 'function' || typeof SettingsView === 'function') {
-          DYNAMIC_EXTENSIONS.push({ manifest: ext.manifest, PageView, SettingsView })
+          DYNAMIC_EXTENSIONS.push({ manifest: ext.manifest, PageView, SettingsView, provenance: 'dynamic' })
           if (result.css) injectExtensionStyle(ext.manifest.id, result.css)
         }
       }

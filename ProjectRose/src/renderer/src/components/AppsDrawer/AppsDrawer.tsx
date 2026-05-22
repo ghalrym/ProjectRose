@@ -28,6 +28,28 @@ function ExtensionIcon({ ext }: { ext: RendererExtension }): JSX.Element {
   return <Monogram name={ext.manifest.name} />
 }
 
+function BuiltinIcon(): JSX.Element {
+  // A small lock glyph used to indicate that an extension is built into the
+  // host and cannot be uninstalled. Decorative — the tooltip on the title
+  // attribute carries the meaning for assistive tech.
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="10"
+      height="10"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="11" width="16" height="9" rx="1.5" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  )
+}
+
 function CogIcon(): JSX.Element {
   return (
     <svg
@@ -188,14 +210,23 @@ export function AppsDrawer(): JSX.Element {
                     className={styles.sidebarRow}
                     onClick={() => handleSelect(ext.manifest.id)}
                     tabIndex={open ? 0 : -1}
-                    title={ext.manifest.description}
+                    title={ext.provenance === 'builtin'
+                      ? `Built into ProjectRose — ${ext.manifest.description}`
+                      : ext.manifest.description}
                   >
                     <span className={styles.sidebarSpecimen}>№{String(idx + 1).padStart(2, '0')}</span>
                     <span className={styles.sidebarIcon}>
                       <ExtensionIcon ext={ext} />
                     </span>
                     <span className={styles.sidebarLabel}>
-                      <span className={styles.sidebarName}>{ext.manifest.name}</span>
+                      <span className={styles.sidebarName}>
+                        {ext.manifest.name}
+                        {ext.provenance === 'builtin' && (
+                          <span className={styles.sidebarBuiltin} aria-label="Built-in">
+                            <BuiltinIcon />
+                          </span>
+                        )}
+                      </span>
                       {ext.manifest.latin && (
                         <span className={styles.sidebarLatin}>{ext.manifest.latin}</span>
                       )}

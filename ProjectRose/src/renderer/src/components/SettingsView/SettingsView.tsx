@@ -3,7 +3,6 @@ import { ExtensionsTab } from './ExtensionsTab'
 import { PromptsTab } from './PromptsTab'
 import { UpdatesTab } from './UpdatesTab'
 import { MemoryTab } from './MemoryTab'
-import { ContactsTab } from './ContactsTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useViewStore } from '../../stores/useViewStore'
@@ -11,7 +10,6 @@ import { useWhisperPreloadStore } from '../../stores/useWhisperPreloadStore'
 import { subscribeToExtensionsChange } from '../../extensions/registry'
 import type { ModelConfig, ToolMeta } from '@shared/types'
 import type { GoogleSyncStatus } from '@shared/memory'
-import { DEFAULT_GOOGLE_CLIENT_ID } from '@shared/googleOAuth'
 import styles from './SettingsView.module.css'
 import { WhisperModelInstallModal, type WhisperModelOption } from './WhisperModelInstallModal'
 import whisperModalStyles from './WhisperModelInstallModal.module.css'
@@ -494,11 +492,19 @@ export function SettingsView(): JSX.Element {
   }
 
   // ── google account state ──
-  // Lives here (not inside ContactsTab) so the auth is a shared, app-wide
-  // concern. The Contacts tab consumes the status but doesn't own sign-in.
+  // Lives on the Providers tab so the auth is a shared, app-wide concern.
+  // The rose-contacts built-in extension consumes the status but doesn't
+  // own sign-in.
   const [googleStatus, setGoogleStatus] = useState<GoogleSyncStatus | null>(null)
   const [googleBusy, setGoogleBusy] = useState<string | null>(null)
   const [googleError, setGoogleError] = useState<string | null>(null)
+  // Local-only draft for the BYO OAuth pair. The clientSecret is never read
+  // back from the main process (safeStorage is one-way for our purposes), so
+  // the field starts blank on every load — the user re-enters it only when
+  // changing or re-pasting credentials.
+  const [googleClientIdDraft, setGoogleClientIdDraft] = useState('')
+  const [googleClientSecretDraft, setGoogleClientSecretDraft] = useState('')
+  const [googleHelpOpen, setGoogleHelpOpen] = useState(false)
 
   const refreshGoogleStatus = useCallback(async () => {
     const s = await window.api.memory.googleGetStatus()
@@ -523,6 +529,38 @@ export function SettingsView(): JSX.Element {
     try {
       const s = await window.api.memory.googleSignOut()
       setGoogleStatus(s)
+    } finally { setGoogleBusy(null) }
+  }
+
+  async function googleSaveCredentials(): Promise<void> {
+    const clientId = googleClientIdDraft.trim()
+    const clientSecret = googleClientSecretDraft.trim()
+    if (!clientId || !clientSecret) {
+      setGoogleError('Both client ID and client secret are required.')
+      return
+    }
+    setGoogleBusy('Saving credentials…')
+    setGoogleError(null)
+    try {
+      const s = await window.api.memory.googleSaveCredentials({ clientId, clientSecret })
+      setGoogleStatus(s)
+      setGoogleClientIdDraft('')
+      setGoogleClientSecretDraft('')
+    } catch (e) {
+      setGoogleError(e instanceof Error ? e.message : 'Could not save credentials')
+    } finally { setGoogleBusy(null) }
+  }
+
+  async function googleClearCredentials(): Promise<void> {
+    setGoogleBusy('Clearing credentials…')
+    setGoogleError(null)
+    try {
+      const s = await window.api.memory.googleClearCredentials()
+      setGoogleStatus(s)
+      setGoogleClientIdDraft('')
+      setGoogleClientSecretDraft('')
+    } catch (e) {
+      setGoogleError(e instanceof Error ? e.message : 'Could not clear credentials')
     } finally { setGoogleBusy(null) }
   }
 
@@ -906,9 +944,8 @@ export function SettingsView(): JSX.Element {
     { id: 'skills',     label: 'Skills',     n: '04' },
     { id: 'prompts',    label: 'Prompts',    n: '05' },
     { id: 'memory',     label: 'Memory',     n: '06' },
-    { id: 'contacts',   label: 'Contacts',   n: '07' },
-    { id: 'extensions', label: 'Extensions', n: '08' },
-    { id: 'updates',    label: 'Updates',    n: '09' },
+    { id: 'extensions', label: 'Extensions', n: '07' },
+    { id: 'updates',    label: 'Updates',    n: '08' },
   ]
 
   const allPageIds = topLevelItems.map((i) => i.id)
@@ -1462,14 +1499,11 @@ export function SettingsView(): JSX.Element {
             const isExpanded = expandedProvider === kind
             const signedIn = googleStatus?.signedIn ?? false
             const accountEmail = googleStatus?.accountEmail ?? null
-            // Render-side check: the client_id is a build-time constant, so
-            // we don't need to wait for the IPC roundtrip to know if it's
-            // configured. (The IPC's credentialsConfigured stays as a
-            // defensive backstop for OSS builds that strip the constant.)
-            const credsConfigured =
-              !!DEFAULT_GOOGLE_CLIENT_ID || (googleStatus?.credentialsConfigured ?? false)
+            const credsConfigured = googleStatus?.credentialsConfigured ?? false
             const status: ProviderStatus =
               signedIn ? 'connected' : credsConfigured ? 'unverified' : 'missing'
+            const draftReady =
+              googleClientIdDraft.trim().length > 0 && googleClientSecretDraft.trim().length > 0
 
             return (
               <div className={styles.providerCard}>
@@ -1499,7 +1533,7 @@ export function SettingsView(): JSX.Element {
                             ? `signed in${accountEmail ? ` · ${accountEmail}` : ''}`
                             : credsConfigured
                               ? 'sign in to enable Contacts sync'
-                              : 'unavailable in this build'}
+                              : 'paste OAuth credentials to enable'}
                         </span>
                       </div>
                     </div>
@@ -1516,9 +1550,11 @@ export function SettingsView(): JSX.Element {
                   <div className={`${styles.providerCardBody} ${styles.drawerIn}`}>
                     <div style={{ padding: '12px 16px 4px' }}>
                       <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
-                        {signedIn
-                          ? 'Active — features that consume Google (currently Settings → Contacts > sync) will use this account.'
-                          : 'Sign in once here. Features that consume Google (currently Contacts sync) will pick it up automatically.'}
+                        {credsConfigured
+                          ? (signedIn
+                            ? 'Active — features that consume Google (currently Settings → Contacts > sync) will use this account.'
+                            : 'Credentials saved. Sign in once below; other Google features (Contacts sync today, Gmail/Calendar/Drive later) will pick it up automatically.')
+                          : 'Paste a Google OAuth client ID + secret to enable Google features. The credentials are yours; they stay on this machine.'}
                       </p>
                       {signedIn && accountEmail && (
                         <div style={{ fontSize: 12, color: 'var(--color-text-primary)', marginBottom: 12 }}>
@@ -1528,17 +1564,114 @@ export function SettingsView(): JSX.Element {
                       {googleError && (
                         <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{googleError}</p>
                       )}
-                      <p style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
-                        Authentication uses PKCE against ProjectRose's built-in OAuth client; no client secret is stored or shipped.
-                        The refresh token is sealed with the OS keychain (Electron safeStorage, see ADR 0008).
-                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => setGoogleHelpOpen((o) => !o)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          color: 'var(--color-text-muted)',
+                          cursor: 'pointer',
+                          fontSize: 11,
+                          letterSpacing: 0.6,
+                          fontFamily: 'inherit',
+                          marginBottom: 10,
+                        }}
+                      >
+                        {googleHelpOpen ? '▾ HOW DO I GET THESE?' : '▸ HOW DO I GET THESE?'}
+                      </button>
+                      {googleHelpOpen && (
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--color-text-muted)',
+                            lineHeight: 1.7,
+                            background: 'var(--color-bg-primary)',
+                            border: '1px solid var(--color-bg-secondary)',
+                            padding: 12,
+                            marginBottom: 12,
+                          }}
+                        >
+                          <p style={{ margin: '0 0 8px', color: 'var(--color-text-primary)' }}>
+                            <strong>Why do I need to set this up myself?</strong>
+                          </p>
+                          <p style={{ margin: '0 0 8px' }}>
+                            ProjectRose is open source — anyone can read its code. To talk to Google
+                            services on your behalf, the app needs a pair of "keys" issued by Google.
+                            Google requires the second key (the "client secret") to be kept private.
+                            If we shipped it inside ProjectRose, anyone could pull it out of the public
+                            code, which would let bad actors impersonate the app and likely get the
+                            keys revoked — breaking the app for everyone.
+                          </p>
+                          <p style={{ margin: '0 0 12px' }}>
+                            Until ProjectRose ships a hosted service that can hand out keys safely,
+                            you'll need to make your own free pair in Google's developer console.
+                            It's a one-time setup. Your keys stay on this computer and are only used
+                            so ProjectRose can talk to your own Google account.
+                          </p>
+                          <p style={{ margin: '0 0 6px', color: 'var(--color-text-primary)' }}>
+                            <strong>Steps:</strong>
+                          </p>
+                          <ol style={{ margin: '0 0 8px 20px', padding: 0 }}>
+                            <li>Sign in to <span style={{ fontFamily: 'var(--font-mono)' }}>console.cloud.google.com</span> and create (or select) a project.</li>
+                            <li>Enable the <em>People API</em> (Contacts sync needs it; enable Gmail/Calendar/Drive APIs later if you want those).</li>
+                            <li>Open <em>APIs &amp; Services → OAuth consent screen</em>, choose "External", add yourself as a test user.</li>
+                            <li>Open <em>APIs &amp; Services → Credentials</em>, click <em>Create Credentials → OAuth client ID</em>, pick <strong>Desktop app</strong>.</li>
+                            <li>Copy the client ID and client secret it shows you, and paste them below.</li>
+                          </ol>
+                          <p style={{ margin: 0, fontStyle: 'italic' }}>
+                            Your client secret is encrypted with your operating system's keychain and
+                            never leaves this computer.
+                          </p>
+                        </div>
+                      )}
+
+                      <FieldRow
+                        label="OAUTH CLIENT ID"
+                        hint="console.cloud.google.com/apis/credentials"
+                      >
+                        <KeyInput
+                          value={googleClientIdDraft}
+                          placeholder="xxx.apps.googleusercontent.com"
+                          onChange={setGoogleClientIdDraft}
+                          type="text"
+                        />
+                      </FieldRow>
+                      <FieldRow label="OAUTH CLIENT SECRET" hint="stored in system keychain">
+                        <KeyInput
+                          value={googleClientSecretDraft}
+                          placeholder="GOCSPX-..."
+                          onChange={setGoogleClientSecretDraft}
+                        />
+                      </FieldRow>
                     </div>
-                    <div className={styles.providerCardFooter} style={{ justifyContent: 'stretch' }}>
+                    <div className={styles.providerCardFooter} style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        className={styles.ghostBtn}
+                        style={{ flex: 1 }}
+                        onClick={googleClearCredentials}
+                        disabled={(!credsConfigured && !signedIn) || googleBusy !== null}
+                        title="Wipes the saved client ID, client secret, and refresh token."
+                      >
+                        CLEAR
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.primaryBtn}
+                        style={{ flex: 1 }}
+                        onClick={googleSaveCredentials}
+                        disabled={!draftReady || googleBusy !== null}
+                      >
+                        SAVE
+                      </button>
                       {signedIn ? (
                         <button
                           type="button"
                           className={styles.ghostBtn}
-                          style={{ width: '100%' }}
+                          style={{ flex: 2 }}
                           onClick={googleSignOut}
                           disabled={googleBusy !== null}
                         >
@@ -1548,7 +1681,7 @@ export function SettingsView(): JSX.Element {
                         <button
                           type="button"
                           className={styles.primaryBtn}
-                          style={{ width: '100%' }}
+                          style={{ flex: 2 }}
                           onClick={googleSignIn}
                           disabled={!credsConfigured || googleBusy !== null}
                         >
@@ -1757,7 +1890,6 @@ export function SettingsView(): JSX.Element {
       case 'skills':     return renderSkills()
       case 'prompts':    return <PromptsTab />
       case 'memory':     return <MemoryTab />
-      case 'contacts':   return <ContactsTab />
       case 'updates':    return <UpdatesTab />
       case 'extensions': return renderExtensions()
       default: {

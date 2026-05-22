@@ -1,0 +1,582 @@
+/* rose-contacts — combined page styles.
+   The page lives inside the AppsDrawer's main pane: a list+detail split
+   (PageView) plus the sync/updater cards on a sibling SettingsView. */
+
+/* ── Page shell ─────────────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  min-height: 0;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.split {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── List pane ─────────────────────────────────────────────────────────── */
+
+.listPane {
+  width: 260px;
+  min-width: 260px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.listHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.searchPane {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.search {
+  width: 100%;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.listScroll {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.listRow {
+  all: unset;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.listRow:hover { background: var(--color-bg-elevated); }
+
+.listRowActive {
+  background: var(--color-bg-elevated);
+  border-left: 2px solid var(--color-accent, #e05c84);
+}
+
+.listRowInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.listRowName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  padding: 24px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* ── Editor pane ───────────────────────────────────────────────────────── */
+
+.editorPane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.editorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.editorHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.editorBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 16px 18px;
+  gap: 14px;
+}
+
+.relations {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px;
+}
+
+.relationsHead {
+  margin-bottom: 6px;
+  color: var(--color-text-muted);
+}
+
+.relationRow {
+  margin-top: 4px;
+  color: var(--color-text-muted);
+}
+
+/* ── Per-field editor ──────────────────────────────────────────────────── */
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fieldGroupHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.fieldGroupLabel {
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.fieldGroupEmpty {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 140px 28px;
+  gap: 6px;
+  align-items: start;
+}
+
+.fieldInput,
+.fieldType,
+.notesArea {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fieldInput:focus,
+.fieldType:focus,
+.notesArea:focus {
+  outline: none;
+  border-color: var(--color-accent, #e05c84);
+}
+
+.fieldArea {
+  composes: fieldInput;
+  resize: vertical;
+  min-height: 48px;
+}
+
+.notesArea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.addBtn {
+  all: unset;
+  cursor: pointer;
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--color-accent, #e05c84);
+  padding: 2px 6px;
+}
+
+.addBtn:hover { text-decoration: underline; }
+
+.removeBtn {
+  all: unset;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.removeBtn:hover {
+  border-color: #c44;
+  color: #c44;
+}
+
+/* ── Bottom button row (Save / Delete) ─────────────────────────────────── */
+
+.btnRow {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.btn {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.btn:hover { border-color: var(--color-accent, #e05c84); }
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btnPrimary {
+  background: var(--color-accent, #e05c84);
+  color: white;
+  border-color: var(--color-accent, #e05c84);
+}
+
+.btnDanger {
+  color: #c44;
+  border-color: #c44;
+}
+
+.btnGhost {
+  background: transparent;
+}
+
+.kindSelect {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  padding: 3px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+
+/* ── Settings cards (drawer cog SettingsView) ─────────────────────────── */
+
+.settingsScroll {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.cardRow {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.card {
+  flex: 1 1 360px;
+  min-width: 320px;
+  max-width: 520px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cardTitle {
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.cardSub {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.label {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.value {
+  color: var(--color-text-primary);
+}
+
+.input {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.statusOk {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  border-radius: 2px;
+  background: rgba(90, 180, 120, 0.18);
+  color: rgb(120, 200, 140);
+}
+
+.statusOff {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  border-radius: 2px;
+  background: rgba(180, 90, 90, 0.18);
+  color: rgb(220, 130, 130);
+}
+
+.statusMuted {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  border-radius: 2px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-muted);
+}
+
+.busy {
+  font-style: italic;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.sweepResult {
+  font-size: 11px;
+  color: var(--color-text-primary);
+  line-height: 1.5;
+  padding: 8px 10px;
+  background: var(--color-bg-elevated);
+  border-left: 2px solid var(--color-accent, #e05c84);
+}
+
+/* ── Kind badges ──────────────────────────────────────────────────────── */
+
+.kindBadge {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 9px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  border-radius: 2px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  background: var(--color-bg-elevated);
+}
+
+.kindPerson   { color: rgb(140, 180, 220); border-color: rgba(140, 180, 220, 0.4); }
+.kindBusiness { color: rgb(200, 170, 110); border-color: rgba(200, 170, 110, 0.4); }
+.kindWebsite  { color: rgb(160, 200, 140); border-color: rgba(160, 200, 140, 0.4); }
+.kindOther    { color: var(--color-text-muted); }
+
+/* ── Kind filter (Google Sync card) ───────────────────────────────────── */
+
+.kindFilterGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  font-size: 12px;
+}
+
+.kindFilterRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-primary);
+}
+
+.fieldRowVertical {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.error {
+  color: var(--color-error, #c44);
+  font-size: 11px;
+}
+
+.hint {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+/* ── Modals (Pull/Push confirm + New contact) ────────────────────────── */
+
+.modalScrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  width: min(560px, 90vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modalHeader {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modalTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.modalBody {
+  padding: 14px 18px;
+  overflow-y: auto;
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.modalSection {
+  margin-bottom: 14px;
+}
+
+.modalSection:last-child {
+  margin-bottom: 0;
+}
+
+.modalSectionHead {
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+
+.modalList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.modalList li {
+  padding: 3px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modalList li:last-child {
+  border-bottom: none;
+}
+
+.modalSubList {
+  list-style: disc;
+  padding: 4px 0 4px 22px;
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.modalSubList li {
+  padding: 1px 0;
+  border-bottom: none;
+}
+
+.modalFooter {
+  padding: 12px 18px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

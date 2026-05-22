@@ -42,3 +42,7 @@ No-terminal alternative: right-click the app in Finder → **Open** → click **
 ## Extensions
 
 Extensions add capabilities the agent can call as tools — and, optionally, UI panels in the sidebar. Each extension lives in its own repo and installs from the in-app store. The known extensions today: `rose-crm`, `rose-discord`, `rose-docker`, `rose-email`, `rose-git`, and `rose-heartbeat` (a background process that processes deferred notes and runs scheduled agent tasks).
+
+## Connecting Google services
+
+Google Contacts sync (and future Gmail / Calendar / Drive integrations) requires you to supply your own Google OAuth credentials. ProjectRose is open source so it doesn't — and can't — ship a shared client secret. **Settings → Providers → Google** has an inline walkthrough: create a Google Cloud project, enable the People API, generate an OAuth 2.0 client ID of type "Desktop app", and paste the two values into the form. Your credentials stay on your computer (the secret is sealed with the OS keychain). See [ADR 0009](docs/adr/0009-byo-google-oauth-credentials.md) for the rationale.

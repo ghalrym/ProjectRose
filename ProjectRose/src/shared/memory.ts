@@ -71,13 +71,11 @@ export interface ActivityLogEntry {
 /**
  * Persisted state for the Settings > Contacts tab's Google Contacts sync.
  * The OAuth refresh token does NOT live here — it's sealed in
- * userData/google-session.bin via safeStorage (see ADR 0008).
+ * userData/google-session.bin via safeStorage.
  *
- * No OAuth credentials live here either: the client_id is baked into the
- * build (src/shared/googleOAuth.ts, build-time replaceable via the
- * MAIN_VITE_GOOGLE_CLIENT_ID env var), and no client_secret is shipped or
- * needed (PKCE per RFC 8252; client_secret is Optional in Google's
- * loopback token-exchange spec).
+ * The user-supplied OAuth client pair lives separately (the clientId in
+ * AppSettings.googleAuth, the clientSecret encrypted in
+ * userData/google-oauth-secret.bin) — see ADR 0009.
  */
 export interface GoogleSyncSettings {
   accountEmail: string | null
@@ -166,16 +164,36 @@ export interface GooglePullPlan {
   skippedByKind: { entity: string; kind: ContactKind }[]
 }
 
-/** A single Memory.Contact entity that will be pushed to Google. */
+/** A single Memory.Contact entity that will be created in Google. */
 export interface GooglePushEntry {
   entity: string
   kind: ContactKind
   reason: 'missing-in-google'
+  /**
+   * Bullet-formatted preview of what's being sent (e.g. `email: x@y (work)`,
+   * `phone: 555 (mobile)`, biography lines). Empty if the contact has only
+   * a name. Shown in the confirm modal.
+   */
+  fields: string[]
+}
+
+/** A Memory.Contact entity that's already in Google and has extra local fields. */
+export interface GooglePushUpdate {
+  entity: string
+  kind: ContactKind
+  /** People API resourceName, used by apply to target the right Google contact. */
+  googleResourceName: string
+  /**
+   * Bullet-formatted list of fields that will be appended to Google. Computed
+   * additively — Google's existing fields are never removed or overwritten.
+   */
+  additions: string[]
 }
 
 export interface GooglePushPlan {
   localCount: number
   create: GooglePushEntry[]
+  update: GooglePushUpdate[]
   skip: { entity: string; kind: ContactKind; reason: string }[]
 }
 

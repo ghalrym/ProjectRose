@@ -1,66 +1,34 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   CONTACT_KINDS,
   type ContactKind,
-  type ContactSearchResult,
   type ContactsUpdaterStatus,
   type GooglePullPlan,
   type GooglePushPlan,
   type GoogleSyncStatus,
   type MemorySettings
 } from '@shared/memory'
-import { MarkdownEditor } from './MarkdownEditor'
-import { DEFAULT_GOOGLE_CLIENT_ID } from '@shared/googleOAuth'
-import { useViewStore } from '../../stores/useViewStore'
-import memoryStyles from './MemoryTab.module.css'
-import styles from './ContactsTab.module.css'
+import { useViewStore } from '../../../stores/useViewStore'
+import { useAppsDrawerStore } from '../../../stores/useAppsDrawerStore'
+import styles from './ContactsPage.module.css'
 
-// Top-level "Contacts" Settings tab. Owns:
-//   • The Memory.Contact editor (lifted out of MemoryTab.ContactsSubTab)
-//   • The LLM contacts-updater schedule card (lifted out of Memory > Schedule)
-//   • The Google Contacts sync card (per ADR 0008)
+// Drawer-cog SettingsView for the rose-contacts built-in extension.
+// Contains the Google Contacts sync card and the LLM contacts-updater card,
+// lifted verbatim from the old Settings → Contacts tab so behaviour matches.
 //
-// Each entity has a ContactKind (person/business/website/other) stored as a
-// `- kind: <value>` bullet inside the file. The editor's kind dropdown
-// rewrites that bullet in-memory; the Google Sync card filters which kinds
-// round-trip with Google.
+// The page view (list + per-field detail) remounts on mode switch, so any
+// pull/push changes show up automatically when the user clicks back to the
+// page — no cross-component broadcast needed.
 
-// ── kind helpers (renderer-side, mirror contacts.ts) ────────────────────
-
-const KIND_LINE_RE = /^\s*-\s+kind:\s*(person|business|website|other)\s*$/i
-
-function parseKindFromContent(content: string, fallback: ContactKind = 'other'): ContactKind {
-  for (const line of content.split('\n')) {
-    const m = line.match(KIND_LINE_RE)
-    if (m) return m[1].toLowerCase() as ContactKind
-  }
-  return fallback
-}
-
-/**
- * Replace or insert the `- kind: <value>` bullet in the markdown content.
- * Insertion goes right after the `# Entity:` header so the bullet is the
- * first thing a human (or the agent) sees. Matches the order contacts.ts
- * uses when round-tripping the file.
- */
-function rewriteKindInContent(content: string, newKind: ContactKind): string {
-  const lines = content.split('\n')
-  let replaced = false
-  const out: string[] = []
-  for (const line of lines) {
-    if (!replaced && KIND_LINE_RE.test(line)) {
-      out.push(`- kind: ${newKind}`)
-      replaced = true
-      continue
-    }
-    out.push(line)
-  }
-  if (!replaced) {
-    const headerIdx = out.findIndex((l) => /^#\s*Entity:/i.test(l))
-    if (headerIdx >= 0) out.splice(headerIdx + 1, 0, `- kind: ${newKind}`)
-    else out.unshift(`- kind: ${newKind}`)
-  }
-  return out.join('\n')
+export function ContactsSettings(): JSX.Element {
+  return (
+    <div className={styles.settingsScroll}>
+      <div className={styles.cardRow}>
+        <GoogleSyncCard />
+        <ContactsUpdaterCard />
+      </div>
+    </div>
+  )
 }
 
 function kindBadgeClass(kind: ContactKind): string {
@@ -72,297 +40,13 @@ function kindBadgeClass(kind: ContactKind): string {
   }
 }
 
-// ── Editor pane ──────────────────────────────────────────────────────────
-
-function ContactsEditor(): JSX.Element {
-  const [entries, setEntries] = useState<Array<{ entity: string; kind: ContactKind }>>([])
-  const [selected, setSelected] = useState<string | null>(null)
-  const [content, setContent] = useState('')
-  const [original, setOriginal] = useState('')
-  const [busy, setBusy] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [searchResult, setSearchResult] = useState<ContactSearchResult | null>(null)
-  const [newOpen, setNewOpen] = useState(false)
-
-  const refresh = useCallback(async () => {
-    const list = await window.api.memory.listContactsDetailed()
-    setEntries(list)
-    if (list.length && !selected) setSelected(list[0].entity)
-  }, [selected])
-
-  useEffect(() => { void refresh() }, [refresh])
-
-  useEffect(() => {
-    if (!selected) { setContent(''); setOriginal(''); return }
-    let cancelled = false
-    void window.api.memory.readContact(selected).then((c) => {
-      if (cancelled) return
-      const text = c ?? ''
-      setContent(text)
-      setOriginal(text)
-    })
-    return () => { cancelled = true }
-  }, [selected])
-
-  useEffect(() => {
-    const term = search.trim()
-    if (!term) { setSearchResult(null); return }
-    let cancelled = false
-    const t = setTimeout(async () => {
-      const result = await window.api.memory.searchContacts(term)
-      if (!cancelled) setSearchResult(result)
-    }, 200)
-    return () => { cancelled = true; clearTimeout(t) }
-  }, [search])
-
-  const dirty = content !== original
-  const currentKind = useMemo(() => parseKindFromContent(content), [content])
-
-  const save = async (): Promise<void> => {
-    if (!selected || !dirty) return
-    setBusy('Saving…')
-    try {
-      await window.api.memory.writeContact({ entity: selected, content })
-      setOriginal(content)
-      void refresh()
-    } finally { setBusy(null) }
-  }
-
-  const remove = async (): Promise<void> => {
-    if (!selected) return
-    setBusy('Deleting…')
-    try {
-      await window.api.memory.deleteContact(selected)
-      setSelected(null)
-      setContent('')
-      setOriginal('')
-      void refresh()
-    } finally { setBusy(null) }
-  }
-
-  const createContact = async (entity: string, kind: ContactKind): Promise<void> => {
-    setBusy('Creating…')
-    try {
-      const created = await window.api.memory.newContact(entity)
-      // newContact defaults to 'other'; if the user picked something else,
-      // set the kind in a second call so the file lands classified.
-      if (kind !== 'other') {
-        await window.api.memory.setContactKind({ entity: created.entity, kind })
-      }
-      await refresh()
-      setSelected(created.entity)
-      setNewOpen(false)
-    } finally { setBusy(null) }
-  }
-
-  const handleKindChange = (next: ContactKind): void => {
-    if (!selected) return
-    setContent((prev) => rewriteKindInContent(prev, next))
-  }
-
-  return (
-    <div className={memoryStyles.split}>
-      <aside className={memoryStyles.listPane}>
-        <div className={memoryStyles.listHeader}>
-          <span>Contacts · {entries.length}</span>
-        </div>
-        <div className={memoryStyles.searchPane}>
-          <input
-            className={memoryStyles.search}
-            placeholder="Search notes…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <div className={memoryStyles.listScroll}>
-          {entries.length === 0 && <div className={memoryStyles.empty}>No contacts yet.</div>}
-          {entries.map((e) => (
-            <button
-              key={e.entity}
-              className={`${memoryStyles.listRow} ${selected === e.entity ? memoryStyles.listRowActive : ''}`}
-              onClick={() => setSelected(e.entity)}
-            >
-              <div className={styles.listRowInner}>
-                <span className={styles.listRowName}>{e.entity}</span>
-                <span className={kindBadgeClass(e.kind)}>{e.kind}</span>
-              </div>
-            </button>
-          ))}
-        </div>
-        <div className={memoryStyles.btnRow}>
-          <button
-            className={`${memoryStyles.btn} ${memoryStyles.btnPrimary}`}
-            onClick={() => setNewOpen(true)}
-            disabled={busy !== null}
-          >
-            + New
-          </button>
-        </div>
-      </aside>
-
-      {newOpen && (
-        <NewContactModal
-          busy={busy !== null}
-          existing={new Set(entries.map((e) => e.entity.toLowerCase()))}
-          onCancel={() => setNewOpen(false)}
-          onCreate={createContact}
-        />
-      )}
-
-      <section className={memoryStyles.editorPane}>
-        <div className={memoryStyles.editorHeader}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span>{selected ?? 'Select a contact'}</span>
-            {selected && (
-              <select
-                className={styles.kindSelect}
-                value={currentKind}
-                onChange={(e) => handleKindChange(e.target.value as ContactKind)}
-                title="Kind — written as `- kind: <value>` in the file"
-              >
-                {CONTACT_KINDS.map((k) => (
-                  <option key={k} value={k}>{k}</option>
-                ))}
-              </select>
-            )}
-          </span>
-          <span>{busy ?? (dirty ? 'Unsaved changes' : '')}</span>
-        </div>
-        {searchResult && (
-          <div style={{ padding: 12, borderBottom: '1px solid var(--color-border)', fontSize: 11 }}>
-            <div style={{ marginBottom: 8 }}>
-              <strong>Direct match:</strong> {searchResult.contact ? 'yes' : 'none'}
-            </div>
-            <div><strong>Relations ({searchResult.relations.length}):</strong></div>
-            {searchResult.relations.map((r, i) => (
-              <div key={i} style={{ marginTop: 4, color: 'var(--color-text-muted)' }}>
-                <code>{r.entity}</code>: {r.note}
-              </div>
-            ))}
-          </div>
-        )}
-        <div className={memoryStyles.editorBody}>
-          {selected ? (
-            <MarkdownEditor value={content} onChange={setContent} />
-          ) : (
-            <div className={memoryStyles.empty}>Pick a contact on the left.</div>
-          )}
-        </div>
-        <div className={memoryStyles.btnRow}>
-          <button
-            className={`${memoryStyles.btn} ${memoryStyles.btnPrimary}`}
-            onClick={save}
-            disabled={!dirty || busy !== null}
-          >
-            Save
-          </button>
-          <button
-            className={`${memoryStyles.btn} ${memoryStyles.btnDanger}`}
-            onClick={remove}
-            disabled={!selected || busy !== null}
-          >
-            Delete
-          </button>
-        </div>
-      </section>
-    </div>
-  )
-}
-
-// ── New contact modal ───────────────────────────────────────────────────
-//
-// Replaces a `window.prompt()` call that didn't work — modern Electron
-// renderers don't honour prompt() unless `enableBlinkFeatures:
-// 'JavaScriptUserPrompts'` is set on the BrowserWindow, which this app
-// deliberately doesn't do. An inline modal also gives us room to ask for
-// the kind upfront, so the contact lands correctly classified.
-
-function NewContactModal({
-  busy,
-  existing,
-  onCancel,
-  onCreate
-}: {
-  busy: boolean
-  existing: Set<string>
-  onCancel: () => void
-  onCreate: (entity: string, kind: ContactKind) => void | Promise<void>
-}): JSX.Element {
-  const [name, setName] = useState('')
-  const [kind, setKind] = useState<ContactKind>('person')
-
-  const trimmed = name.trim()
-  const conflict = trimmed !== '' && existing.has(trimmed.toLowerCase())
-  const canSubmit = trimmed !== '' && !conflict && !busy
-
-  const submit = (): void => {
-    if (!canSubmit) return
-    void onCreate(trimmed, kind)
-  }
-
-  return (
-    <div className={styles.modalScrim} onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}>
-      <div className={styles.modal}>
-        <div className={styles.modalHeader}>
-          <span className={styles.modalTitle}>New contact</span>
-        </div>
-        <div className={styles.modalBody}>
-          <div className={styles.fieldRow} style={{ marginBottom: 12 }}>
-            <span className={styles.label}>Name</span>
-            <input
-              className={styles.input}
-              type="text"
-              autoFocus
-              placeholder="Person, business, website, or other"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') submit()
-                else if (e.key === 'Escape') onCancel()
-              }}
-            />
-            {conflict && (
-              <div className={styles.error}>A contact named "{trimmed}" already exists.</div>
-            )}
-          </div>
-          <div className={styles.fieldRow}>
-            <span className={styles.label}>Kind</span>
-            <div className={styles.kindFilterGrid}>
-              {CONTACT_KINDS.map((k) => (
-                <label key={k} className={styles.kindFilterRow}>
-                  <input
-                    type="radio"
-                    name="new-contact-kind"
-                    checked={kind === k}
-                    onChange={() => setKind(k)}
-                  />
-                  <span className={kindBadgeClass(k)}>{k}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className={styles.modalFooter}>
-          <button className={styles.btn} onClick={onCancel} disabled={busy}>Cancel</button>
-          <button
-            className={`${styles.btn} ${styles.btnPrimary}`}
-            onClick={submit}
-            disabled={!canSubmit}
-          >
-            Create
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Contacts updater card ────────────────────────────────────────────────
 
 function ContactsUpdaterCard(): JSX.Element {
   const [memory, setMemory] = useState<MemorySettings | null>(null)
   const [status, setStatus] = useState<ContactsUpdaterStatus | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [sweepResult, setSweepResult] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     const [cs, settings] = await Promise.all([
@@ -394,8 +78,14 @@ function ContactsUpdaterCard(): JSX.Element {
 
   const sweepNow = async (): Promise<void> => {
     setBusy('Sweeping…')
+    setSweepResult(null)
     try {
-      await window.api.memory.runContactsUpdaterNow()
+      const out = await window.api.memory.runContactsUpdaterNow()
+      const noun = out.swept === 1 ? 'message' : 'messages'
+      const firstLine = out.result?.split('\n').map((l) => l.trim()).find((l) => l) ?? null
+      if (out.swept === 0) setSweepResult('No new messages since last sweep.')
+      else if (firstLine) setSweepResult(`Swept ${out.swept} ${noun} — ${firstLine}`)
+      else setSweepResult(`Swept ${out.swept} ${noun}.`)
       void refresh()
     } finally { setBusy(null) }
   }
@@ -444,11 +134,14 @@ function ContactsUpdaterCard(): JSX.Element {
         </button>
         {busy && <span className={styles.busy}>{busy}</span>}
       </div>
+      {!busy && sweepResult && (
+        <div className={styles.sweepResult}>{sweepResult}</div>
+      )}
     </div>
   )
 }
 
-// ── Google Sync card ────────────────────────────────────────────────────
+// ── Google Sync card ─────────────────────────────────────────────────────
 
 type Direction = 'pull' | 'push'
 
@@ -464,7 +157,9 @@ function GoogleSyncCard(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [memory, setMemory] = useState<MemorySettings | null>(null)
+  const setActiveView = useViewStore((s) => s.setActiveView)
   const setSettingsTarget = useViewStore((s) => s.setSettingsTarget)
+  const closeDrawer = useAppsDrawerStore((s) => s.close)
 
   const refresh = useCallback(async () => {
     const [s, settings] = await Promise.all([
@@ -479,14 +174,12 @@ function GoogleSyncCard(): JSX.Element {
     void refresh()
     // Poll while the user might be signing in via the Providers tab — once
     // they come back, the card reflects the new status without needing a
-    // tab switch. Cheap (single IPC) and stops when the component unmounts.
+    // tab switch.
     const id = setInterval(() => { void refresh() }, 4_000)
     return () => clearInterval(id)
   }, [refresh])
 
-  const patchGoogle = async (patch: {
-    syncKinds?: Record<ContactKind, boolean>
-  }): Promise<void> => {
+  const patchGoogle = async (patch: { syncKinds?: Record<ContactKind, boolean> }): Promise<void> => {
     if (!memory) return
     const next: MemorySettings = {
       ...memory,
@@ -501,6 +194,12 @@ function GoogleSyncCard(): JSX.Element {
     if (!memory) return
     const current = memory.googleSync.syncKinds
     void patchGoogle({ syncKinds: { ...current, [kind]: on } })
+  }
+
+  const openProviders = (): void => {
+    closeDrawer()
+    setActiveView('settings')
+    setSettingsTarget('providers')
   }
 
   const openPullConfirm = async (): Promise<void> => {
@@ -545,12 +244,7 @@ function GoogleSyncCard(): JSX.Element {
     !ms ? '—' : new Date(ms).toLocaleString()
 
   const signedIn = status?.signedIn ?? false
-  // Render-side check using the build-time constant so the button isn't held
-  // disabled while the status IPC roundtrips (or stuck disabled if it fails).
-  // The IPC's credentialsConfigured stays as a backstop for OSS builds that
-  // strip the constant.
-  const credsConfigured =
-    !!DEFAULT_GOOGLE_CLIENT_ID || (status?.credentialsConfigured ?? false)
+  const credsConfigured = status?.credentialsConfigured ?? false
   const syncKinds = memory?.googleSync?.syncKinds ?? { person: true, business: true, website: false, other: false }
 
   return (
@@ -590,7 +284,7 @@ function GoogleSyncCard(): JSX.Element {
         <span className={styles.value}>{fmtTime(status?.lastPushAt)}</span>
       </div>
 
-      <div className={styles.fieldRow}>
+      <div className={styles.fieldRowVertical}>
         <span className={styles.label}>Sync these kinds</span>
         <div className={styles.kindFilterGrid}>
           {CONTACT_KINDS.map((k) => (
@@ -616,7 +310,7 @@ function GoogleSyncCard(): JSX.Element {
         <div className={styles.hint}>
           {credsConfigured
             ? 'Connect a Google account in Settings → Providers to enable sync.'
-            : 'Google sync is unavailable in this build.'}
+            : 'Add a Google OAuth client ID and secret in Settings → Providers → Google to enable sync.'}
         </div>
       )}
 
@@ -624,8 +318,7 @@ function GoogleSyncCard(): JSX.Element {
         {!signedIn ? (
           <button
             className={`${styles.btn} ${styles.btnPrimary}`}
-            onClick={() => setSettingsTarget('providers')}
-            disabled={!credsConfigured}
+            onClick={openProviders}
           >
             Open Providers →
           </button>
@@ -664,7 +357,7 @@ function GoogleSyncCard(): JSX.Element {
   )
 }
 
-// ── Confirm modal ───────────────────────────────────────────────────────
+// ── Pull/Push confirm modal ──────────────────────────────────────────────
 
 function ConfirmModal({
   state,
@@ -754,8 +447,8 @@ function ConfirmModal({
   }
 
   if (state.direction === 'push' && state.pushPlan) {
-    const { localCount, create, skip } = state.pushPlan
-    const hasChanges = create.length > 0
+    const { localCount, create, update, skip } = state.pushPlan
+    const hasChanges = create.length + update.length > 0
 
     return (
       <div className={styles.modalScrim}>
@@ -767,8 +460,8 @@ function ConfirmModal({
             <div className={styles.modalSection}>
               You have <strong>{localCount}</strong> Memory contact{localCount === 1 ? '' : 's'}.
               {' '}{hasChanges
-                ? 'The following will be created in your Google Contacts (name only — bullet notes stay in Memory):'
-                : 'Nothing to push — every eligible Memory contact is already in Google.'}
+                ? 'The following will be applied to your Google Contacts (additive — Google\'s existing fields are never removed):'
+                : 'Nothing to push — every eligible Memory contact is already in sync with Google.'}
             </div>
             {create.length > 0 && (
               <div className={styles.modalSection}>
@@ -776,10 +469,37 @@ function ConfirmModal({
                 <ul className={styles.modalList}>
                   {create.slice(0, 10).map((c) => (
                     <li key={c.entity}>
-                      {c.entity} <span className={kindBadgeClass(c.kind)}>{c.kind}</span>
+                      <div>
+                        {c.entity} <span className={kindBadgeClass(c.kind)}>{c.kind}</span>
+                      </div>
+                      {c.fields.length > 0 && (
+                        <ul className={styles.modalSubList}>
+                          {c.fields.slice(0, 6).map((f, i) => <li key={i}>{f}</li>)}
+                          {c.fields.length > 6 && <li>…and {c.fields.length - 6} more</li>}
+                        </ul>
+                      )}
                     </li>
                   ))}
                   {create.length > 10 && <li>…and {create.length - 10} more</li>}
+                </ul>
+              </div>
+            )}
+            {update.length > 0 && (
+              <div className={styles.modalSection}>
+                <div className={styles.modalSectionHead}>Will update in Google ({update.length})</div>
+                <ul className={styles.modalList}>
+                  {update.slice(0, 10).map((u) => (
+                    <li key={u.entity}>
+                      <div>
+                        {u.entity} <span className={kindBadgeClass(u.kind)}>{u.kind}</span>
+                      </div>
+                      <ul className={styles.modalSubList}>
+                        {u.additions.slice(0, 6).map((f, i) => <li key={i}>{f}</li>)}
+                        {u.additions.length > 6 && <li>…and {u.additions.length - 6} more</li>}
+                      </ul>
+                    </li>
+                  ))}
+                  {update.length > 10 && <li>…and {update.length - 10} more</li>}
                 </ul>
               </div>
             )}
@@ -813,18 +533,4 @@ function ConfirmModal({
   }
 
   return <></>
-}
-
-// ── Top-level component ─────────────────────────────────────────────────
-
-export function ContactsTab(): JSX.Element {
-  return (
-    <div className={styles.layout}>
-      <div className={styles.cardRow}>
-        <GoogleSyncCard />
-        <ContactsUpdaterCard />
-      </div>
-      <ContactsEditor />
-    </div>
-  )
 }

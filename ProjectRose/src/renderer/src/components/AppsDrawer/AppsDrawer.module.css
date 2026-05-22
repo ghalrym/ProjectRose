@@ -224,6 +224,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sidebarBuiltin {
+  display: inline-flex;
+  align-items: center;
+  color: var(--d-ink-soft);
+  opacity: 0.75;
 }
 
 .sidebarLatin {

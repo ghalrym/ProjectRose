@@ -6,7 +6,7 @@ export interface CatalogEntry {
   repoUrl: string
 }
 
-export const BUILTIN_CATALOG: CatalogEntry[] = [
+export const FEATURED_CATALOG: CatalogEntry[] = [
   {
     id: 'rose-bond',
     name: 'Bond',

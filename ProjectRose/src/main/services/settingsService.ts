@@ -43,6 +43,10 @@ export interface AppSettings {
   // diary scheduler reads enabled + time; the renderer Memory tab writes
   // them through the same settings:set IPC.
   memory: MemorySettings
+  // User-supplied Google OAuth credentials. Only the clientId is persisted
+  // here; the client_secret is sealed in userData/google-oauth-secret.bin via
+  // safeStorage (ADR 0009).
+  googleAuth?: { clientId: string }
   // Allow callers to read/write arbitrary keys we don't enumerate.
   [key: string]: unknown
 }
