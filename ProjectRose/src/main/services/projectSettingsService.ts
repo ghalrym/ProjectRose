@@ -28,6 +28,49 @@ const CORE_TOOL_DISPLAY: Record<string, { displayName: string; description: stri
   search_web: { displayName: 'Web Search', description: 'Search the web via the ProjectRose search API' }
 }
 
+// Tools registered in `buildCoreTools` that belong, semantically, to a built-in
+// extension. The runtime wiring lives in the host (rose-contacts has no main.js),
+// but the Settings → Tools UI displays them in their own per-extension box so
+// the catalog matches the "box per extension" pattern.
+const BUILTIN_EXTENSION_TOOLS: Record<string, { extensionId: string; extensionName: string; displayName: string; description: string }> = {
+  memory_new_contact: {
+    extensionId: 'rose-contacts',
+    extensionName: 'Contacts',
+    displayName: 'New Contact',
+    description: 'Create an empty contact entry classified as person, business, website, or other'
+  },
+  memory_set_contact_kind: {
+    extensionId: 'rose-contacts',
+    extensionName: 'Contacts',
+    displayName: 'Set Contact Kind',
+    description: 'Reclassify an existing contact (person / business / website / other)'
+  },
+  memory_read_contact: {
+    extensionId: 'rose-contacts',
+    extensionName: 'Contacts',
+    displayName: 'Read Contact',
+    description: 'Read every note about a person/place/thing by name'
+  },
+  memory_search_contacts: {
+    extensionId: 'rose-contacts',
+    extensionName: 'Contacts',
+    displayName: 'Search Contacts',
+    description: 'Search contacts by name and find notes that mention a term'
+  },
+  memory_add_contact_note: {
+    extensionId: 'rose-contacts',
+    extensionName: 'Contacts',
+    displayName: 'Add Contact Note',
+    description: 'Append a note to a contact; creates the contact if missing'
+  },
+  memory_remove_contact_note: {
+    extensionId: 'rose-contacts',
+    extensionName: 'Contacts',
+    displayName: 'Remove Contact Note',
+    description: 'Remove a note from a contact, matched case-insensitively'
+  }
+}
+
 export async function readProjectSettings(rootPath: string): Promise<ProjectSettings> {
   try {
     const content = await readFile(prPath(rootPath, 'project-settings.json'), 'utf-8')
@@ -48,13 +91,24 @@ export async function writeProjectSettings(
 }
 
 export async function listTools(rootPath: string): Promise<ToolMeta[]> {
-  const coreMeta = toolRegistry.getCoreToolNames().map((name) => {
+  const coreMeta: ToolMeta[] = toolRegistry.getCoreToolNames().map((name) => {
+    const builtin = BUILTIN_EXTENSION_TOOLS[name]
+    if (builtin) {
+      return {
+        name,
+        displayName: builtin.displayName,
+        description: builtin.description,
+        type: 'extension',
+        extensionId: builtin.extensionId,
+        extensionName: builtin.extensionName
+      }
+    }
     const display = CORE_TOOL_DISPLAY[name]
     return {
       name,
       displayName: display?.displayName ?? name,
       description: display?.description ?? '',
-      type: 'core' as const
+      type: 'core'
     }
   })
 
