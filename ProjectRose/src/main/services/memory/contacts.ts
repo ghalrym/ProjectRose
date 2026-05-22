@@ -1,33 +1,62 @@
 import { readFile, writeFile, readdir, unlink, mkdir } from 'fs/promises'
 import { memoryContactDir } from '../../lib/agentHome'
-import type { ContactEntity, ContactSearchResult } from '../../../shared/memory'
+import type { ContactEntity, ContactKind, ContactSearchResult } from '../../../shared/memory'
 import { contactPath, safeEntityName } from './paths'
 
-// File format per the user's spec:
+// File format per the user's spec, plus one typed line lifted from the bullet
+// list:
 //
 //   # Entity: **Name**
+//   - kind: person
 //   - first note
 //   - second note
 //
-// Notes are plain bullets. Reads/writes round-trip the user's text verbatim
-// except when adding / removing notes from the helpers, which preserve any
-// freeform lines around the bullet list.
+// The kind line is a regular bullet at write-time so anything that reads the
+// file as plain markdown (a human, the agent's prompt) sees it as just one
+// more note. parseFile() extracts the first matching `- kind: <value>` line
+// into a typed `kind` field; everything else stays in `notes`. Files that
+// don't have a kind bullet yet (anything created before this change)
+// default to 'other' on read and gain the bullet the next time they're
+// rewritten.
+
+const KIND_RE = /^kind:\s*(person|business|website|other)\s*$/i
 
 function entityHeader(entity: string): string {
   return `# Entity: ${entity}`
 }
 
-function buildFile(entity: string, notes: string[]): string {
-  return `${entityHeader(entity)}\n` + notes.map((n) => `- ${n.trim()}`).join('\n') + (notes.length ? '\n' : '')
+function buildFile(entity: string, kind: ContactKind, notes: string[]): string {
+  const lines = [entityHeader(entity), `- kind: ${kind}`]
+  for (const n of notes) {
+    const trimmed = n.trim()
+    if (!trimmed) continue
+    // Tolerate someone passing the kind bullet back in via addContactNote —
+    // the typed kind field is authoritative.
+    if (KIND_RE.test(trimmed)) continue
+    lines.push(`- ${trimmed}`)
+  }
+  return lines.join('\n') + '\n'
 }
 
 function parseFile(entity: string, content: string): ContactEntity {
+  let kind: ContactKind = 'other'
+  let kindFound = false
   const notes: string[] = []
   for (const line of content.split('\n')) {
     const m = line.match(/^\s*-\s+(.+?)\s*$/)
-    if (m) notes.push(m[1])
+    if (!m) continue
+    const bullet = m[1]
+    if (!kindFound) {
+      const km = bullet.match(KIND_RE)
+      if (km) {
+        kind = km[1].toLowerCase() as ContactKind
+        kindFound = true
+        continue
+      }
+    }
+    notes.push(bullet)
   }
-  return { entity, notes, path: contactPath(entity) }
+  return { entity, kind, notes, path: contactPath(entity) }
 }
 
 export async function listContacts(): Promise<string[]> {
@@ -37,6 +66,22 @@ export async function listContacts(): Promise<string[]> {
     .filter((f) => f.endsWith('.md') && f !== '.gitkeep')
     .map((f) => f.replace(/\.md$/, ''))
     .sort((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Like listContacts(), but reads each file to extract its kind. Used by the
+ * Settings > Contacts list so it can show "[person]" / "[business]" badges
+ * without N round-trips from the renderer. The contact dir is small enough
+ * that an O(N) read pass at list time is cheap compared to N IPC calls.
+ */
+export async function listContactsDetailed(): Promise<Array<{ entity: string; kind: ContactKind }>> {
+  const names = await listContacts()
+  const out: Array<{ entity: string; kind: ContactKind }> = []
+  for (const name of names) {
+    const parsed = await readContactParsed(name)
+    out.push({ entity: name, kind: parsed?.kind ?? 'other' })
+  }
+  return out
 }
 
 export async function readContact(entity: string): Promise<string | null> {
@@ -66,14 +111,21 @@ export async function deleteContact(entity: string): Promise<void> {
   await unlink(contactPath(safe)).catch(() => { /* tolerate */ })
 }
 
-export async function newContact(entity: string): Promise<ContactEntity> {
+/**
+ * Create a new contact. Manual creation defaults to 'other' so the user is
+ * nudged to classify. Pull-from-Google passes `kind: 'person'` explicitly.
+ */
+export async function newContact(
+  entity: string,
+  kind: ContactKind = 'other'
+): Promise<ContactEntity> {
   const safe = safeEntityName(entity)
   if (!safe) throw new Error('Invalid entity name')
   await mkdir(memoryContactDir(), { recursive: true })
   const existing = await readContactParsed(safe)
   if (existing) return existing
-  await writeFile(contactPath(safe), buildFile(safe, []), 'utf-8')
-  return { entity: safe, notes: [], path: contactPath(safe) }
+  await writeFile(contactPath(safe), buildFile(safe, kind, []), 'utf-8')
+  return { entity: safe, kind, notes: [], path: contactPath(safe) }
 }
 
 export async function addContactNote(entity: string, note: string): Promise<ContactEntity> {
@@ -83,10 +135,11 @@ export async function addContactNote(entity: string, note: string): Promise<Cont
   if (!trimmed) throw new Error('Empty note')
   await mkdir(memoryContactDir(), { recursive: true })
   const current = await readContactParsed(safe)
+  const kind = current?.kind ?? 'other'
   const notes = current ? [...current.notes] : []
   if (!notes.some((n) => n.toLowerCase() === trimmed.toLowerCase())) notes.push(trimmed)
-  await writeFile(contactPath(safe), buildFile(safe, notes), 'utf-8')
-  return { entity: safe, notes, path: contactPath(safe) }
+  await writeFile(contactPath(safe), buildFile(safe, kind, notes), 'utf-8')
+  return { entity: safe, kind, notes, path: contactPath(safe) }
 }
 
 export async function removeContactNote(entity: string, note: string): Promise<ContactEntity | null> {
@@ -96,8 +149,22 @@ export async function removeContactNote(entity: string, note: string): Promise<C
   if (!current) return null
   const target = note.trim().toLowerCase()
   const notes = current.notes.filter((n) => n.trim().toLowerCase() !== target)
-  await writeFile(contactPath(safe), buildFile(safe, notes), 'utf-8')
-  return { entity: safe, notes, path: contactPath(safe) }
+  await writeFile(contactPath(safe), buildFile(safe, current.kind, notes), 'utf-8')
+  return { entity: safe, kind: current.kind, notes, path: contactPath(safe) }
+}
+
+/**
+ * Update the kind of an existing contact. If the file doesn't exist yet, it's
+ * created with the given kind and no notes (mirrors newContact's behaviour).
+ */
+export async function setContactKind(entity: string, kind: ContactKind): Promise<ContactEntity> {
+  const safe = safeEntityName(entity)
+  if (!safe) throw new Error('Invalid entity name')
+  await mkdir(memoryContactDir(), { recursive: true })
+  const current = await readContactParsed(safe)
+  const notes = current?.notes ?? []
+  await writeFile(contactPath(safe), buildFile(safe, kind, notes), 'utf-8')
+  return { entity: safe, kind, notes, path: contactPath(safe) }
 }
 
 /**

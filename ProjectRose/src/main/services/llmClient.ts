@@ -16,6 +16,21 @@ import {
   handleRunCommand,
   handleSearchWeb
 } from './toolHandlers'
+import {
+  handleMemoryReadDiary,
+  handleMemoryListDiary,
+  handleMemoryWriteDiary,
+  handleMemoryAddBehaviorRecord,
+  handleMemoryListBehaviorRecords,
+  handleMemoryReadBehaviorRecord,
+  handleMemoryRemoveBehaviorRecord,
+  handleMemoryNewContact,
+  handleMemoryReadContact,
+  handleMemorySearchContacts,
+  handleMemoryAddContactNote,
+  handleMemoryRemoveContactNote,
+  handleMemorySetContactKind
+} from './memory/tools'
 import type { ExtensionToolCtx } from '../../shared/extension-types'
 import type { Message } from '../../shared/roseModelTypes'
 import type { ModelConfig, RouterConfig } from './settingsService'
@@ -398,6 +413,107 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
         numResults: z.number().optional().describe('Maximum number of results to return (server picks a default if omitted)')
       }),
       execute: wrapExecute('search_web', handleSearchWeb, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    // ── Memory subsystem (~/.rose/memory/) ────────────────────────────────
+    // Diary, behaviour records, and contacts are agent-global — they live in
+    // ~/.rose/ alongside ROSE.md so the Agent carries them across every
+    // Workspace it operates in.
+    memory_read_diary: tool({
+      description: 'Read your diary entry for a given date. Use this to recall what happened on a previous day.',
+      inputSchema: z.object({
+        date: z.string().describe('Date key in yyyy-mm-dd format')
+      }),
+      execute: wrapExecute('memory_read_diary', handleMemoryReadDiary, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_list_diary: tool({
+      description: 'List the dates of your existing diary entries. Optional from/to bounds (yyyy-mm-dd, inclusive).',
+      inputSchema: z.object({
+        from: z.string().optional().describe('Inclusive lower bound, yyyy-mm-dd'),
+        to: z.string().optional().describe('Inclusive upper bound, yyyy-mm-dd')
+      }),
+      execute: wrapExecute('memory_list_diary', handleMemoryListDiary, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_write_diary: tool({
+      description: 'Write or overwrite your diary entry for a given date. Normally called only by the daily scheduler — use sparingly outside of that flow.',
+      inputSchema: z.object({
+        date: z.string().optional().describe('Date key in yyyy-mm-dd format (defaults to today)'),
+        content: z.string().describe('Full markdown body of the diary entry')
+      }),
+      execute: wrapExecute('memory_write_diary', handleMemoryWriteDiary, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_add_behavior_record: tool({
+      description: 'Record a standing behaviour directive the user has given you ("from now on, always X"; "don\'t Y"; "prefer Z"). Use when the user expresses a durable preference about how you should act. The decision + details are written to a dated markdown file the user can review later.',
+      inputSchema: z.object({
+        slug: z.string().describe('Short kebab-case identifier for the behaviour, e.g. "ask-before-pushing-main"'),
+        decision: z.string().describe('One-line summary of the behaviour the user wants'),
+        details: z.string().describe('Longer explanation: why the user wants this, when it applies, what the impact on your behaviour should be')
+      }),
+      execute: wrapExecute('memory_add_behavior_record', handleMemoryAddBehaviorRecord, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_list_behavior_records: tool({
+      description: 'List every behaviour record the user has given you. Use at the start of work in an unfamiliar context to refresh your standing directives.',
+      inputSchema: z.object({}),
+      execute: wrapExecute('memory_list_behavior_records', handleMemoryListBehaviorRecords, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_read_behavior_record: tool({
+      description: 'Read the full text of a behaviour record by filename.',
+      inputSchema: z.object({
+        filename: z.string().describe('Filename returned by memory_list_behavior_records, e.g. 2026-05-21-ask-before-pushing-main.md')
+      }),
+      execute: wrapExecute('memory_read_behavior_record', handleMemoryReadBehaviorRecord, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_remove_behavior_record: tool({
+      description: 'Delete a behaviour record. Use only when the user explicitly retracts a directive.',
+      inputSchema: z.object({
+        filename: z.string().describe('Filename of the record to remove')
+      }),
+      execute: wrapExecute('memory_remove_behavior_record', handleMemoryRemoveBehaviorRecord, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_new_contact: tool({
+      description: 'Create an empty contact entry for a person, business, website, or other entity. Notes are added separately via memory_add_contact_note. The `kind` classification is what gates Google Contacts sync — set it accurately if you can.',
+      inputSchema: z.object({
+        entity: z.string().describe('Name of the person/business/website/other'),
+        kind: z.enum(['person', 'business', 'website', 'other']).optional().describe('Classification — defaults to "other" if omitted. Set this when you know.')
+      }),
+      execute: wrapExecute('memory_new_contact', handleMemoryNewContact, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_set_contact_kind: tool({
+      description: 'Update the kind classification of an existing contact (person / business / website / other). Use this when you learn a contact you previously created is actually a different kind than you initially assumed.',
+      inputSchema: z.object({
+        entity: z.string().describe('Name of the contact'),
+        kind: z.enum(['person', 'business', 'website', 'other']).describe('New classification')
+      }),
+      execute: wrapExecute('memory_set_contact_kind', handleMemorySetContactKind, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_read_contact: tool({
+      description: 'Read every note you have about a person/place/thing by name.',
+      inputSchema: z.object({
+        entity: z.string().describe('Name of the contact to read')
+      }),
+      execute: wrapExecute('memory_read_contact', handleMemoryReadContact, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_search_contacts: tool({
+      description: 'Search your contacts for a term. Returns JSON: { contact: <direct-match markdown or null>, relations: [{entity, note}] } — direct match is the contact whose name matches; relations are notes from other contacts that mention the term.',
+      inputSchema: z.object({
+        query: z.string().describe('Term to search for in contact names and notes')
+      }),
+      execute: wrapExecute('memory_search_contacts', handleMemorySearchContacts, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_add_contact_note: tool({
+      description: 'Append a note to a contact. Creates the contact if it does not yet exist. Notes are bullets in the contact\'s markdown file.',
+      inputSchema: z.object({
+        entity: z.string().describe('Name of the contact'),
+        note: z.string().describe('The note to add (one line, no leading bullet)')
+      }),
+      execute: wrapExecute('memory_add_contact_note', handleMemoryAddContactNote, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    memory_remove_contact_note: tool({
+      description: 'Remove a note from a contact. Matches notes case-insensitively against the supplied text.',
+      inputSchema: z.object({
+        entity: z.string().describe('Name of the contact'),
+        note: z.string().describe('The note text to remove')
+      }),
+      execute: wrapExecute('memory_remove_contact_note', handleMemoryRemoveContactNote, projectRoot, emit, toolCtx, hookCtx)
     }),
   }
 }

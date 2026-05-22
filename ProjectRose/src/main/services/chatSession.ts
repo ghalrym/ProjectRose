@@ -15,6 +15,7 @@ import type { AgentContext, SubagentCounter } from './agentRunner'
 import type { SubagentTurnContext, ToolSourceName } from './toolRegistry'
 import { buildAgentMd } from './agentMd'
 import { selectModel, extractErrorMessage } from './modelSelection'
+import { logAssistantMessage, logUserMessage } from './memory/conversationLog'
 
 // Screenshot result shape — duplicated from llmClient.ts so chatSession.ts
 // does not import from llmClient (which would form a cycle).
@@ -223,6 +224,12 @@ export class ChatSession {
     // are spawned by an existing turn (subagents) or are not user-visible
     // (one-shot), and re-firing would cause extensions to wipe state mid-turn.
     if (isMain) await fireUserMessageHook(userMessage, rootPath)
+    // Memory: persist the user message to ~/.rose/memory/conversations/<today>.jsonl.
+    // Only main turns are logged — subagent/one-shot are background work that
+    // would clutter the diary's view of the user's day.
+    if (isMain && userMessage) {
+      void logUserMessage({ sessionId, rootPath, content: userMessage })
+    }
     const selectedModel = await selectModel(userMessage, settings)
     const defaultModel =
       settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
@@ -376,6 +383,12 @@ export class ChatSession {
     if (!lastStreamResult) throw new Error('Chat aborted before any turn completed')
     // Snapshot before dispose — the session is about to be cleared.
     const modifiedFiles = [...this.modifiedFiles]
+    // Memory: persist the final assistant message alongside the user turn so
+    // the diary writer can reconstruct the day's exchanges. Same gating as
+    // the user log above — main turns only.
+    if (isMain && lastStreamResult.content) {
+      void logAssistantMessage({ sessionId, rootPath, content: lastStreamResult.content })
+    }
     return {
       content: lastStreamResult.content,
       modifiedFiles,

@@ -14,6 +14,7 @@ import { buildSubagentTools } from './services/subagentTools'
 import { buildSkillTools } from './services/skillService'
 import { ensureAgentRoseMd } from './services/roseSetupService'
 import { ensureAgentHome } from './lib/agentHome'
+import { initMemorySubsystem } from './services/memory'
 import { IPC } from '../shared/ipcChannels'
 import log from 'electron-log/main'
 
@@ -100,6 +101,10 @@ app.whenReady().then(async () => {
   createWindow()
   createTray()
   initAutoUpdater()
+  // Memory subsystem — starts the daily diary scheduler. Path scaffold for
+  // ~/.rose/memory/{diary,behavior-records,contact,conversations,agent-activity}
+  // was already created by ensureAgentHome() above.
+  initMemorySubsystem()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

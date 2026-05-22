@@ -64,6 +64,15 @@ _Avoid_: background agent (in canonical talk), background run, headless agent
 A first-party concept owned by the **rose-heartbeat** Extension. A markdown file in `<workspace>/.projectrose/tasks/*.md` with YAML frontmatter (including a `recurrence` like `1d`, `2h`, `1mo`) and a body. The Heartbeat extension picks up due tasks on each tick, runs each one as a **Detached Run**, and writes the agent's findings back into the task body's agent-maintained `## Memory` section. The host knows nothing about scheduling — this concept lives entirely in the extension.
 _Avoid_: cron job, recurring agent, deferred work item, todo
 
+**Memory**:
+The Agent's agent-global record of its life with the user, stored under `~/.rose/memory/`. Comprises three concept types:
+- **Diary** — daily entry at `~/.rose/memory/diary/{yyyy}/{mm}/{dd}.md`, written by the host's diary scheduler in Traditional Narrative Structure (Header → Intro → Events → Reflection → Outlook).
+- **Behavior Record** — a markdown file at `~/.rose/memory/behavior-records/{yyyy-mm-dd}-{slug}.md` capturing a standing directive the user has given the Agent ("from now on always X"). `## Decision` + `## Details` sections. Not to be confused with **ADR** (Architectural Decision Record at `docs/adr/`) — Behavior Records are about Agent conduct, ADRs are about codebase architecture.
+- **Contact** — one markdown file per entity at `~/.rose/memory/contact/{entity}.md`, `# Entity: Name` followed by a `- kind: <person|business|website|other>` bullet and then freeform bulleted notes. Distinct from **rose-crm** contacts, which are structured business records (email/phone/company) in workspace-scoped JSON. The user manages these in **Settings > Contacts** (a top-level tab, not nested under Memory), where they can also opt into Google Contacts sync — see ADR 0008. Google's structured fields flatten into bullet notes; the file format itself does not change. The Google-sync filter is per-kind — by default only `person` and `business` entries round-trip with Google.
+
+Lives in the host because it is agent-global, not workspace-scoped (see ADR 0007). The host's chat session appends each main turn's user + assistant message to `~/.rose/memory/conversations/{date}.jsonl`, and the extension-context slicer logs every Detached Run / Agent Handle call to `~/.rose/memory/agent-activity/{date}.jsonl` — both feed the daily diary writer.
+_Avoid_: notes (bare), journal, knowledge base, history (when speaking canonically)
+
 ## Relationships
 
 - An **Agent Desktop** hosts a single **Agent** and many **Extensions**, and lets the **Agent** operate on many **Workspaces**.

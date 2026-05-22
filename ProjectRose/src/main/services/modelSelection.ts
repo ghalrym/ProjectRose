@@ -13,9 +13,6 @@ import type { AppSettings, ModelConfig } from './settingsService'
  */
 export async function selectModel(userMessage: string, settings: AppSettings): Promise<ModelConfig> {
   const { models, defaultModelId, router, hostMode } = settings
-  if (models.length === 0) {
-    throw new Error('No models configured. Please add a model in Settings → Chat.')
-  }
 
   if (hostMode === 'projectrose') {
     const session = await loadSession()
@@ -29,6 +26,10 @@ export async function selectModel(userMessage: string, settings: AppSettings): P
       modelName: 'managed',
       tags: ['account'],
     }
+  }
+
+  if (models.length === 0) {
+    throw new Error('No models configured. Please add a model in Settings → Chat.')
   }
 
   const defaultModel = models.find((m) => m.id === defaultModelId) ?? models[0]

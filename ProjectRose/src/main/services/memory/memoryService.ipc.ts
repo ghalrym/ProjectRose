@@ -2,6 +2,7 @@ import { defineIpc, method } from '../../../shared/ipc/defineIpc'
 import type {
   BehaviorRecord,
   ContactEntity,
+  ContactKind,
   ContactSearchResult,
   ContactsUpdaterStatus,
   DiaryIndexRow,
@@ -31,12 +32,14 @@ export const memoryIpc = defineIpc('memory', {
 
   // Contacts
   listContacts: method<[], string[]>(),
+  listContactsDetailed: method<[], Array<{ entity: string; kind: ContactKind }>>(),
   readContact: method<[entity: string], string | null>(),
   writeContact: method<[payload: { entity: string; content: string }], void>(),
   deleteContact: method<[entity: string], void>(),
   newContact: method<[entity: string], ContactEntity>(),
   addContactNote: method<[payload: { entity: string; note: string }], ContactEntity>(),
   removeContactNote: method<[payload: { entity: string; note: string }], ContactEntity | null>(),
+  setContactKind: method<[payload: { entity: string; kind: ContactKind }], ContactEntity>(),
   searchContacts: method<[query: string], ContactSearchResult>(),
 
   // Diary scheduler

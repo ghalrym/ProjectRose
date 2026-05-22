@@ -106,6 +106,41 @@ import {
   prepareSession
 } from '../services/speech/activeSpeechService'
 
+import { memoryIpc } from '../services/memory/memoryService.ipc'
+import {
+  listDiaryIndex,
+  readDiary,
+  writeDiary,
+  deleteDiary,
+  listBehaviorRecords,
+  readBehaviorRecord,
+  writeBehaviorRecord,
+  deleteBehaviorRecord,
+  addBehaviorRecord,
+  listContacts,
+  listContactsDetailed,
+  readContact,
+  writeContact,
+  deleteContact,
+  newContact,
+  addContactNote,
+  removeContactNote,
+  setContactKind,
+  searchContacts,
+  runDiaryNow,
+  regenerateTodayDiary,
+  getScheduleStatus,
+  runContactsUpdaterNow,
+  getContactsUpdaterStatus,
+  googleGetStatus,
+  googleSignIn,
+  googleSignOut,
+  googlePreviewPull,
+  googleApplyPull,
+  googlePreviewPush,
+  googleApplyPush
+} from '../services/memory'
+
 // Hand-written handlers that don't fit the manifest pattern: dialog (needs
 // the calling BrowserWindow), terminal (per-session webContents.send
 // closures), lsp (per-window indexing progress), screen (capture source per
@@ -222,6 +257,39 @@ export function registerIpcManifests(): void {
     openSession,
     closeSession,
     prepareSession
+  })
+  memoryIpc.register({
+    listDiary: listDiaryIndex,
+    readDiary: readDiary,
+    writeDiary: ({ dateKey, content }) => writeDiary(dateKey, content),
+    deleteDiary: deleteDiary,
+    listBehaviorRecords,
+    readBehaviorRecord,
+    writeBehaviorRecord: ({ filename, content }) => writeBehaviorRecord(filename, content),
+    deleteBehaviorRecord,
+    addBehaviorRecord,
+    listContacts,
+    listContactsDetailed,
+    readContact,
+    writeContact: ({ entity, content }) => writeContact(entity, content),
+    deleteContact,
+    newContact,
+    addContactNote: ({ entity, note }) => addContactNote(entity, note),
+    removeContactNote: ({ entity, note }) => removeContactNote(entity, note),
+    setContactKind: ({ entity, kind }) => setContactKind(entity, kind),
+    searchContacts,
+    runDiaryNow,
+    regenerateTodayDiary,
+    getScheduleStatus,
+    runContactsUpdaterNow,
+    getContactsUpdaterStatus,
+    googleGetStatus,
+    googleSignIn,
+    googleSignOut,
+    googlePreviewPull,
+    googleApplyPull,
+    googlePreviewPush,
+    googleApplyPush
   })
   aiIpc.register({
     chat: ({ messages, rootPath, sessionId }) => chat(messages, rootPath, sessionId),

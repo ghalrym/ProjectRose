@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir } from 'fs/promises'
 import { dirname } from 'path'
 import { agentSettingsPath } from '../lib/agentHome'
 import { serviceStatus } from './serviceStatus'
+import { DEFAULT_MEMORY_SETTINGS, type MemorySettings } from '../../shared/memory'
 
 export interface ModelConfig {
   id: string
@@ -38,6 +39,10 @@ export interface AppSettings {
   // toast suggests the user compress older turns. Pairs with a separate
   // tool-step threshold in the renderer.
   compressionThresholdPct: number
+  // Memory subsystem (host-level, agent-global at ~/.rose/memory/). The
+  // diary scheduler reads enabled + time; the renderer Memory tab writes
+  // them through the same settings:set IPC.
+  memory: MemorySettings
   // Allow callers to read/write arbitrary keys we don't enumerate.
   [key: string]: unknown
 }
@@ -61,7 +66,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   ollamaBaseUrl: 'http://localhost:11434',
   openaiCompatBaseUrl: '',
   openaiCompatApiKey: '',
-  compressionThresholdPct: 0.70
+  compressionThresholdPct: 0.70,
+  memory: DEFAULT_MEMORY_SETTINGS
 }
 
 export async function readSettings(_rootPath?: string): Promise<AppSettings> {
@@ -69,7 +75,13 @@ export async function readSettings(_rootPath?: string): Promise<AppSettings> {
   let stored: Partial<AppSettings> = {}
   try { stored = JSON.parse(await readFile(path, 'utf-8')) } catch { /* defaults */ }
 
-  const merged: AppSettings = { ...DEFAULT_SETTINGS, ...stored }
+  const merged: AppSettings = {
+    ...DEFAULT_SETTINGS,
+    ...stored,
+    // memory is a nested block — shallow-merge so stored partials don't drop
+    // newly-introduced default keys.
+    memory: { ...DEFAULT_MEMORY_SETTINGS, ...(stored.memory ?? {}) }
+  }
 
   // Drop any legacy navItems entry — the host no longer has a navigation bar.
   delete (merged as Record<string, unknown>).navItems

@@ -16,6 +16,7 @@ import { authIpc } from '../main/services/authService.ipc'
 import { aiIpc } from '../main/services/aiService.ipc'
 import { activeSpeechIpc } from '../main/services/speech/activeSpeechService.ipc'
 import { extensionIpc } from '../main/services/extensionService.ipc'
+import { memoryIpc } from '../main/services/memory/memoryService.ipc'
 
 const api = {
   // Theme
@@ -342,6 +343,11 @@ const api = {
 
   // Extensions
   extension: extensionIpc.bindings,
+
+  // Memory (~/.rose/memory/) — diary, behaviour records, contacts, scheduler.
+  // Bound flat on api.memory.* so renderer call sites mirror window.api.skills,
+  // window.api.session, etc.
+  memory: memoryIpc.bindings,
 
   // Account auth — request methods from the manifest; event subscriptions
   // (onChanged, onPairingPending) stay hand-written.

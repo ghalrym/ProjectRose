@@ -9,7 +9,7 @@ export interface ReleaseEntry {
 
 export const RELEASES: ReleaseEntry[] = [
   {
-    version: '1.5.2',
+    version: '1.6.0',
     tag: null,
     date: null,
     title: 'Editor returns, smoother voice, and macOS fixes',

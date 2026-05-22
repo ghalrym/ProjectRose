@@ -2,12 +2,16 @@ import { useEffect, useState, useCallback } from 'react'
 import { ExtensionsTab } from './ExtensionsTab'
 import { PromptsTab } from './PromptsTab'
 import { UpdatesTab } from './UpdatesTab'
+import { MemoryTab } from './MemoryTab'
+import { ContactsTab } from './ContactsTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
 import { useViewStore } from '../../stores/useViewStore'
 import { useWhisperPreloadStore } from '../../stores/useWhisperPreloadStore'
 import { subscribeToExtensionsChange } from '../../extensions/registry'
 import type { ModelConfig, ToolMeta } from '@shared/types'
+import type { GoogleSyncStatus } from '@shared/memory'
+import { DEFAULT_GOOGLE_CLIENT_ID } from '@shared/googleOAuth'
 import styles from './SettingsView.module.css'
 import { WhisperModelInstallModal, type WhisperModelOption } from './WhisperModelInstallModal'
 import whisperModalStyles from './WhisperModelInstallModal.module.css'
@@ -148,6 +152,15 @@ function ProviderGlyph({ kind, size = 28 }: { kind: string; size?: number }): JS
         <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.6">
           <rect x="6" y="10" width="20" height="12" rx="1"/>
           <path d="M10 14 L14 18 L10 22 M16 22 L22 22" opacity="0.7"/>
+        </svg>
+      )
+    case 'google':
+      // Stylised "G" mark — single-colour to match the accent palette;
+      // intentionally not the full multicolour Google logo (which carries
+      // trademark/brand-guideline constraints).
+      return (
+        <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.8">
+          <path d="M22 12 A8 8 0 1 0 24 18 L16 18" strokeLinecap="round"/>
         </svg>
       )
     default:
@@ -478,6 +491,39 @@ export function SettingsView(): JSX.Element {
 
   async function projectroseSignOut(): Promise<void> {
     try { await window.api.auth.logout() } catch { /* ignore */ }
+  }
+
+  // ── google account state ──
+  // Lives here (not inside ContactsTab) so the auth is a shared, app-wide
+  // concern. The Contacts tab consumes the status but doesn't own sign-in.
+  const [googleStatus, setGoogleStatus] = useState<GoogleSyncStatus | null>(null)
+  const [googleBusy, setGoogleBusy] = useState<string | null>(null)
+  const [googleError, setGoogleError] = useState<string | null>(null)
+
+  const refreshGoogleStatus = useCallback(async () => {
+    const s = await window.api.memory.googleGetStatus()
+    setGoogleStatus(s)
+  }, [])
+
+  useEffect(() => { void refreshGoogleStatus() }, [refreshGoogleStatus])
+
+  async function googleSignIn(): Promise<void> {
+    setGoogleBusy('Opening Google sign-in…')
+    setGoogleError(null)
+    try {
+      const s = await window.api.memory.googleSignIn()
+      setGoogleStatus(s)
+    } catch (e) {
+      setGoogleError(e instanceof Error ? e.message : 'Sign-in failed')
+    } finally { setGoogleBusy(null) }
+  }
+
+  async function googleSignOut(): Promise<void> {
+    setGoogleBusy('Signing out…')
+    try {
+      const s = await window.api.memory.googleSignOut()
+      setGoogleStatus(s)
+    } finally { setGoogleBusy(null) }
   }
 
   // ── behavior (local — store additions possible later) ──
@@ -859,8 +905,10 @@ export function SettingsView(): JSX.Element {
     { id: 'tools',      label: 'Tools',      n: '03' },
     { id: 'skills',     label: 'Skills',     n: '04' },
     { id: 'prompts',    label: 'Prompts',    n: '05' },
-    { id: 'extensions', label: 'Extensions', n: '06' },
-    { id: 'updates',    label: 'Updates',    n: '07' },
+    { id: 'memory',     label: 'Memory',     n: '06' },
+    { id: 'contacts',   label: 'Contacts',   n: '07' },
+    { id: 'extensions', label: 'Extensions', n: '08' },
+    { id: 'updates',    label: 'Updates',    n: '09' },
   ]
 
   const allPageIds = topLevelItems.map((i) => i.id)
@@ -1393,6 +1441,128 @@ export function SettingsView(): JSX.Element {
           </div>
         </div>
 
+        {/* ══ PLATE IV · CONNECTED ACCOUNTS ══ */}
+        {/* External identities the app can read/write on the user's behalf.
+            Lives here (not inside Memory or Contacts) because the auth is a
+            shared, app-wide concern — features in other tabs consume the
+            signed-in state rather than each owning their own sign-in. */}
+        <div className={styles.plateSection}>
+          <SectionHeader
+            n="IV"
+            title="Connected Accounts"
+            sub="Third-party services the agent can read or write on your behalf."
+          />
+          <div className={styles.sectionGap} />
+
+          {(() => {
+            const kind = 'google'
+            const name = 'Google'
+            const latin = 'Rosa connexa'
+            const spec = 'G1'
+            const isExpanded = expandedProvider === kind
+            const signedIn = googleStatus?.signedIn ?? false
+            const accountEmail = googleStatus?.accountEmail ?? null
+            // Render-side check: the client_id is a build-time constant, so
+            // we don't need to wait for the IPC roundtrip to know if it's
+            // configured. (The IPC's credentialsConfigured stays as a
+            // defensive backstop for OSS builds that strip the constant.)
+            const credsConfigured =
+              !!DEFAULT_GOOGLE_CLIENT_ID || (googleStatus?.credentialsConfigured ?? false)
+            const status: ProviderStatus =
+              signedIn ? 'connected' : credsConfigured ? 'unverified' : 'missing'
+
+            return (
+              <div className={styles.providerCard}>
+                <button
+                  type="button"
+                  onClick={() => setExpandedProvider(isExpanded ? null : kind)}
+                  className={styles.providerCardHeader}
+                  style={{
+                    borderBottom: isExpanded ? '1px solid var(--color-bg-secondary)' : 'none',
+                    background: isExpanded ? 'var(--color-bg-primary)' : 'transparent',
+                  }}
+                >
+                  <div className={styles.providerCardHeaderInner}>
+                    <div className={styles.providerGlyphBox}>
+                      <span className={styles.providerSpecNum}>№{spec}</span>
+                      <ProviderGlyph kind={kind} size={28} />
+                    </div>
+                    <div className={styles.providerNameBlock}>
+                      <div className={styles.providerNameRow}>
+                        <span className={styles.providerName}>{name}</span>
+                        <span className={styles.providerLatin}>{latin}</span>
+                      </div>
+                      <div className={styles.providerStatusRow}>
+                        <StatusBadge state={status} />
+                        <span className={styles.providerFieldInfo}>
+                          {signedIn
+                            ? `signed in${accountEmail ? ` · ${accountEmail}` : ''}`
+                            : credsConfigured
+                              ? 'sign in to enable Contacts sync'
+                              : 'unavailable in this build'}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={styles.providerCaret}
+                      style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                    >
+                      ▸
+                    </span>
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className={`${styles.providerCardBody} ${styles.drawerIn}`}>
+                    <div style={{ padding: '12px 16px 4px' }}>
+                      <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
+                        {signedIn
+                          ? 'Active — features that consume Google (currently Settings → Contacts > sync) will use this account.'
+                          : 'Sign in once here. Features that consume Google (currently Contacts sync) will pick it up automatically.'}
+                      </p>
+                      {signedIn && accountEmail && (
+                        <div style={{ fontSize: 12, color: 'var(--color-text-primary)', marginBottom: 12 }}>
+                          {accountEmail}
+                        </div>
+                      )}
+                      {googleError && (
+                        <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{googleError}</p>
+                      )}
+                      <p style={{ fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
+                        Authentication uses PKCE against ProjectRose's built-in OAuth client; no client secret is stored or shipped.
+                        The refresh token is sealed with the OS keychain (Electron safeStorage, see ADR 0008).
+                      </p>
+                    </div>
+                    <div className={styles.providerCardFooter} style={{ justifyContent: 'stretch' }}>
+                      {signedIn ? (
+                        <button
+                          type="button"
+                          className={styles.ghostBtn}
+                          style={{ width: '100%' }}
+                          onClick={googleSignOut}
+                          disabled={googleBusy !== null}
+                        >
+                          {googleBusy ?? 'SIGN OUT'}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.primaryBtn}
+                          style={{ width: '100%' }}
+                          onClick={googleSignIn}
+                          disabled={!credsConfigured || googleBusy !== null}
+                        >
+                          {googleBusy ?? 'SIGN IN WITH GOOGLE'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+        </div>
+
         {/* Colophon */}
         <div className={styles.colophon}>
           <span>COLOPHON · settings persist on change · keys held in system keychain</span>
@@ -1586,6 +1756,8 @@ export function SettingsView(): JSX.Element {
       case 'tools':      return renderTools()
       case 'skills':     return renderSkills()
       case 'prompts':    return <PromptsTab />
+      case 'memory':     return <MemoryTab />
+      case 'contacts':   return <ContactsTab />
       case 'updates':    return <UpdatesTab />
       case 'extensions': return renderExtensions()
       default: {

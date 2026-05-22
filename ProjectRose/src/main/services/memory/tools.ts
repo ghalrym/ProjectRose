@@ -13,8 +13,10 @@ import {
   newContact,
   readContact,
   removeContactNote,
-  searchContacts
+  searchContacts,
+  setContactKind
 } from './contacts'
+import { CONTACT_KINDS, type ContactKind } from '../../../shared/memory'
 import {
   listDiaryIndex,
   readDiary,
@@ -90,11 +92,27 @@ export async function handleMemoryRemoveBehaviorRecord(input: Record<string, unk
 
 // ─── Contacts ────────────────────────────────────────────────────────────
 
+function asKind(v: unknown): ContactKind | null {
+  if (typeof v !== 'string') return null
+  const lower = v.toLowerCase()
+  return (CONTACT_KINDS as string[]).includes(lower) ? (lower as ContactKind) : null
+}
+
 export async function handleMemoryNewContact(input: Record<string, unknown>): Promise<string> {
   const entity = asString(input.entity)
   if (!entity) return 'Missing `entity`.'
-  const result = await newContact(entity)
-  return `Contact ready: ${result.entity}`
+  const kind = asKind(input.kind) ?? 'other'
+  const result = await newContact(entity, kind)
+  return `Contact ready: ${result.entity} (${result.kind})`
+}
+
+export async function handleMemorySetContactKind(input: Record<string, unknown>): Promise<string> {
+  const entity = asString(input.entity)
+  const kind = asKind(input.kind)
+  if (!entity) return 'Missing `entity`.'
+  if (!kind) return `Missing or invalid \`kind\`. Use one of: ${CONTACT_KINDS.join(', ')}.`
+  const result = await setContactKind(entity, kind)
+  return `${result.entity} classified as ${result.kind}.`
 }
 
 export async function handleMemoryReadContact(input: Record<string, unknown>): Promise<string> {
