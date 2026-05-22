@@ -41,7 +41,7 @@ No-terminal alternative: right-click the app in Finder → **Open** → click **
 
 ## Extensions
 
-Extensions add capabilities the agent can call as tools — and, optionally, UI panels in the sidebar. Each extension lives in its own repo and installs from the in-app store. The known extensions today: `rose-crm`, `rose-discord`, `rose-docker`, `rose-email`, `rose-git`, and `rose-heartbeat` (a background process that processes deferred notes and runs scheduled agent tasks).
+Extensions add capabilities the agent can call as tools — and, optionally, UI panels in the sidebar. Each extension lives in its own repo and installs from the in-app store. The known extensions today: `rose-discord`, `rose-docker`, and `rose-git` (a background process that processes deferred notes and runs scheduled agent tasks).
 
 ## Connecting Google services
 

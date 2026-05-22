@@ -5,10 +5,6 @@
     "package-extensions": "node scripts/package-extensions.mjs"
   },
   "workspaces": [
-    "RoseExtensions/rose-discord",
-    "RoseExtensions/rose-email",
-    "RoseExtensions/rose-git",
-    "RoseExtensions/rose-docker",
     "ProjectRose"
   ]
 }

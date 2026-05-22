@@ -17,6 +17,7 @@ import { aiIpc } from '../main/services/aiService.ipc'
 import { activeSpeechIpc } from '../main/services/speech/activeSpeechService.ipc'
 import { extensionIpc } from '../main/services/extensionService.ipc'
 import { memoryIpc } from '../main/services/memory/memoryService.ipc'
+import { emailIpc } from '../main/services/email/emailService.ipc'
 
 const api = {
   // Theme
@@ -348,6 +349,10 @@ const api = {
   // Bound flat on api.memory.* so renderer call sites mirror window.api.skills,
   // window.api.session, etc.
   memory: memoryIpc.bindings,
+
+  // Email — bound flat on api.email.* for the rose-email built-in's
+  // InboxPage and EmailSettings views.
+  email: emailIpc.bindings,
 
   // Account auth — request methods from the manifest; event subscriptions
   // (onChanged, onPairingPending) stay hand-written.

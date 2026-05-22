@@ -107,6 +107,29 @@ import {
 } from '../services/speech/activeSpeechService'
 
 import { memoryIpc } from '../services/memory/memoryService.ipc'
+
+import { emailIpc } from '../services/email/emailService.ipc'
+import {
+  getEmailStatus,
+  saveImapTransport,
+  activateGoogleTransport,
+  clearEmailTransport,
+  listFolders as emailListFolders,
+  listMessages as emailListMessages,
+  search as emailSearch,
+  getMessage as emailGetMessage,
+  createDraft as emailCreateDraft,
+  sendMessage as emailSendMessage,
+  reply as emailReply,
+  forward as emailForward,
+  markRead as emailMarkRead,
+  archiveMessage as emailArchive,
+  moveMessage as emailMove,
+  labelMessage as emailLabel,
+  deleteMessage as emailDelete,
+  listQuarantineEntries,
+  releaseQuarantineEntry
+} from '../services/email/emailService'
 import {
   listDiaryIndex,
   readDiary,
@@ -294,6 +317,27 @@ export function registerIpcManifests(): void {
     googleApplyPull,
     googlePreviewPush,
     googleApplyPush
+  })
+  emailIpc.register({
+    getStatus: getEmailStatus,
+    saveImap: saveImapTransport,
+    activateGoogle: activateGoogleTransport,
+    clearTransport: clearEmailTransport,
+    listFolders: emailListFolders,
+    listMessages: emailListMessages,
+    search: emailSearch,
+    getMessage: emailGetMessage,
+    draftMessage: emailCreateDraft,
+    sendMessage: emailSendMessage,
+    reply: emailReply,
+    forward: emailForward,
+    markRead: ({ messageId, read }) => emailMarkRead(messageId, read),
+    archive: emailArchive,
+    move: ({ messageId, folder }) => emailMove(messageId, folder),
+    label: ({ messageId, label, add }) => emailLabel(messageId, label, add),
+    deleteMessage: emailDelete,
+    listQuarantined: listQuarantineEntries,
+    releaseFromQuarantine: releaseQuarantineEntry
   })
   aiIpc.register({
     chat: ({ messages, rootPath, sessionId }) => chat(messages, rootPath, sessionId),

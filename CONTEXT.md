@@ -73,6 +73,18 @@ The Agent's agent-global record of its life with the user, stored under `~/.rose
 Lives in the host because it is agent-global, not workspace-scoped (see ADR 0007). The host's chat session appends each main turn's user + assistant message to `~/.rose/memory/conversations/{date}.jsonl`, and the extension-context slicer logs every Detached Run / Agent Handle call to `~/.rose/memory/agent-activity/{date}.jsonl` — both feed the daily diary writer.
 _Avoid_: notes (bare), journal, knowledge base, history (when speaking canonically)
 
+**Email Account**:
+The single mailbox the **Agent Desktop** is signed in to via the **rose-email** built-in extension. Identified by its `address`. Exactly zero or one at a time — multi-account is intentionally not supported (see ADR 0011). Owned by `AppSettings.email.account`.
+_Avoid_: inbox, mailbox, mail (as a domain noun)
+
+**Email Transport**:
+The protocol stack used to read and send for the **Email Account**. Either `imap` (IMAP for read, SMTP for send, with passwords encrypted in `userData/email-imap.bin`) or `google` (Gmail API, reusing the shared Google OAuth token). Mutually exclusive; switching wipes the inactive transport's local state and the **Quarantine** ledger. Stored at `AppSettings.email.transport`.
+_Avoid_: backend, provider, account type
+
+**Quarantine**:
+A heuristic-only holding queue for incoming email messages flagged as suspected prompt-injection. Quarantined messages are invisible to `email_list_messages` and `email_get_message`; only `email_list_quarantined` returns them, and only the off-by-default `email_release_from_quarantine` tool (or the renderer's manual Release button) re-admits a message to the read tools. Detection is heuristic — phrase regex bank, hidden-text scanner, role-claim patterns, imperative density — no LLM in the read path. Ledger keyed on `${transport}:${messageId}` at `userData/email-quarantine.json`.
+_Avoid_: spam, junk, blocklist, filter
+
 ## Relationships
 
 - An **Agent Desktop** hosts a single **Agent** and many **Extensions**, and lets the **Agent** operate on many **Workspaces**.

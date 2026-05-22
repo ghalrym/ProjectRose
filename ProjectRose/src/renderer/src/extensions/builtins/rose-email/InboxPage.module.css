@@ -1,0 +1,516 @@
+/* rose-email built-in — InboxPage + EmailSettings shared CSS module.
+   Theme-aware: uses host's CSS variables so it follows dark/light/herbarium
+   alongside rose-contacts. Visual conventions copied from rose-contacts:
+   uppercase letterspacing labels, sparse borders, accent on focus. */
+
+/* ── Page shell ─────────────────────────────────────────────────────── */
+
+.page {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+  min-height: 0;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  box-sizing: border-box;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.tabBtn {
+  all: unset;
+  cursor: pointer;
+  padding: 4px 12px;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  border: 1px solid transparent;
+}
+.tabBtn:hover { color: var(--color-text-primary); }
+
+.tabBtnActive {
+  composes: tabBtn;
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+  background: var(--color-bg-primary);
+}
+
+.composeBtn {
+  all: unset;
+  cursor: pointer;
+  margin-left: auto;
+  padding: 6px 14px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: var(--color-accent, #e05c84);
+  color: white;
+  border: 1px solid var(--color-accent, #e05c84);
+}
+.composeBtn:hover { opacity: 0.9; }
+.composeBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.busyText {
+  font-style: italic;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+/* ── Three-pane layout ──────────────────────────────────────────────── */
+
+.threePane {
+  display: grid;
+  grid-template-columns: 220px 360px 1fr;
+  height: 100%;
+  min-height: 0;
+}
+
+.sidebar {
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  overflow-y: auto;
+}
+
+.sidebarItem {
+  all: unset;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  cursor: pointer;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border);
+}
+.sidebarItem:hover { background: var(--color-bg-elevated); }
+
+.sidebarItemActive {
+  composes: sidebarItem;
+  background: var(--color-bg-elevated);
+  border-left: 2px solid var(--color-accent, #e05c84);
+}
+
+.sidebarEmpty {
+  padding: 12px 14px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 11px;
+}
+
+.messageList {
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  overflow-y: auto;
+}
+
+.messageRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+}
+.messageRow:hover { background: var(--color-bg-elevated); }
+
+.messageRowActive {
+  composes: messageRow;
+  background: var(--color-bg-elevated);
+  border-left: 2px solid var(--color-accent, #e05c84);
+}
+
+.messageRowUnread { font-weight: 600; }
+
+.messageFrom {
+  color: var(--color-text-primary);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.messageSubject {
+  color: var(--color-text-primary);
+  font-size: 12px;
+  grid-column: 1 / -1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.messageSnippet {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  grid-column: 1 / -1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.messageDate {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.messageListEmpty {
+  padding: 16px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* ── Reader pane ────────────────────────────────────────────────────── */
+
+.reader {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-primary);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.readerHeader {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.readerSubject {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0 0 6px;
+  color: var(--color-text-primary);
+}
+
+.readerMeta {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.readerActions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.readerActions button {
+  all: unset;
+  cursor: pointer;
+  padding: 4px 10px;
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+}
+.readerActions button:hover { border-color: var(--color-accent, #e05c84); }
+.readerActions button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.readerBody {
+  padding: 16px 20px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-text-primary);
+}
+
+.readerPlaceholder {
+  padding: 24px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.readerError {
+  color: var(--color-error, #c44);
+  font-size: 12px;
+}
+
+/* ── Empty state ────────────────────────────────────────────────────── */
+
+.empty {
+  padding: 40px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.emptyTitle {
+  color: var(--color-text-primary);
+  font-size: 13px;
+}
+
+.emptyCta {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 14px;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  background: var(--color-accent, #e05c84);
+  color: white;
+  border: 1px solid var(--color-accent, #e05c84);
+}
+.emptyCta:hover { opacity: 0.9; }
+
+/* ── Settings panel ─────────────────────────────────────────────────── */
+
+.settingsScroll {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: var(--color-bg-primary);
+}
+
+.card {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-primary);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 640px;
+}
+
+.cardTitle {
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.cardSub {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.subHead {
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-top: 8px;
+}
+
+/* ── Segmented control ──────────────────────────────────────────────── */
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.segmentBtn {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 14px;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.segmentBtn:hover { color: var(--color-text-primary); }
+.segmentBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.segmentBtnActive {
+  composes: segmentBtn;
+  background: var(--color-accent, #e05c84);
+  color: white;
+}
+
+/* ── Forms ──────────────────────────────────────────────────────────── */
+
+.formRow {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.formLabel {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.input {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--color-accent, #e05c84);
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+
+.btn {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  text-align: center;
+}
+.btn:hover { border-color: var(--color-accent, #e05c84); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btnPrimary {
+  composes: btn;
+  background: var(--color-accent, #e05c84);
+  color: white;
+  border-color: var(--color-accent, #e05c84);
+}
+
+.btnDanger {
+  composes: btn;
+  color: var(--color-error, #c44);
+  border-color: var(--color-error, #c44);
+}
+
+.error {
+  color: var(--color-error, #c44);
+  font-size: 11px;
+}
+
+.hint {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+/* ── Modal ──────────────────────────────────────────────────────────── */
+
+.modalScrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  width: min(620px, 90vw);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+  box-sizing: border-box;
+}
+
+.modalTextarea {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  padding: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  min-height: 180px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.modalTextarea:focus {
+  outline: none;
+  border-color: var(--color-accent, #e05c84);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* ── Quarantine ─────────────────────────────────────────────────────── */
+
+.quarantineList {
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--color-bg-primary);
+}
+
+.quarantineEntry {
+  border: 1px solid var(--color-error, #c44);
+  background: var(--color-bg-elevated);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.quarantineSubject {
+  color: var(--color-text-primary);
+  font-weight: 500;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.quarantineMeta {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.quarantineReasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.quarantineReason {
+  display: inline-block;
+  padding: 1px 8px;
+  font-size: 9px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  border: 1px solid var(--color-error, #c44);
+  color: var(--color-error, #c44);
+}
+
+.quarantineEmpty {
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 12px;
+}

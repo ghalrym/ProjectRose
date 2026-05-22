@@ -3,6 +3,7 @@ import { dirname } from 'path'
 import { agentSettingsPath } from '../lib/agentHome'
 import { serviceStatus } from './serviceStatus'
 import { DEFAULT_MEMORY_SETTINGS, type MemorySettings } from '../../shared/memory'
+import { DEFAULT_EMAIL_SETTINGS, type EmailSettings } from '../../shared/email'
 
 export interface ModelConfig {
   id: string
@@ -43,10 +44,16 @@ export interface AppSettings {
   // diary scheduler reads enabled + time; the renderer Memory tab writes
   // them through the same settings:set IPC.
   memory: MemorySettings
-  // User-supplied Google OAuth credentials. Only the clientId is persisted
-  // here; the client_secret is sealed in userData/google-oauth-secret.bin via
-  // safeStorage (ADR 0009).
-  googleAuth?: { clientId: string }
+  // Email subsystem (rose-email built-in extension). Host-owned per ADR 0010
+  // so built-ins can read/write directly. IMAP/SMTP passwords are NOT here —
+  // they live in userData/email-imap.bin via safeStorage.
+  email: EmailSettings
+  // User-supplied Google OAuth credentials plus the signed-in account email.
+  // Only the clientId is persisted here; the client_secret is sealed in
+  // userData/google-oauth-secret.bin via safeStorage (ADR 0009). The
+  // signedInEmail is the canonical record of who's signed in — agent-global,
+  // shared by all Google integrations (Contacts, Email, …).
+  googleAuth?: { clientId: string; signedInEmail?: string | null }
   // Allow callers to read/write arbitrary keys we don't enumerate.
   [key: string]: unknown
 }
@@ -71,7 +78,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   openaiCompatBaseUrl: '',
   openaiCompatApiKey: '',
   compressionThresholdPct: 0.70,
-  memory: DEFAULT_MEMORY_SETTINGS
+  memory: DEFAULT_MEMORY_SETTINGS,
+  email: DEFAULT_EMAIL_SETTINGS
 }
 
 export async function readSettings(_rootPath?: string): Promise<AppSettings> {
@@ -84,7 +92,10 @@ export async function readSettings(_rootPath?: string): Promise<AppSettings> {
     ...stored,
     // memory is a nested block — shallow-merge so stored partials don't drop
     // newly-introduced default keys.
-    memory: { ...DEFAULT_MEMORY_SETTINGS, ...(stored.memory ?? {}) }
+    memory: { ...DEFAULT_MEMORY_SETTINGS, ...(stored.memory ?? {}) },
+    // email is also a nested block — same shallow-merge rule so users on old
+    // settings.json get the new fields filled with their defaults.
+    email: { ...DEFAULT_EMAIL_SETTINGS, ...(stored.email ?? {}) }
   }
 
   // Drop any legacy navItems entry — the host no longer has a navigation bar.

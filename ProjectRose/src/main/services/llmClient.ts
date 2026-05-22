@@ -31,6 +31,23 @@ import {
   handleMemoryRemoveContactNote,
   handleMemorySetContactKind
 } from './memory/tools'
+import {
+  handleEmailListMessages,
+  handleEmailSearch,
+  handleEmailGetMessage,
+  handleEmailListFolders,
+  handleEmailDraftMessage,
+  handleEmailSendMessage,
+  handleEmailReply,
+  handleEmailForward,
+  handleEmailMarkRead,
+  handleEmailArchive,
+  handleEmailMove,
+  handleEmailLabel,
+  handleEmailDelete,
+  handleEmailListQuarantined,
+  handleEmailReleaseFromQuarantine
+} from './email/tools'
 import type { ExtensionToolCtx } from '../../shared/extension-types'
 import type { Message } from '../../shared/roseModelTypes'
 import type { ModelConfig, RouterConfig } from './settingsService'
@@ -515,6 +532,115 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
       }),
       execute: wrapExecute('memory_remove_contact_note', handleMemoryRemoveContactNote, projectRoot, emit, toolCtx, hookCtx)
     }),
+    // ─── rose-email: read group ───────────────────────────────────────
+    email_list_messages: tool({
+      description: 'List messages in a folder. Quarantined messages (suspected prompt-injection) are filtered out and only visible via email_list_quarantined.',
+      inputSchema: z.object({
+        folder: z.string().optional().describe('Folder/label ID. Defaults to INBOX.'),
+        limit: z.number().optional().describe('Max messages to return. Default 50.'),
+        query: z.string().optional().describe('Free-text search filter applied server-side.')
+      }),
+      execute: wrapExecute('email_list_messages', handleEmailListMessages, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    email_search: tool({
+      description: 'Search messages by free-text query. Quarantined messages are excluded.',
+      inputSchema: z.object({
+        query: z.string().describe('Search query'),
+        folder: z.string().optional().describe('Restrict to a folder/label ID'),
+        limit: z.number().optional().describe('Max results. Default 50.')
+      }),
+      execute: wrapExecute('email_search', handleEmailSearch, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    email_get_message: tool({
+      description: 'Fetch a full message by ID. Triggers quarantine scan on first sight; throws if flagged.',
+      inputSchema: z.object({ messageId: z.string().describe('Message ID returned by list/search') }),
+      execute: wrapExecute('email_get_message', handleEmailGetMessage, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    email_list_folders: tool({
+      description: 'List available folders/labels.',
+      inputSchema: z.object({}),
+      execute: wrapExecute('email_list_folders', handleEmailListFolders, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    // ─── rose-email: compose group ────────────────────────────────────
+    email_draft_message: tool({
+      description: 'Create a draft (no send). Returns the draft ID.',
+      inputSchema: z.object({
+        to: z.array(z.object({ address: z.string(), name: z.string().optional() })).describe('Recipients'),
+        cc: z.array(z.object({ address: z.string(), name: z.string().optional() })).optional(),
+        bcc: z.array(z.object({ address: z.string(), name: z.string().optional() })).optional(),
+        subject: z.string(),
+        body: z.string(),
+        inReplyTo: z.string().optional().describe('Message-Id this draft replies to')
+      }),
+      execute: wrapExecute('email_draft_message', handleEmailDraftMessage, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    email_send_message: tool({
+      description: 'Send a new message.',
+      inputSchema: z.object({
+        to: z.array(z.object({ address: z.string(), name: z.string().optional() })),
+        cc: z.array(z.object({ address: z.string(), name: z.string().optional() })).optional(),
+        bcc: z.array(z.object({ address: z.string(), name: z.string().optional() })).optional(),
+        subject: z.string(),
+        body: z.string(),
+        draftId: z.string().optional().describe('Send a previously-created draft instead')
+      }),
+      execute: wrapExecute('email_send_message', handleEmailSendMessage, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    email_reply: tool({
+      description: 'Reply to a message.',
+      inputSchema: z.object({
+        messageId: z.string(),
+        body: z.string(),
+        replyAll: z.boolean().optional()
+      }),
+      execute: wrapExecute('email_reply', handleEmailReply, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    email_forward: tool({
+      description: 'Forward a message.',
+      inputSchema: z.object({
+        messageId: z.string(),
+        to: z.array(z.object({ address: z.string(), name: z.string().optional() })),
+        body: z.string().optional()
+      }),
+      execute: wrapExecute('email_forward', handleEmailForward, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    // ─── rose-email: triage group ─────────────────────────────────────
+    email_mark_read: tool({
+      description: 'Toggle the read/unread flag on a message.',
+      inputSchema: z.object({ messageId: z.string(), read: z.boolean() }),
+      execute: wrapExecute('email_mark_read', handleEmailMarkRead, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    email_archive: tool({
+      description: 'Archive a message (Gmail: remove INBOX label; IMAP: move to Archive).',
+      inputSchema: z.object({ messageId: z.string() }),
+      execute: wrapExecute('email_archive', handleEmailArchive, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    email_move: tool({
+      description: 'Move a message to a different folder/label.',
+      inputSchema: z.object({ messageId: z.string(), folder: z.string() }),
+      execute: wrapExecute('email_move', handleEmailMove, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    email_label: tool({
+      description: 'Add or remove a label/keyword on a message.',
+      inputSchema: z.object({ messageId: z.string(), label: z.string(), add: z.boolean() }),
+      execute: wrapExecute('email_label', handleEmailLabel, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    email_delete: tool({
+      description: 'Move a message to Trash. Never hard-deletes.',
+      inputSchema: z.object({ messageId: z.string() }),
+      execute: wrapExecute('email_delete', handleEmailDelete, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    // ─── rose-email: quarantine group ─────────────────────────────────
+    email_list_quarantined: tool({
+      description: 'List messages currently in the prompt-injection quarantine. Bodies remain hidden from read tools until released.',
+      inputSchema: z.object({ limit: z.number().optional() }),
+      execute: wrapExecute('email_list_quarantined', handleEmailListQuarantined, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    email_release_from_quarantine: tool({
+      description: 'Release a quarantined message so email_get_message will return its body again.',
+      inputSchema: z.object({ messageId: z.string() }),
+      execute: wrapExecute('email_release_from_quarantine', handleEmailReleaseFromQuarantine, projectRoot, emit, toolCtx, hookCtx)
+    })
   }
 }
 

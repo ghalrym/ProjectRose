@@ -7,9 +7,22 @@ import type { ToolMeta } from '../../shared/types'
 export interface ProjectSettings {
   disabledTools: string[]
   disabledPrompts: string[]
+  /**
+   * Names of `defaultDisabled` built-in tools that have already been seeded
+   * into `disabledTools[]` for this workspace. We track this so that if the
+   * user later enables one of them in Settings → Tools (i.e. removes it from
+   * `disabledTools[]`), a subsequent app update that adds another
+   * `defaultDisabled` tool doesn't re-add the one the user explicitly
+   * enabled.
+   */
+  seededDefaultDisabledTools?: string[]
 }
 
-const DEFAULT_PROJECT_SETTINGS: ProjectSettings = { disabledTools: [], disabledPrompts: [] }
+const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
+  disabledTools: [],
+  disabledPrompts: [],
+  seededDefaultDisabledTools: []
+}
 
 // User-facing labels for core tools. The list of names that actually exist
 // comes from the registry (`toolRegistry.getCoreToolNames()`); this table is
@@ -32,7 +45,21 @@ const CORE_TOOL_DISPLAY: Record<string, { displayName: string; description: stri
 // extension. The runtime wiring lives in the host (rose-contacts has no main.js),
 // but the Settings → Tools UI displays them in their own per-extension box so
 // the catalog matches the "box per extension" pattern.
-const BUILTIN_EXTENSION_TOOLS: Record<string, { extensionId: string; extensionName: string; displayName: string; description: string }> = {
+//
+// `defaultDisabled: true` mirrors the manifest field of the same name on
+// installed extensions: when a workspace's project-settings.json doesn't yet
+// list a tool in `disabledTools[]`, `readProjectSettings()` seeds it from
+// this map so destructive tools (send / reply / forward / release) are off
+// until the user opts in.
+interface BuiltinExtensionToolMeta {
+  extensionId: string
+  extensionName: string
+  displayName: string
+  description: string
+  defaultDisabled?: boolean
+}
+
+const BUILTIN_EXTENSION_TOOLS: Record<string, BuiltinExtensionToolMeta> = {
   memory_new_contact: {
     extensionId: 'rose-contacts',
     extensionName: 'Contacts',
@@ -68,16 +95,146 @@ const BUILTIN_EXTENSION_TOOLS: Record<string, { extensionId: string; extensionNa
     extensionName: 'Contacts',
     displayName: 'Remove Contact Note',
     description: 'Remove a note from a contact, matched case-insensitively'
+  },
+  // ── rose-email ────────────────────────────────────────────────────────
+  email_list_messages: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'List Messages',
+    description: 'List inbox or folder messages (quarantined filtered out)'
+  },
+  email_search: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'Search',
+    description: 'Search messages by free-text query (quarantined filtered out)'
+  },
+  email_get_message: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'Get Message',
+    description: 'Fetch a full message; triggers prompt-injection quarantine scan'
+  },
+  email_list_folders: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'List Folders',
+    description: 'List folders or Gmail labels'
+  },
+  email_draft_message: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'Draft Message',
+    description: 'Create a draft (no send)'
+  },
+  email_send_message: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'Send Message',
+    description: 'Send a new message.',
+    defaultDisabled: true
+  },
+  email_reply: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'Reply',
+    description: 'Reply to a message.',
+    defaultDisabled: true
+  },
+  email_forward: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'Forward',
+    description: 'Forward a message.',
+    defaultDisabled: true
+  },
+  email_mark_read: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'Mark Read',
+    description: 'Toggle read/unread on a message'
+  },
+  email_archive: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'Archive',
+    description: 'Archive a message (move out of INBOX)'
+  },
+  email_move: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'Move',
+    description: 'Move a message to a folder/label'
+  },
+  email_label: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'Label',
+    description: 'Add or remove a label/keyword on a message'
+  },
+  email_delete: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'Delete',
+    description: 'Move a message to Trash (no hard-delete)'
+  },
+  email_list_quarantined: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'List Quarantined',
+    description: 'List messages flagged as suspected prompt-injection'
+  },
+  email_release_from_quarantine: {
+    extensionId: 'rose-email',
+    extensionName: 'Email',
+    displayName: 'Release From Quarantine',
+    description: 'Re-allow read tools to return a quarantined message.',
+    defaultDisabled: true
   }
 }
 
+/**
+ * The tool names that ship with `defaultDisabled: true`. New workspaces are
+ * seeded with these in `disabledTools[]`, matching the behaviour of
+ * `applyDefaultDisabledTools()` for installed extensions but at first-read
+ * time (built-ins are never installed, so there's no install hook to fire).
+ */
+const BUILTIN_DEFAULT_DISABLED_TOOLS: readonly string[] = Object.entries(BUILTIN_EXTENSION_TOOLS)
+  .filter(([, meta]) => meta.defaultDisabled === true)
+  .map(([name]) => name)
+
 export async function readProjectSettings(rootPath: string): Promise<ProjectSettings> {
+  const path = prPath(rootPath, 'project-settings.json')
+  let raw: Partial<ProjectSettings> = {}
   try {
-    const content = await readFile(prPath(rootPath, 'project-settings.json'), 'utf-8')
-    return { ...DEFAULT_PROJECT_SETTINGS, ...JSON.parse(content) }
+    raw = JSON.parse(await readFile(path, 'utf-8'))
   } catch {
-    return { ...DEFAULT_PROJECT_SETTINGS }
+    raw = {}
   }
+  const seeded = new Set(raw.seededDefaultDisabledTools ?? [])
+  const disabled = new Set(raw.disabledTools ?? [])
+  let changed = false
+  for (const tool of BUILTIN_DEFAULT_DISABLED_TOOLS) {
+    if (!seeded.has(tool)) {
+      disabled.add(tool)
+      seeded.add(tool)
+      changed = true
+    }
+  }
+  const settings: ProjectSettings = {
+    ...DEFAULT_PROJECT_SETTINGS,
+    ...raw,
+    disabledTools: [...disabled],
+    seededDefaultDisabledTools: [...seeded]
+  }
+  if (changed) {
+    try {
+      await writeFile(path, JSON.stringify(settings, null, 2))
+    } catch {
+      // tolerate — caller still gets the seeded values in-memory.
+    }
+  }
+  return settings
 }
 
 export async function writeProjectSettings(
