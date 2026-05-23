@@ -45,3 +45,20 @@ vi.mock('electron', () => ({
     openExternal: () => Promise.resolve(),
   },
 }))
+
+// `electron-log/main` resolves the Electron module at load time via
+// `require('electron')`, which trips `getElectronPath()` in `npm ci
+// --ignore-scripts` environments (no binary on disk) — the exact failure
+// mode that breaks main-process tests in CI. Stub it out alongside
+// `electron` itself so any module that imports a logger still loads.
+vi.mock('electron-log/main', () => ({
+  default: {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    debug: () => {},
+    verbose: () => {},
+    silly: () => {},
+    log: () => {},
+  },
+}))
