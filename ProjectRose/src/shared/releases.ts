@@ -9,6 +9,19 @@ export interface ReleaseEntry {
 
 export const RELEASES: ReleaseEntry[] = [
   {
+    version: '1.9.0',
+    tag: null,
+    date: null,
+    title: 'Built-in Contacts, Email, and Calendar',
+    unreleased: true,
+    highlights: [
+      'New built-in Contacts extension — list and edit people in agent memory, with two-way Google Contacts sync',
+      'New built-in Email extension — single-account inbox and compose over IMAP/SMTP or Gmail, with a heuristic prompt-injection quarantine for incoming mail',
+      'New built-in Calendar extension — create, edit, and list events in agent memory, with two-way Google Calendar sync and agent tools for scheduling',
+      'Built-in extensions ship inside the app and are always available — no install step, no per-workspace enable toggle'
+    ]
+  },
+  {
     version: '1.6.0',
     tag: null,
     date: null,
