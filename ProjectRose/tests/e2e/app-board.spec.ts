@@ -2,8 +2,23 @@ import { test, expect } from './fixtures/electron'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { createSeedProject, openProject } from './fixtures/project'
 import { screenshot } from './fixtures/screenshot'
-import { mkdirSync, writeFileSync } from 'fs'
+import { mkdirSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
+
+async function getAgentHome(app: ElectronApplication): Promise<string> {
+  return await app.evaluate(({ app: electronApp }) => electronApp.getPath('home'))
+}
+
+const stagedExtensionIds = new Set<string>()
+
+test.afterEach(async ({ app }) => {
+  if (stagedExtensionIds.size === 0) return
+  const home = await getAgentHome(app)
+  for (const id of stagedExtensionIds) {
+    try { rmSync(join(home, '.rose', 'extensions', id), { recursive: true, force: true }) } catch { /* ignore */ }
+  }
+  stagedExtensionIds.clear()
+})
 
 // ── Helpers (mirrors extensions.spec.ts) ──────────────────────
 
@@ -34,9 +49,11 @@ async function mockInstallHandler(app: ElectronApplication): Promise<void> {
   })
 }
 
-function stageFakeExtension(rootPath: string, id: string, name: string): void {
-  const extDir = join(rootPath, '.projectrose', 'extensions', id)
-  mkdirSync(extDir, { recursive: true })
+function stageFakeExtension(agentHome: string, rootPath: string, id: string, name: string): void {
+  stagedExtensionIds.add(id)
+
+  const installDir = join(agentHome, '.rose', 'extensions', id)
+  mkdirSync(installDir, { recursive: true })
 
   const manifest = {
     id,
@@ -47,14 +64,18 @@ function stageFakeExtension(rootPath: string, id: string, name: string): void {
     navItem: { label: name, iconName: 'test' },
     provides: { pageView: true, globalSettings: false, main: false },
   }
-  writeFileSync(join(extDir, 'rose-extension.json'), JSON.stringify(manifest))
+  writeFileSync(join(installDir, 'rose-extension.json'), JSON.stringify(manifest))
 
   const rendererCode = `"use strict";
 const React = require('react');
 function PageView() { return React.createElement('div', { 'data-testid': '${id}-page' }, '${name} Page'); }
 exports.PageView = PageView;
 `
-  writeFileSync(join(extDir, 'renderer.js'), rendererCode)
+  writeFileSync(join(installDir, 'renderer.js'), rendererCode)
+
+  const overlayDir = join(rootPath, '.projectrose', 'extensions', id)
+  mkdirSync(overlayDir, { recursive: true })
+  writeFileSync(join(overlayDir, 'state.json'), JSON.stringify({ enabled: true }))
 }
 
 // Settings → Extensions tab: install form is on the page directly. Fill the
@@ -99,7 +120,11 @@ test.describe('App Board', () => {
       await screenshot(win, 'app-board--default')
     })
 
-    test('drawer with no extensions shows the empty state', async ({ app, win }) => {
+    // Built-in extensions (rose-contacts, rose-email, rose-calendar) ship in
+    // BUILTIN_EXTENSIONS and are always registered, so AppsDrawer's empty
+    // state (`extensions.length === 0`) is unreachable in the host. Keeping
+    // the case skipped until a built-ins-aware empty state is reintroduced.
+    test.skip('drawer with no extensions shows the empty state', async ({ app, win }) => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await openAppBoard(win)
@@ -112,8 +137,9 @@ test.describe('App Board', () => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
+      const agentHome = await getAgentHome(app)
 
-      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-boardtest', 'Board Test'))
+      await installViaUrlForm(win, () => stageFakeExtension(agentHome, dir, 'rose-boardtest', 'Board Test'))
 
       await openAppBoard(win)
       await expect(sidebarEntry(win, /^№\d+.*Board Test/)).toBeVisible({ timeout: 5000 })
@@ -124,8 +150,9 @@ test.describe('App Board', () => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
+      const agentHome = await getAgentHome(app)
 
-      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-launchtest', 'Launch Test'))
+      await installViaUrlForm(win, () => stageFakeExtension(agentHome, dir, 'rose-launchtest', 'Launch Test'))
 
       await openAppBoard(win)
       await sidebarEntry(win, /^№\d+.*Launch Test/).click()

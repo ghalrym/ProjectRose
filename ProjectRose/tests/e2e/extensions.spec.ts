@@ -2,8 +2,27 @@ import { test, expect } from './fixtures/electron'
 import type { ElectronApplication } from 'playwright'
 import { createSeedProject, openProject } from './fixtures/project'
 import { screenshot } from './fixtures/screenshot'
-import { mkdirSync, writeFileSync } from 'fs'
+import { mkdirSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
+
+// Extension code now lives once in the agent-global install dir
+// (~/.rose/extensions/<id>/) and per-workspace state lives under
+// <rootPath>/.projectrose/extensions/<id>/state.json. Staging mirrors both.
+async function getAgentHome(app: ElectronApplication): Promise<string> {
+  return await app.evaluate(({ app: electronApp }) => electronApp.getPath('home'))
+}
+
+// IDs staged into the agent install dir within a test, removed after.
+const stagedExtensionIds = new Set<string>()
+
+test.afterEach(async ({ app }) => {
+  if (stagedExtensionIds.size === 0) return
+  const home = await getAgentHome(app)
+  for (const id of stagedExtensionIds) {
+    try { rmSync(join(home, '.rose', 'extensions', id), { recursive: true, force: true }) } catch { /* ignore */ }
+  }
+  stagedExtensionIds.clear()
+})
 
 // Stub out the two-step install IPCs so the renderer's INSTALL button:
 //   1) installPreviewFromGit -> returns a fake token + the manifest the test
@@ -33,13 +52,15 @@ async function mockInstallHandler(app: ElectronApplication): Promise<void> {
   })
 }
 
-// Write a minimal fake extension into <rootPath>/.projectrose/extensions/<id>/.
-// Must be called AFTER the Extensions tab's initial loadInstalled() resolves
-// (with the empty list) — otherwise the renderer's "newly added" detection
-// won't fire and the extension card won't register.
-function stageFakeExtension(rootPath: string, id: string, name: string): void {
-  const extDir = join(rootPath, '.projectrose', 'extensions', id)
-  mkdirSync(extDir, { recursive: true })
+// Write a minimal fake extension into the agent install dir
+// (<agentHome>/.rose/extensions/<id>/) and opt the workspace into it via
+// state.json. Must be called AFTER the Extensions tab's initial loadInstalled
+// resolves so the renderer's "newly added" detection fires.
+function stageFakeExtension(agentHome: string, rootPath: string, id: string, name: string): void {
+  stagedExtensionIds.add(id)
+
+  const installDir = join(agentHome, '.rose', 'extensions', id)
+  mkdirSync(installDir, { recursive: true })
 
   const manifest = {
     id,
@@ -50,7 +71,7 @@ function stageFakeExtension(rootPath: string, id: string, name: string): void {
     navItem: { label: name, iconName: 'test' },
     provides: { pageView: true, globalSettings: true, main: false }
   }
-  writeFileSync(join(extDir, 'rose-extension.json'), JSON.stringify(manifest))
+  writeFileSync(join(installDir, 'rose-extension.json'), JSON.stringify(manifest))
 
   const rendererCode = `"use strict";
 const React = require('react');
@@ -59,7 +80,14 @@ function SettingsView() { return React.createElement('div', { 'data-testid': '${
 exports.PageView = PageView;
 exports.SettingsView = SettingsView;
 `
-  writeFileSync(join(extDir, 'renderer.js'), rendererCode)
+  writeFileSync(join(installDir, 'renderer.js'), rendererCode)
+
+  // Per-workspace opt-in overlay. listInstalledExtensions defaults missing
+  // overlays to disabled, so without this the row would render as Enable
+  // rather than Disable.
+  const overlayDir = join(rootPath, '.projectrose', 'extensions', id)
+  mkdirSync(overlayDir, { recursive: true })
+  writeFileSync(join(overlayDir, 'state.json'), JSON.stringify({ enabled: true }))
 }
 
 // Open the dock Settings shortcut, expand the Extensions sidebar item, wait
@@ -103,8 +131,9 @@ test.describe('Extension System', () => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
+      const agentHome = await getAgentHome(app)
 
-      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-test-ext', 'Test Extension'))
+      await installViaUrlForm(win, () => stageFakeExtension(agentHome, dir, 'rose-test-ext', 'Test Extension'))
 
       // Switch to Installed tab and verify the row is there
       await win.getByRole('button', { name: /^Installed/ }).click()
@@ -116,8 +145,9 @@ test.describe('Extension System', () => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
+      const agentHome = await getAgentHome(app)
 
-      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-navtest', 'Nav Test'))
+      await installViaUrlForm(win, () => stageFakeExtension(agentHome, dir, 'rose-navtest', 'Nav Test'))
 
       // Open the AppsDrawer and confirm the extension shows up as a card. Cards
       // have an accessible name that begins with a "№XX " specimen prefix —
@@ -133,8 +163,9 @@ test.describe('Extension System', () => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
+      const agentHome = await getAgentHome(app)
 
-      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-settingstest', 'Settings Test'))
+      await installViaUrlForm(win, () => stageFakeExtension(agentHome, dir, 'rose-settingstest', 'Settings Test'))
 
       // Extension settings are accessed via the per-extension cog button in
       // the AppsDrawer sidebar (no longer a SettingsView sidebar entry).
@@ -147,8 +178,9 @@ test.describe('Extension System', () => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
+      const agentHome = await getAgentHome(app)
 
-      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-settingspanel', 'Panel Test'))
+      await installViaUrlForm(win, () => stageFakeExtension(agentHome, dir, 'rose-settingspanel', 'Panel Test'))
 
       await win.getByRole('button', { name: 'Open apps' }).click()
       await win.getByRole('button', { name: 'Panel Test settings', exact: true }).click()
@@ -164,8 +196,9 @@ test.describe('Extension System', () => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
+      const agentHome = await getAgentHome(app)
 
-      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-disabletest', 'Disable Test'))
+      await installViaUrlForm(win, () => stageFakeExtension(agentHome, dir, 'rose-disabletest', 'Disable Test'))
 
       await win.getByRole('button', { name: /^Installed/ }).click()
       await win.getByRole('button', { name: 'Disable', exact: true }).click()
@@ -179,8 +212,9 @@ test.describe('Extension System', () => {
       const dir = createSeedProject()
       await openProject(app, win, dir)
       await mockInstallHandler(app)
+      const agentHome = await getAgentHome(app)
 
-      await installViaUrlForm(win, () => stageFakeExtension(dir, 'rose-removetest', 'Removable Test'))
+      await installViaUrlForm(win, () => stageFakeExtension(agentHome, dir, 'rose-removetest', 'Removable Test'))
 
       await win.getByRole('button', { name: /^Installed/ }).click()
       await win.getByRole('button', { name: 'Uninstall', exact: true }).click()

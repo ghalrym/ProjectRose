@@ -2,7 +2,13 @@ import { test, expect } from './fixtures/electron'
 import { createEmptyProject, openProject } from './fixtures/project'
 import { screenshot } from './fixtures/screenshot'
 
-test.describe('Setup Wizard', () => {
+// Wizard semantics changed in 8c22d22: agent identity is machine-level, set
+// once at first launch (~/.rose/ROSE.md), not per workspace. ensureAgentRoseMd
+// writes a placeholder on every app start, so opening an empty workspace no
+// longer triggers the wizard. These tests target the obsolete per-workspace
+// trigger; skipping until the wizard's machine-level trigger has its own
+// scenario.
+test.describe.skip('Setup Wizard', () => {
   test('step 1 renders on first project open', async ({ app, win }) => {
     const dir = createEmptyProject()
     await openProject(app, win, dir)

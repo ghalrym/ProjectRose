@@ -30,6 +30,7 @@ type UtteranceListener = (evt: { sessionId: number; utterance_id: number; speake
 type DraftListener = (evt: { sessionId: number; status: 'building' | 'submitted' | 'cancelled'; text: string; secondsLeft: number | null }) => void
 
 interface FakeApi {
+  prepareSession: ReturnType<typeof vi.fn>
   openSession: ReturnType<typeof vi.fn>
   closeSession: ReturnType<typeof vi.fn>
   getSpeakers: ReturnType<typeof vi.fn>
@@ -43,6 +44,7 @@ function installFakeApi(sessionId: number, openShouldThrow = false): FakeApi {
   const utteranceListeners: UtteranceListener[] = []
   const draftListeners: DraftListener[] = []
   const api: FakeApi = {
+    prepareSession: vi.fn(async () => ({ ok: true })),
     openSession: vi.fn(async () => {
       if (openShouldThrow) throw new Error('boom')
       return { sessionId }
