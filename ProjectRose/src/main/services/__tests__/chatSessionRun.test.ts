@@ -10,7 +10,6 @@ vi.mock('../settingsService', () => ({
     hostMode: 'self',
     ollamaBaseUrl: '',
     ollamaModelName: 'fake',
-    includeThinkingInContext: false,
   })),
 }))
 vi.mock('../projectSettingsService', () => ({

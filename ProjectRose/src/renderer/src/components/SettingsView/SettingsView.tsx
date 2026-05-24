@@ -313,7 +313,7 @@ function UsageBar({ usage, loading, error, onRefresh }: {
 export function SettingsView(): JSX.Element {
   const {
     micDeviceId, userName, agentName, activeListeningDraftSeconds, whisperModel,
-    includeThinkingInContext, agentStartsExpanded, compressionThresholdPct,
+    agentStartsExpanded,
     ollamaBaseUrl, ollamaModelName,
     update,
   } = useSettingsStore()
@@ -494,9 +494,6 @@ export function SettingsView(): JSX.Element {
       setGoogleError(e instanceof Error ? e.message : 'Could not clear credentials')
     } finally { setGoogleBusy(null) }
   }
-
-  // ── behavior (local — store additions possible later) ──
-  const [streamToolResults, setStreamToolResults] = useState(false)
 
   // ── whisper model install modal ──
   const preloadModelId = useWhisperPreloadStore((s) => s.modelId)
@@ -1076,66 +1073,14 @@ export function SettingsView(): JSX.Element {
           })}
         </div>
 
-        {/* ══ PLATE II · BEHAVIOR & CONTEXT ══ */}
-        <div className={styles.plateSection}>
-          <SectionHeader
-            n="II"
-            title="Behavior & Context"
-            sub="How the agent uses the model's context window across a session."
-          />
-          <div className={styles.sectionGapSm} />
-
-          <div className={styles.panelBlock}>
-            <div className={styles.panelHeader}>BEHAVIOR · CONTEXT</div>
-            <HSettingRow
-              label="Include thinking in context"
-              desc="Injects the model's reasoning into the conversation history so it remembers its own thinking across messages."
-            >
-              <HToggle
-                on={includeThinkingInContext}
-                onChange={(v) => update({ includeThinkingInContext: v })}
-              />
-            </HSettingRow>
-            <HSettingRow
-              label="Suggest compression threshold"
-              desc="When the chat fills past this fraction of the model's context window, a toast offers to compress older turns. Set higher to delay suggestions; lower to be warned earlier."
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input
-                  className={styles.input}
-                  type="number"
-                  min={5}
-                  max={100}
-                  step={5}
-                  style={{ width: 64, textAlign: 'right' }}
-                  value={Math.round(compressionThresholdPct * 100)}
-                  onChange={(e) => {
-                    const n = Number(e.target.value)
-                    if (Number.isFinite(n) && n >= 5 && n <= 100) {
-                      update({ compressionThresholdPct: n / 100 })
-                    }
-                  }}
-                />
-                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>% context</span>
-              </div>
-            </HSettingRow>
-            <HSettingRow
-              label="Stream tool results inline"
-              desc="Show tool output as it arrives instead of waiting for the full call to finish."
-            >
-              <HToggle on={streamToolResults} onChange={setStreamToolResults} />
-            </HSettingRow>
-          </div>
-        </div>
-
-        {/* ══ PLATE III · CONNECTED ACCOUNTS ══ */}
+        {/* ══ PLATE II · CONNECTED ACCOUNTS ══ */}
         {/* External identities the app can read/write on the user's behalf.
             Lives here (not inside Memory or Contacts) because the auth is a
             shared, app-wide concern — features in other tabs consume the
             signed-in state rather than each owning their own sign-in. */}
         <div className={styles.plateSection}>
           <SectionHeader
-            n="III"
+            n="II"
             title="Connected Accounts"
             sub="Third-party services the agent can read or write on your behalf."
           />

@@ -19,7 +19,6 @@ export interface AppSettings {
   activeListeningDraftSeconds: number
   whisperModel: string
   hostMode: 'projectrose' | 'self'
-  includeThinkingInContext: boolean
   agentStartsExpanded: boolean
   lastMainView: 'bloom' | 'editor'
   ollamaBaseUrl: string
@@ -27,10 +26,6 @@ export interface AppSettings {
   // the user types one in Settings → Providers → Ollama. ProjectRose mode
   // ignores this and uses the inline 'managed' model in modelSelection.ts.
   ollamaModelName: string
-  // Fraction (0..1) of the model's context window at which the compression
-  // toast suggests the user compress older turns. Pairs with a separate
-  // tool-step threshold in the renderer.
-  compressionThresholdPct: number
   // Memory subsystem (host-level, agent-global at ~/.rose/memory/). The
   // diary scheduler reads enabled + time; the renderer Memory tab writes
   // them through the same settings:set IPC.
@@ -58,12 +53,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   activeListeningDraftSeconds: 8,
   whisperModel: 'Xenova/whisper-tiny.en',
   hostMode: 'self',
-  includeThinkingInContext: false,
   agentStartsExpanded: false,
   lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModelName: '',
-  compressionThresholdPct: 0.70,
   memory: DEFAULT_MEMORY_SETTINGS,
   email: DEFAULT_EMAIL_SETTINGS
 }
@@ -111,6 +104,12 @@ export async function readSettings(_rootPath?: string): Promise<AppSettings> {
   delete (merged as Record<string, unknown>).models
   delete (merged as Record<string, unknown>).defaultModelId
   delete (merged as Record<string, unknown>).router
+
+  // Behavior & Context section was removed — the thinking-injection toggle
+  // and user-tunable compression threshold are gone; compression now runs on
+  // a fixed default. Drop any stored values so settings.json stays minimal.
+  delete (merged as Record<string, unknown>).includeThinkingInContext
+  delete (merged as Record<string, unknown>).compressionThresholdPct
 
   // Strip the legacy per-extension namespaced blob if a pre-refactor
   // ~/.rose/settings.json (or the carried-over userData/settings.json) still

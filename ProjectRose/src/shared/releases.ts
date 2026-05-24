@@ -18,6 +18,7 @@ export const RELEASES: ReleaseEntry[] = [
       'Providers narrowed to ProjectRose (managed) and Ollama (local) — Anthropic, OpenAI, Amazon Bedrock, and OpenAI-compatible options have been removed',
       'Ollama now holds a single model name instead of a list — pick it once under Settings → Providers → Ollama',
       'Router removed entirely; every chat goes to the configured model with no classification step',
+      'Settings → Providers loses the Behavior & Context section; the compression toast still fires automatically and the never-used thinking-in-context and inline-tool-result toggles are gone',
       'Existing API keys, OpenAI-compatible base URLs, and the legacy model catalogue are dropped from settings on first launch (the previously-default Ollama model is preserved)',
       'Fix: blank assistant cells no longer appear when the agent finishes a step with only thinking and tool calls'
     ]

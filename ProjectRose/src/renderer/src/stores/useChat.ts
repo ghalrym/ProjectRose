@@ -24,6 +24,9 @@ export const TOOL_STEP_THRESHOLD = 50
 // another 25 tool steps. Prevents the toast from re-appearing every turn.
 export const REDISPLAY_PCT_DELTA = 0.1
 export const REDISPLAY_TOOL_DELTA = 25
+// Fraction of the model's context window at which the compression toast
+// suggests the user compress older turns. Fixed rather than user-configurable.
+export const COMPRESSION_THRESHOLD_PCT = 0.70
 
 // Electron's webContents.send (used for IPC.AI_TOKEN / IPC.AI_THINKING / etc.)
 // and ipcMain.handle response (returned by window.api.aiChat) travel on
@@ -105,38 +108,8 @@ function settledMessages(messages: ChatMessage[]): ChatMessage[] {
   )
 }
 
-function buildApiMessages(messages: ChatMessage[], includeThinking: boolean): ApiMessage[] {
-  const settled = settledMessages(messages)
-  if (includeThinking) {
-    const apiMessages: ApiMessage[] = []
-    let pendingThinking = ''
-    for (const m of settled) {
-      if (m.role === 'thinking') {
-        pendingThinking += (pendingThinking ? '\n\n' : '') + m.content
-      } else if (m.role === 'user') {
-        pendingThinking = ''
-        apiMessages.push({
-          role: 'user',
-          content: m.content,
-          attachments: (m as UserMessage).attachments,
-        })
-      } else if (m.role === 'assistant') {
-        const content = pendingThinking
-          ? `<thinking>\n${pendingThinking}\n</thinking>\n\n${m.content}`
-          : m.content
-        pendingThinking = ''
-        apiMessages.push({ role: 'assistant', content })
-      } else if (m.role === 'injected') {
-        pendingThinking = ''
-        apiMessages.push({
-          role: 'system',
-          content: `[Extension ${(m as InjectedMessage).extensionName}] ${(m as InjectedMessage).content}`,
-        })
-      }
-    }
-    return apiMessages
-  }
-  return settled
+function buildApiMessages(messages: ChatMessage[]): ApiMessage[] {
+  return settledMessages(messages)
     .filter(
       (m): m is UserMessage | AssistantMessage | InjectedMessage =>
         m.role === 'user' || m.role === 'assistant' || m.role === 'injected'
@@ -692,7 +665,6 @@ export const useChat = create<UseChatSlice>((set, get) => ({
 
     userCancelled = false
 
-    const includeThinking = useSettingsStore.getState().includeThinkingInContext
     const compressionSnapshot =
       get().compressedMessages && get().compressedFromCount != null
         ? {
@@ -701,7 +673,7 @@ export const useChat = create<UseChatSlice>((set, get) => ({
           }
         : null
 
-    const baseApiMessages = buildApiMessages(get().messages, includeThinking)
+    const baseApiMessages = buildApiMessages(get().messages)
     const apiMessages = substituteCompressionSnapshot(baseApiMessages, compressionSnapshot)
 
     const frame = await useScreenWebcamShare.getState().captureFrame()
@@ -987,6 +959,5 @@ async function loadSessionIntoSlice(rootPath: string, sessionId: string): Promis
 export function useShouldShowToast(): boolean {
   const status = useChat((s) => s.contextStatus)
   const dismissed = useChat((s) => s.toastDismissed)
-  const tokenThresholdPct = useSettingsStore((s) => s.compressionThresholdPct)
-  return evaluateShouldShowToast(status, dismissed, tokenThresholdPct)
+  return evaluateShouldShowToast(status, dismissed, COMPRESSION_THRESHOLD_PCT)
 }

@@ -14,7 +14,6 @@ vi.mock('../../hooks/useScreenWebcamShare', () => ({
 import { useChat, detectEmptyResponseError } from '../useChat'
 import type { UserMessage } from '../../types/chatMessages'
 import { useProjectStore } from '../useProjectStore'
-import { useSettingsStore } from '../useSettingsStore'
 
 const emptyTimeline = {
   messages: [],
@@ -107,7 +106,6 @@ describe('useChat slice', () => {
     captureFrame.mockReset()
     captureFrame.mockResolvedValue(null)
     useProjectStore.setState({ rootPath: '/proj' })
-    useSettingsStore.setState({ includeThinkingInContext: false })
   })
 
   afterEach(() => {

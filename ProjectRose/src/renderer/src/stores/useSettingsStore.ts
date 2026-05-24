@@ -11,12 +11,10 @@ interface SettingsState {
   activeListeningDraftSeconds: number
   whisperModel: string
   hostMode: 'projectrose' | 'self'
-  includeThinkingInContext: boolean
   agentStartsExpanded: boolean
   lastMainView: 'bloom' | 'editor'
   ollamaBaseUrl: string
   ollamaModelName: string
-  compressionThresholdPct: number
   extensions: Record<string, Record<string, unknown>>
   loaded: boolean
   load: () => Promise<void>
@@ -38,12 +36,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   activeListeningDraftSeconds: 8,
   whisperModel: 'Xenova/whisper-tiny.en',
   hostMode: 'self',
-  includeThinkingInContext: false,
   agentStartsExpanded: false,
   lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModelName: '',
-  compressionThresholdPct: 0.70,
   extensions: {},
   loaded: false,
 
