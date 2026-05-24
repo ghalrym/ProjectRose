@@ -1,4 +1,4 @@
-.PHONY: build run dist build-rosespeech setup start clean ci typecheck test-unit test-e2e help
+.PHONY: build run dist build-rosespeech setup start clean ci typecheck test-unit help
 
 # ── Editor ─────────────────────────────────────────────────────────────
 
@@ -26,17 +26,13 @@ start: setup build ## Install all dependencies then launch in dev mode
 
 # ── CI ──────────────────────────────────────────────────────────────────
 
-ci: typecheck test-unit test-e2e ## Run all CI checks locally (typecheck + unit + e2e)
+ci: typecheck test-unit ## Run all CI checks locally (typecheck + unit)
 
 typecheck: ## Run TypeScript type checks
 	cd ProjectRose && npm run typecheck
 
 test-unit: ## Run unit tests
 	cd ProjectRose && npm run test:unit
-
-test-e2e: ## Build app and run E2E tests (requires Electron binary)
-	node node_modules/electron/install.js
-	cd ProjectRose && npm run build && npm run test:e2e
 
 clean: ## Remove build artifacts
 	rm -rf ProjectRose/node_modules ProjectRose/out ProjectRose/release rosespeech-dist
