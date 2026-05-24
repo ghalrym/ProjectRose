@@ -23,7 +23,8 @@ export const RELEASES: ReleaseEntry[] = [
       'The Compress button now summarises the whole conversation, not just the older turns — the automatic suggestion still keeps your most recent turns verbatim',
       'Compressed turns collapse behind a single divider so it\'s obvious they were summarised; expand it any time to read the originals',
       'Fix: blank assistant cells no longer appear when the agent finishes a step with only thinking and tool calls',
-      'Fix: the Compress button now reports its result (or why it can\'t run) instead of silently doing nothing'
+      'Fix: the Compress button now reports its result (or why it can\'t run) instead of silently doing nothing',
+      'Fix: chat messages no longer have their own inner scrollbars — long messages, thinking blocks, and tool output now flow into a single timeline scroll instead of nesting scroll areas'
     ]
   },
   {

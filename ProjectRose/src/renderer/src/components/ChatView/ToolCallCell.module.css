@@ -116,9 +116,6 @@
   border-radius: 4px;
   padding: 8px;
   margin: 0;
-  max-height: 40vh;
-  overflow: auto;
-  overscroll-behavior: contain;
 }
 
 .preError {
@@ -146,9 +143,6 @@
   border-radius: 4px;
   padding: 4px 8px;
   margin: 0;
-  max-height: 40vh;
-  overflow: auto;
-  overscroll-behavior: contain;
   background: var(--color-toggle-bg);
 }
 
