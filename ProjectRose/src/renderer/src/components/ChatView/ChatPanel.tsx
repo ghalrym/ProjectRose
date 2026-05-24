@@ -4,6 +4,7 @@ import { useChat } from '../../stores/useChat'
 import type {
   ChatMessage,
   ToolMessage,
+  AssistantMessage,
   AskUserMessage,
   InjectedMessage,
 } from '../../types/chatMessages'
@@ -60,6 +61,21 @@ function formatChatForCopy(messages: ChatMessage[]): string {
   return parts.join('\n\n')
 }
 
+// Assistant/thinking cells with no text and nothing else to show (no streaming
+// cursor, no fallback notice) render as blank "Output"/"Thinking" boxes. The
+// agent can finish a step with tool calls alone, so suppress those rather than
+// leak an empty cell into the timeline.
+function hasVisibleContent(msg: ChatMessage): boolean {
+  if (msg.role === 'thinking') {
+    return msg.streaming === true || msg.content.length > 0
+  }
+  if (msg.role === 'assistant') {
+    const a = msg as AssistantMessage
+    return a.streaming === true || a.content.length > 0 || !!a.fallbackNotice
+  }
+  return true
+}
+
 function groupMessages(messages: ChatMessage[]): RenderItem[] {
   const items: RenderItem[] = []
   let i = 0
@@ -73,7 +89,9 @@ function groupMessages(messages: ChatMessage[]): RenderItem[] {
       }
       items.push({ type: 'tool-group', messages: group, key: group[0].id })
     } else {
-      items.push({ type: 'message', message: msg as Exclude<ChatMessage, ToolMessage> })
+      if (hasVisibleContent(msg)) {
+        items.push({ type: 'message', message: msg as Exclude<ChatMessage, ToolMessage> })
+      }
       i++
     }
   }

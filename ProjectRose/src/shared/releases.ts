@@ -9,6 +9,16 @@ export interface ReleaseEntry {
 
 export const RELEASES: ReleaseEntry[] = [
   {
+    version: '1.9.1',
+    tag: null,
+    date: null,
+    title: 'Chat timeline fixes',
+    unreleased: true,
+    highlights: [
+      'Fix: blank assistant cells no longer appear when the agent finishes a step with only thinking and tool calls'
+    ]
+  },
+  {
     version: '1.9.0',
     tag: null,
     date: null,
