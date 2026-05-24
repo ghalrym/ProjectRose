@@ -18,7 +18,7 @@ export function CompressionToast(): JSX.Element | null {
   const pct = Math.round(status.percentUsed * 100)
 
   const handleCompress = (): void => {
-    compressNow().catch(() => { /* failures shown via status notify elsewhere */ })
+    void compressNow()
   }
 
   return (

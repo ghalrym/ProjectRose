@@ -14,6 +14,7 @@ vi.mock('../../hooks/useScreenWebcamShare', () => ({
 import { useChat, detectEmptyResponseError } from '../useChat'
 import type { UserMessage } from '../../types/chatMessages'
 import { useProjectStore } from '../useProjectStore'
+import { useStatusStore } from '../useStatusStore'
 
 const emptyTimeline = {
   messages: [],
@@ -86,10 +87,7 @@ function resetStores(): void {
     searchQuery: '',
     sessions: [],
     currentSessionId: null,
-    compressedMessages: null,
-    compressedFromCount: null,
-    compressedFromRawCount: null,
-    compressedAt: null,
+    snapshot: null,
     contextStatus: null,
     toastDismissed: null,
     isCompressing: false,
@@ -111,6 +109,15 @@ describe('useChat slice', () => {
   afterEach(() => {
     vi.useRealTimers()
   })
+
+  // vi.spyOn against a zustand state method leaks across tests (later spies
+  // wrap earlier ones rather than replacing them), so swap notify with a
+  // fresh vi.fn for each test that needs to observe the call.
+  function captureNotify(): ReturnType<typeof vi.fn> {
+    const fn = vi.fn()
+    useStatusStore.setState({ notify: fn })
+    return fn
+  }
 
   describe('state', () => {
     it('holds timeline messages on the slice', () => {
@@ -137,17 +144,23 @@ describe('useChat slice', () => {
       expect(slice.currentSessionId).toBe('s1')
     })
 
-    it('holds compression snapshot fields on the slice', () => {
+    it('holds the consolidated compression snapshot on the slice', () => {
       useChat.setState({
-        compressedMessages: [{ role: 'system', content: 'summary' }],
-        compressedFromCount: 2,
-        compressedFromRawCount: 2,
-        compressedAt: 100,
+        snapshot: {
+          compressedMessages: [{ role: 'system', content: 'summary' }],
+          compressedFromCount: 2,
+          compressedFromRawCount: 2,
+          compressedAt: 100,
+          compressedTurnCount: 3,
+        },
       })
       const slice = useChat.getState()
-      expect(slice.compressedMessages).toEqual([{ role: 'system', content: 'summary' }])
-      expect(slice.compressedFromCount).toBe(2)
-      expect(slice.compressedAt).toBe(100)
+      expect(slice.snapshot?.compressedMessages).toEqual([
+        { role: 'system', content: 'summary' },
+      ])
+      expect(slice.snapshot?.compressedFromCount).toBe(2)
+      expect(slice.snapshot?.compressedAt).toBe(100)
+      expect(slice.snapshot?.compressedTurnCount).toBe(3)
     })
   })
 
@@ -241,12 +254,17 @@ describe('useChat slice', () => {
         currentSessionId: 's1',
       })
 
-      // Mock the main-side compression response so compressNow installs a
-      // snapshot, and the status response so refresh succeeds.
+      // Mock the main-side compression response in the new outcome shape so
+      // compressNow installs a snapshot, and the status response so refresh
+      // succeeds.
       api.aiCompressToolNoise.mockResolvedValueOnce({
-        compressedMessages: [{ role: 'system', content: 'compressed prefix' }],
-        compressedFromCount: 2,
-        compressedFromRawCount: 2,
+        status: 'compressed',
+        result: {
+          compressedMessages: [{ role: 'system', content: 'compressed prefix' }],
+          compressedFromCount: 2,
+          compressedFromRawCount: 2,
+          compressedTurnCount: 1,
+        },
       })
       api.aiContextStatus.mockResolvedValueOnce({
         estimatedTokens: 50,
@@ -257,13 +275,14 @@ describe('useChat slice', () => {
 
       await useChat.getState().compressNow()
       // The slice now holds the new snapshot directly.
-      expect(useChat.getState().compressedMessages).toEqual([
+      expect(useChat.getState().snapshot?.compressedMessages).toEqual([
         { role: 'system', content: 'compressed prefix' },
       ])
-      expect(useChat.getState().compressedFromCount).toBe(2)
+      expect(useChat.getState().snapshot?.compressedFromCount).toBe(2)
+      expect(useChat.getState().snapshot?.compressedTurnCount).toBe(1)
 
-      // refreshContextStatus reads the mirrored snapshot through the
-      // underlying compression store and writes contextStatus.
+      // refreshContextStatus reads the snapshot from the slice and writes
+      // contextStatus.
       api.aiContextStatus.mockResolvedValueOnce({
         estimatedTokens: 50,
         contextLength: 8000,
@@ -293,6 +312,120 @@ describe('useChat slice', () => {
 
       await vi.advanceTimersByTimeAsync(250)
       await promise
+    })
+
+    it('compressNow notifies success with turn count when outcome is "compressed"', async () => {
+      const notify = captureNotify()
+      useChat.setState({
+        messages: [
+          { id: 'u1', role: 'user', content: 'old', timestamp: 0 },
+          { id: 'a1', role: 'assistant', content: 'old reply', timestamp: 0 },
+        ],
+        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        currentSessionId: 's1',
+      })
+      api.aiCompressToolNoise.mockResolvedValueOnce({
+        status: 'compressed',
+        result: {
+          compressedMessages: [{ role: 'system', content: 'sum' }],
+          compressedFromCount: 2,
+          compressedFromRawCount: 2,
+          compressedTurnCount: 4,
+        },
+      })
+
+      await useChat.getState().compressNow()
+
+      expect(notify).toHaveBeenCalledOnce()
+      const [text, opts] = notify.mock.calls[0]
+      expect(text).toContain('Compressed 4 older turns')
+      expect(opts).toMatchObject({ tone: 'success' })
+      expect(useChat.getState().snapshot).not.toBeNull()
+    })
+
+    it('compressNow notifies "too short" when the conversation is below the turn threshold', async () => {
+      const notify = captureNotify()
+      useChat.setState({
+        messages: [{ id: 'u1', role: 'user', content: 'hi', timestamp: 0 }],
+        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        currentSessionId: 's1',
+      })
+      api.aiCompressToolNoise.mockResolvedValueOnce({
+        status: 'too-short',
+        turnCount: 1,
+      })
+
+      await useChat.getState().compressNow()
+
+      expect(notify).toHaveBeenCalledOnce()
+      expect(notify.mock.calls[0][0]).toContain('too short to compress')
+      expect(notify.mock.calls[0][1]).toMatchObject({ tone: 'info' })
+      expect(useChat.getState().snapshot).toBeNull()
+    })
+
+    it('compressNow notifies an error when no model is configured', async () => {
+      const notify = captureNotify()
+      useChat.setState({
+        messages: [
+          { id: 'u1', role: 'user', content: 'old', timestamp: 0 },
+          { id: 'a1', role: 'assistant', content: 'old reply', timestamp: 0 },
+        ],
+        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        currentSessionId: 's1',
+      })
+      api.aiCompressToolNoise.mockResolvedValueOnce({ status: 'no-model' })
+
+      await useChat.getState().compressNow()
+
+      expect(notify).toHaveBeenCalledOnce()
+      expect(notify.mock.calls[0][0]).toContain('No model configured')
+      expect(notify.mock.calls[0][1]).toMatchObject({ tone: 'error' })
+      expect(useChat.getState().snapshot).toBeNull()
+    })
+
+    it('compressNow notifies the upstream error when compression fails', async () => {
+      const notify = captureNotify()
+      useChat.setState({
+        messages: [
+          { id: 'u1', role: 'user', content: 'old', timestamp: 0 },
+          { id: 'a1', role: 'assistant', content: 'old reply', timestamp: 0 },
+        ],
+        sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
+        currentSessionId: 's1',
+      })
+      api.aiCompressToolNoise.mockResolvedValueOnce({
+        status: 'failed',
+        message: 'invalid api key',
+      })
+
+      await useChat.getState().compressNow()
+
+      expect(notify).toHaveBeenCalledOnce()
+      expect(notify.mock.calls[0][0]).toContain('Compression failed: invalid api key')
+      expect(notify.mock.calls[0][1]).toMatchObject({ tone: 'error' })
+      expect(useChat.getState().snapshot).toBeNull()
+    })
+
+    it('switchSession round-trips a persisted snapshot including compressedTurnCount', async () => {
+      api.session.load.mockResolvedValueOnce({
+        id: 's2',
+        title: 'persisted',
+        createdAt: 1,
+        updatedAt: 1,
+        messages: [{ id: 'u1', role: 'user', content: 'old', timestamp: 0 }],
+        compressedMessages: [{ role: 'system', content: 'summary' }],
+        compressedFromCount: 1,
+        compressedFromRawCount: 1,
+        compressedAt: 42,
+        compressedTurnCount: 7,
+      })
+
+      await useChat.getState().switchSession('s2')
+
+      const snap = useChat.getState().snapshot
+      expect(snap).not.toBeNull()
+      expect(snap?.compressedTurnCount).toBe(7)
+      expect(snap?.compressedAt).toBe(42)
     })
 
     it('detectEmptyResponseError returns null when the response has content', () => {
@@ -375,10 +508,13 @@ describe('useChat slice', () => {
         sessions: [{ id: 's1', title: 't', createdAt: 0, updatedAt: 0 }],
         currentSessionId: 's1',
         messages: [{ id: 'u1', role: 'user', content: 'hi', timestamp: 0 }],
-        compressedMessages: [{ role: 'system', content: 's' }],
-        compressedFromCount: 1,
-        compressedFromRawCount: 1,
-        compressedAt: 1,
+        snapshot: {
+          compressedMessages: [{ role: 'system', content: 's' }],
+          compressedFromCount: 1,
+          compressedFromRawCount: 1,
+          compressedAt: 1,
+          compressedTurnCount: 2,
+        },
       })
 
       useChat.getState().clearForProjectSwitch()
@@ -386,7 +522,7 @@ describe('useChat slice', () => {
       expect(useChat.getState().sessions).toEqual([])
       expect(useChat.getState().currentSessionId).toBeNull()
       expect(useChat.getState().messages).toEqual([])
-      expect(useChat.getState().compressedMessages).toBeNull()
+      expect(useChat.getState().snapshot).toBeNull()
     })
   })
 })

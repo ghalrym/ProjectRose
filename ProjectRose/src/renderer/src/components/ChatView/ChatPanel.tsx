@@ -20,7 +20,10 @@ import { InjectedCell } from './InjectedCell'
 import { SystemPromptCell } from './SystemPromptCell'
 import { ChatInput } from './ChatInput'
 import { CompressionToast } from './CompressionToast'
+import { CompressedTurns } from './CompressedTurns'
+import { ContextStatusBar } from './ContextStatusBar'
 import { TranscriptView } from './TranscriptView'
+import type { CompressionSnapshot } from '../../types/chatMessages'
 import styles from './ChatPanel.module.css'
 
 type RenderItem =
@@ -98,9 +101,37 @@ function groupMessages(messages: ChatMessage[]): RenderItem[] {
   return items
 }
 
+// Split the rendered items at the snapshot boundary. Items before it are the
+// turns the LLM now sees only as a summary — they get collapsed behind a single
+// divider so it's obvious they were compressed. Items at/after the boundary are
+// the live conversation the LLM still sees verbatim. With no snapshot (or a
+// zero/empty boundary) everything is live.
+function partitionByCompression(
+  items: RenderItem[],
+  messages: ChatMessage[],
+  snapshot: CompressionSnapshot | null
+): { compressed: RenderItem[]; live: RenderItem[] } {
+  if (!snapshot) return { compressed: [], live: items }
+  const boundary = snapshot.compressedFromRawCount
+  if (boundary <= 0 || messages.length === 0) return { compressed: [], live: items }
+  const idToRawIndex = new Map<string, number>()
+  for (let i = 0; i < messages.length; i++) idToRawIndex.set(messages[i].id, i)
+  const compressed: RenderItem[] = []
+  const live: RenderItem[] = []
+  for (const item of items) {
+    const firstId = item.type === 'message' ? item.message.id : item.messages[0].id
+    const idx = idToRawIndex.get(firstId) ?? -1
+    // Unknown indices (shouldn't happen) stay live so nothing is hidden.
+    if (idx >= 0 && idx < boundary) compressed.push(item)
+    else live.push(item)
+  }
+  return { compressed, live }
+}
+
 export function ChatPanel(): JSX.Element {
   const messages = useChat((s) => s.messages)
   const isLoading = useChat((s) => s.isLoading)
+  const snapshot = useChat((s) => s.snapshot)
   const loadSessions = useChat((s) => s.loadSessions)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const rootPath = useProjectStore((s) => s.rootPath)
@@ -153,7 +184,20 @@ export function ChatPanel(): JSX.Element {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length])
 
-  const items = groupMessages(messages)
+  const { compressed, live } = partitionByCompression(groupMessages(messages), messages, snapshot)
+
+  const renderItem = (item: RenderItem): JSX.Element => {
+    if (item.type === 'tool-group') {
+      return <ToolCallGroupCell key={item.key} messages={item.messages} />
+    }
+    if (item.message.role === 'ask_user') {
+      return <AskUserCell key={item.message.id} message={item.message as AskUserMessage} />
+    }
+    if (item.message.role === 'injected') {
+      return <InjectedCell key={item.message.id} message={item.message as InjectedMessage} />
+    }
+    return <ChatCell key={item.message.id} message={item.message} />
+  }
 
   return (
     <div className={clsx(styles.chatPanel, isChatFullWidth && styles.chatPanelFullWidth)}>
@@ -219,15 +263,12 @@ export function ChatPanel(): JSX.Element {
             <div className={styles.empty}>Start a conversation with the AI assistant</div>
           ) : (
             <>
-              {items.map((item) =>
-                item.type === 'tool-group'
-                  ? <ToolCallGroupCell key={item.key} messages={item.messages} />
-                  : item.message.role === 'ask_user'
-                  ? <AskUserCell key={item.message.id} message={item.message as AskUserMessage} />
-                  : item.message.role === 'injected'
-                  ? <InjectedCell key={item.message.id} message={item.message as InjectedMessage} />
-                  : <ChatCell key={item.message.id} message={item.message} />
+              {snapshot && compressed.length > 0 && (
+                <CompressedTurns snapshot={snapshot}>
+                  {compressed.map(renderItem)}
+                </CompressedTurns>
               )}
+              {live.map(renderItem)}
               {isLoading && (
                 <div className={styles.loading}>Generating response...</div>
               )}
@@ -239,6 +280,7 @@ export function ChatPanel(): JSX.Element {
         <TranscriptView />
       )}
 
+      <ContextStatusBar />
       <ChatInput notched={activeView === 'chat' && isChatFullWidth} />
       <CompressionToast />
     </div>

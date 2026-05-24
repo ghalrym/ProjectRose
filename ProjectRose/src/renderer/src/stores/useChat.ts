@@ -10,11 +10,11 @@ import type {
   InjectedMessage,
   SessionMeta,
   CompressionSnapshot,
-  CompressedApiMessage,
   ContextStatus,
 } from '../types/chatMessages'
 import { useProjectStore } from './useProjectStore'
 import { useSettingsStore } from './useSettingsStore'
+import { useStatusStore } from './useStatusStore'
 import { useScreenWebcamShare } from '../hooks/useScreenWebcamShare'
 
 // Tool-step count is fixed at 50 because it's a property of the agentic loop
@@ -127,7 +127,7 @@ function buildApiMessages(messages: ChatMessage[]): ApiMessage[] {
 
 function substituteCompressionSnapshot(
   apiMessages: ApiMessage[],
-  snapshot: { compressedMessages: CompressedApiMessage[]; compressedFromCount: number } | null
+  snapshot: CompressionSnapshot | null
 ): ApiMessage[] {
   if (!snapshot || apiMessages.length < snapshot.compressedFromCount) return apiMessages
   const tail = apiMessages.slice(snapshot.compressedFromCount)
@@ -155,23 +155,6 @@ function sanitizeLoadedMessages(messages: ChatMessage[]): ChatMessage[] {
 
 // ── Persistence helpers (formerly in services/chatPersistence.ts) ──────────
 
-function readSnapshot(state: UseChatSlice): CompressionSnapshot | null {
-  if (
-    state.compressedMessages &&
-    state.compressedFromCount != null &&
-    state.compressedFromRawCount != null &&
-    state.compressedAt != null
-  ) {
-    return {
-      compressedMessages: state.compressedMessages,
-      compressedFromCount: state.compressedFromCount,
-      compressedFromRawCount: state.compressedFromRawCount,
-      compressedAt: state.compressedAt,
-    }
-  }
-  return null
-}
-
 function buildPayload(
   meta: SessionMeta,
   messages: ChatMessage[],
@@ -189,17 +172,25 @@ function buildPayload(
     payload.compressedFromCount = snapshot.compressedFromCount
     payload.compressedFromRawCount = snapshot.compressedFromRawCount
     payload.compressedAt = snapshot.compressedAt
+    if (snapshot.compressedTurnCount != null) {
+      payload.compressedTurnCount = snapshot.compressedTurnCount
+    }
   }
   return payload
 }
 
 function persistSession(rootPath: string, meta: SessionMeta): void {
   const state = useChat.getState()
-  const messages = state.messages
-  const snapshot = readSnapshot(state)
-  window.api.session.save(rootPath, buildPayload(meta, messages, snapshot)).catch(() => {
+  window.api.session.save(rootPath, buildPayload(meta, state.messages, state.snapshot)).catch(() => {
     /* persistence failures are non-fatal */
   })
+}
+
+// Short, human-readable token count for status notifications: 1234 → "1.2K",
+// 50 → "50". Used by the compression success notify; not user-tunable.
+function formatTokenCount(n: number): string {
+  if (n < 1000) return String(n)
+  return `${(n / 1000).toFixed(1)}K`
 }
 
 // ── Threshold predicate (used by useShouldShowToast) ───────────────────────
@@ -265,10 +256,7 @@ export interface UseChatSlice {
   currentSessionId: string | null
 
   // Compression / context state
-  compressedMessages: CompressionSnapshot['compressedMessages'] | null
-  compressedFromCount: number | null
-  compressedFromRawCount: number | null
-  compressedAt: number | null
+  snapshot: CompressionSnapshot | null
   contextStatus: ContextStatus | null
   toastDismissed: { percentUsed: number; totalToolSteps: number } | null
   isCompressing: boolean
@@ -280,7 +268,7 @@ export interface UseChatSlice {
   setInputValue: (value: string) => void
   setIsRecording: (value: boolean) => void
   setSearchQuery: (value: string) => void
-  compressNow: () => Promise<void>
+  compressNow: (opts?: { full?: boolean }) => Promise<void>
   dismissCompressionToast: () => void
   newSession: () => void
   loadSessions: () => Promise<void>
@@ -333,10 +321,7 @@ export interface UseChatSlice {
 }
 
 const initialCompression = {
-  compressedMessages: null,
-  compressedFromCount: null,
-  compressedFromRawCount: null,
-  compressedAt: null,
+  snapshot: null,
   contextStatus: null,
   toastDismissed: null,
   isCompressing: false,
@@ -635,22 +620,7 @@ export const useChat = create<UseChatSlice>((set, get) => ({
     })),
 
   // ── Compression mutators ──────────────────────────────────────────────
-  setSnapshot: (snapshot) =>
-    set(
-      snapshot
-        ? {
-            compressedMessages: snapshot.compressedMessages,
-            compressedFromCount: snapshot.compressedFromCount,
-            compressedFromRawCount: snapshot.compressedFromRawCount,
-            compressedAt: snapshot.compressedAt,
-          }
-        : {
-            compressedMessages: null,
-            compressedFromCount: null,
-            compressedFromRawCount: null,
-            compressedAt: null,
-          }
-    ),
+  setSnapshot: (snapshot) => set({ snapshot }),
   setContextStatus: (contextStatus) => set({ contextStatus }),
   setIsCompressing: (isCompressing) => set({ isCompressing }),
   setToastDismissed: (toastDismissed) => set({ toastDismissed }),
@@ -665,16 +635,8 @@ export const useChat = create<UseChatSlice>((set, get) => ({
 
     userCancelled = false
 
-    const compressionSnapshot =
-      get().compressedMessages && get().compressedFromCount != null
-        ? {
-            compressedMessages: get().compressedMessages!,
-            compressedFromCount: get().compressedFromCount!,
-          }
-        : null
-
     const baseApiMessages = buildApiMessages(get().messages)
-    const apiMessages = substituteCompressionSnapshot(baseApiMessages, compressionSnapshot)
+    const apiMessages = substituteCompressionSnapshot(baseApiMessages, get().snapshot)
 
     const frame = await useScreenWebcamShare.getState().captureFrame()
 
@@ -799,24 +761,39 @@ export const useChat = create<UseChatSlice>((set, get) => ({
     await window.api.aiAskUserResponse(sessionId, questionId, answer)
   },
 
-  compressNow: async () => {
+  compressNow: async (opts) => {
+    const notify = useStatusStore.getState().notify
     const rootPath = useProjectStore.getState().rootPath
     const sessionId = get().currentSessionId
-    if (!rootPath || !sessionId || get().isCompressing) return
+    if (get().isCompressing) return
+    if (!rootPath || !sessionId) {
+      notify('Open a chat before compressing', { tone: 'info' })
+      return
+    }
+    // Capture token estimate before so the success notify can report the
+    // delta. May be null if status was never refreshed (fresh conversation).
+    const before = get().contextStatus?.estimatedTokens ?? null
     set({ isCompressing: true })
     try {
       const messages = get().messages
-      const result = await window.api.aiCompressToolNoise(
+      const outcome = await window.api.aiCompressToolNoise(
         rootPath,
-        messages as unknown as Array<Record<string, unknown>>
+        messages as unknown as Array<Record<string, unknown>>,
+        opts?.full
       )
-      if (result) {
-        const at = Date.now()
+      // Guard against a null/undefined result: reading `outcome.status` on it
+      // would throw, and without the catch below the failure was invisible.
+      if (!outcome) {
+        notify('Compression returned no result', { tone: 'error' })
+        return
+      }
+      if (outcome.status === 'compressed') {
         get().setSnapshot({
-          compressedMessages: result.compressedMessages,
-          compressedFromCount: result.compressedFromCount,
-          compressedFromRawCount: result.compressedFromRawCount,
-          compressedAt: at,
+          compressedMessages: outcome.result.compressedMessages,
+          compressedFromCount: outcome.result.compressedFromCount,
+          compressedFromRawCount: outcome.result.compressedFromRawCount,
+          compressedAt: Date.now(),
+          compressedTurnCount: outcome.result.compressedTurnCount,
         })
         const meta = get().sessions.find((s) => s.id === sessionId)
         if (meta) persistSession(rootPath, meta)
@@ -825,7 +802,24 @@ export const useChat = create<UseChatSlice>((set, get) => ({
         get().setToastDismissed(
           fresh ? { percentUsed: fresh.percentUsed, totalToolSteps: fresh.totalToolSteps } : null
         )
+        const after = fresh?.estimatedTokens ?? null
+        const saved = before != null && after != null ? Math.max(0, before - after) : null
+        const n = outcome.result.compressedTurnCount
+        const tail = saved != null ? ` (saved ~${formatTokenCount(saved)} tokens)` : ''
+        notify(`Compressed ${n} older ${n === 1 ? 'turn' : 'turns'}${tail}`, { tone: 'success' })
+      } else if (outcome.status === 'too-short') {
+        notify('Conversation is too short to compress yet', { tone: 'info' })
+      } else if (outcome.status === 'no-model') {
+        notify('No model configured — open Settings → Providers', { tone: 'error' })
+      } else if (outcome.status === 'failed') {
+        notify(`Compression failed: ${outcome.message}`, { tone: 'error' })
       }
+    } catch (err) {
+      // The IPC promise rejects when the main process throws (e.g. the
+      // summarizer model is unreachable). Surface it instead of failing
+      // silently — previously the button just flickered with no feedback.
+      const message = err instanceof Error ? err.message : String(err)
+      notify(`Compression failed: ${message}`, { tone: 'error' })
     } finally {
       set({ isCompressing: false })
     }
@@ -897,20 +891,10 @@ export const useChat = create<UseChatSlice>((set, get) => ({
       set({ contextStatus: null })
       return
     }
-    const snapshot =
-      get().compressedMessages &&
-      get().compressedFromCount != null &&
-      get().compressedFromRawCount != null
-        ? {
-            compressedMessages: get().compressedMessages!,
-            compressedFromCount: get().compressedFromCount!,
-            compressedFromRawCount: get().compressedFromRawCount!,
-          }
-        : null
     const status = await window.api.aiContextStatus(
       rootPath,
       messages as unknown as Array<Record<string, unknown>>,
-      snapshot
+      get().snapshot
     )
     set({ contextStatus: status })
   },
@@ -946,6 +930,7 @@ async function loadSessionIntoSlice(rootPath: string, sessionId: string): Promis
           compressedFromCount: loaded.compressedFromCount!,
           compressedFromRawCount: loaded.compressedFromRawCount!,
           compressedAt: loaded.compressedAt!,
+          compressedTurnCount: loaded.compressedTurnCount,
         }
       : null
   )

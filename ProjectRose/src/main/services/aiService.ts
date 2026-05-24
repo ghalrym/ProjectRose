@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { BrowserWindow } from 'electron'
 import { compressTurnsForContext } from './llmClient'
-import type { ApiShapeMessage, CompressionResult } from './llmClient'
+import type { ApiShapeMessage, CompressionResult, CompressionOutcome } from './llmClient'
 import { getContextLength } from './contextLengthRegistry'
 import { estimateTokens } from './tokenCounter'
 import { readSettings } from './settingsService'
@@ -149,16 +149,21 @@ export async function getContextStatus(
 
 export async function compressToolNoise(
   rootPath: string,
-  messages: Array<Record<string, unknown>>
-): Promise<CompressionResult | null> {
+  messages: Array<Record<string, unknown>>,
+  // When true, fold the entire conversation into the summary (keep 0 recent
+  // turns verbatim). The default keeps the recent turns, matching the
+  // auto-suggested compression.
+  full = false
+): Promise<CompressionOutcome> {
   const settings = await readSettings(rootPath)
   const model = pickActiveModel(settings)
-  if (!model) return null
+  if (!model) return { status: 'no-model' }
   return compressTurnsForContext(
     messages,
     model,
-    settings.ollamaBaseUrl
+    settings.ollamaBaseUrl,
+    full ? 0 : undefined
   )
 }
 
-export type { CompressionResult, ApiShapeMessage }
+export type { CompressionResult, ApiShapeMessage, CompressionOutcome }

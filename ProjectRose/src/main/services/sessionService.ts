@@ -25,6 +25,10 @@ export interface CompressedSnapshot {
   // compressedMessages). Used by status reporting to count tool steps only
   // in the post-compression tail (slice raw messages by this count).
   compressedFromRawCount: number
+  // How many older turns this snapshot folded into the summary. Optional for
+  // backward-compat with snapshots persisted before this field existed; the
+  // timeline divider renders a generic label when missing.
+  compressedTurnCount?: number
 }
 
 export interface Session extends SessionMeta, Partial<CompressedSnapshot> {

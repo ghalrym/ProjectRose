@@ -1018,32 +1018,62 @@ export interface CompressionResult {
   // compressedMessages. Used by status reporting to count tool steps only in
   // the post-compression tail.
   compressedFromRawCount: number
+  // How many older turns this snapshot folded into the summary. Surfaced in
+  // the renderer's timeline divider so the user can see what got compressed.
+  compressedTurnCount: number
 }
+
+// Discriminated outcome for a compression attempt. Every failure mode the
+// renderer needs to surface to the user gets its own arm — keep this in sync
+// with the renderer's compressNow() notify switch.
+export type CompressionOutcome =
+  | { status: 'compressed'; result: CompressionResult }
+  | { status: 'too-short'; turnCount: number }
+  | { status: 'no-model' }
+  | { status: 'failed'; message: string }
 
 export async function compressTurnsForContext(
   messages: RendererMessage[],
   modelConfig: ModelConfig,
-  ollamaBaseUrl: string
-): Promise<CompressionResult | null> {
+  ollamaBaseUrl: string,
+  // How many of the most recent turns to keep verbatim after the summary.
+  // The auto-suggested compression keeps KEEP_RECENT_TURNS so recent context
+  // stays sharp; a manual "compress everything" pass passes 0 to fold the
+  // whole conversation into the summary.
+  keepRecentTurns: number = KEEP_RECENT_TURNS
+): Promise<CompressionOutcome> {
+  const keep = Math.max(0, keepRecentTurns)
   const turns = splitIntoTurns(messages)
-  if (turns.length <= KEEP_RECENT_TURNS) return null
+  // Nothing to fold: at keep=N we need more than N turns; at keep=0 we still
+  // need at least one turn to summarize.
+  if (turns.length <= keep || turns.length === 0) {
+    return { status: 'too-short', turnCount: turns.length }
+  }
 
-  const oldTurns = turns.slice(0, turns.length - KEEP_RECENT_TURNS)
-  const recentTurns = turns.slice(turns.length - KEEP_RECENT_TURNS)
+  const oldTurns = turns.slice(0, turns.length - keep)
+  const recentTurns = turns.slice(turns.length - keep)
 
   const oldDescriptions = oldTurns
     .map((t, idx) => `### Turn ${idx + 1}\n${describeTurnForSummary(messages, t)}`)
     .join('\n\n')
 
-  const model = await resolveModel(modelConfig, ollamaBaseUrl)
-  const summaryPrompt = `You are compressing the older portion of a coding-assistant chat session to keep the model's context focused. For each turn below, write ONE short sentence (max 25 words) that captures: what the user asked, which tools the assistant used, and the outcome. Output as a numbered list with no preamble or trailing remarks.
+  let summary: string
+  try {
+    const model = await resolveModel(modelConfig, ollamaBaseUrl)
+    const summaryPrompt = `You are compressing the older portion of a coding-assistant chat session to keep the model's context focused. For each turn below, write ONE short sentence (max 25 words) that captures: what the user asked, which tools the assistant used, and the outcome. Output as a numbered list with no preamble or trailing remarks.
 
 ${oldDescriptions}`
-
-  const { text: summary } = await generateText({
-    model,
-    messages: [{ role: 'user' as const, content: summaryPrompt }]
-  })
+    const out = await generateText({
+      model,
+      messages: [{ role: 'user' as const, content: summaryPrompt }]
+    })
+    summary = out.text
+  } catch (err) {
+    return {
+      status: 'failed',
+      message: err instanceof Error ? err.message : String(err),
+    }
+  }
 
   const summaryBlock: ApiShapeMessage = {
     role: 'system',
@@ -1062,13 +1092,20 @@ ${oldDescriptions}`
   // compressedMessages already contains the recent turns verbatim, so the
   // substitution covers ALL api-shape messages present at compression time.
   // The renderer slices its current apiMessages by this count and appends any
-  // newer ones produced after compression.
-  const compressedFromCount = recentTurns[recentTurns.length - 1].apiEnd + 1
-  const compressedFromRawCount = recentTurns[recentTurns.length - 1].end + 1
+  // newer ones produced after compression. With keep=0 there are no recent
+  // turns, so the boundary is the end of the last folded turn — i.e. the whole
+  // conversation collapses to just the summary block.
+  const boundaryTurn = recentTurns[recentTurns.length - 1] ?? oldTurns[oldTurns.length - 1]
+  const compressedFromCount = boundaryTurn.apiEnd + 1
+  const compressedFromRawCount = boundaryTurn.end + 1
 
   return {
-    compressedMessages: [summaryBlock, ...recentApi],
-    compressedFromCount,
-    compressedFromRawCount,
+    status: 'compressed',
+    result: {
+      compressedMessages: [summaryBlock, ...recentApi],
+      compressedFromCount,
+      compressedFromRawCount,
+      compressedTurnCount: oldTurns.length,
+    },
   }
 }

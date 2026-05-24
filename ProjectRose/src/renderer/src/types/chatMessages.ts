@@ -81,4 +81,8 @@ export interface CompressionSnapshot {
   compressedFromCount: number
   compressedFromRawCount: number
   compressedAt: number
+  // How many older turns folded into the summary. Optional because snapshots
+  // persisted before this field existed will load without it; the timeline
+  // divider falls back to a generic label.
+  compressedTurnCount?: number
 }

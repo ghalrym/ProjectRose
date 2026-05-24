@@ -387,7 +387,7 @@ export function registerIpcManifests(): void {
     chat: ({ messages, rootPath, sessionId }) => chat(messages, rootPath, sessionId),
     contextStatus: ({ rootPath, messages, compression }) =>
       getContextStatus(rootPath, messages, compression),
-    compressToolNoise: ({ rootPath, messages }) => compressToolNoise(rootPath, messages),
+    compressToolNoise: ({ rootPath, messages, full }) => compressToolNoise(rootPath, messages, full),
     getSystemPrompt: buildAgentMd,
     // No-op when the session is gone — see comments on aiHandlers' originals
     // for why we don't fall back to "cancel the most recent".

@@ -1,6 +1,6 @@
 import { defineIpc, method } from '../../shared/ipc/defineIpc'
 import type { Message } from '../../shared/roseModelTypes'
-import type { ChatResponse, ContextStatus, ContextStatusCompression, CompressionResult } from './aiService'
+import type { ChatResponse, ContextStatus, ContextStatusCompression, CompressionOutcome } from './aiService'
 import type { ScreenshotResult } from './chatSession'
 
 // Request channels only. The ten event-broadcast channels (AI_TOKEN /
@@ -22,8 +22,8 @@ export const aiIpc = defineIpc('ai', {
     ContextStatus
   >(),
   compressToolNoise: method<
-    [payload: { rootPath: string; messages: Array<Record<string, unknown>> }],
-    CompressionResult | null
+    [payload: { rootPath: string; messages: Array<Record<string, unknown>>; full?: boolean }],
+    CompressionOutcome
   >(),
   getSystemPrompt: method<[rootPath: string], string>(),
   cancel: method<[payload: { sessionId: string }], void>(),

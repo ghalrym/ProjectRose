@@ -1,0 +1,59 @@
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The header doubles as the old compression divider and the expand toggle. */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  margin: 4px 0;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.header:hover .label,
+.header:hover .chevron {
+  color: var(--color-text);
+}
+
+.rule {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+  opacity: 0.6;
+}
+
+.chevron {
+  font-size: 9px;
+  opacity: 0.8;
+  transition: color 0.15s ease;
+}
+
+.label {
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.time {
+  opacity: 0.6;
+}
+
+/* Compressed messages, when expanded, read as an archived aside: dimmed and
+   set off by a rail so they're clearly distinct from the live conversation. */
+.body {
+  opacity: 0.55;
+  border-left: 2px solid var(--color-border);
+  padding-left: 10px;
+  margin: 0 0 4px 4px;
+}

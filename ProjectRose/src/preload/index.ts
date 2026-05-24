@@ -190,8 +190,8 @@ const api = {
       compressedFromRawCount: number
     } | null
   ) => aiIpc.bindings.contextStatus({ rootPath, messages, compression }),
-  aiCompressToolNoise: (rootPath: string, messages: Array<Record<string, unknown>>) =>
-    aiIpc.bindings.compressToolNoise({ rootPath, messages }),
+  aiCompressToolNoise: (rootPath: string, messages: Array<Record<string, unknown>>, full?: boolean) =>
+    aiIpc.bindings.compressToolNoise({ rootPath, messages, full }),
   aiGetSystemPrompt: aiIpc.bindings.getSystemPrompt,
 
   onAiFileModified: (callback: (data: { path: string }) => void): (() => void) => {
