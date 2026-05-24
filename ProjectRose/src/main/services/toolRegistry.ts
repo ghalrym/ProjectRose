@@ -29,7 +29,6 @@ import { reconcileToolCatalog, type ToolCatalogDrift } from '../extensions/recon
 // imports their types but not their runtime modules).
 import type { AgentContext, SubagentCounter } from './agentRunner'
 import type { ModelConfig } from './settingsService'
-import type { ProviderKeys } from './llmClient'
 
 export type EmitFn = (channel: string, payload: unknown) => void
 
@@ -60,9 +59,7 @@ export type BuildCoreToolsFn = (ctx: ToolSourceContext) => ToolMap
 export interface SubagentTurnContext {
   agentCtx: AgentContext
   model: ModelConfig
-  providerKeys: ProviderKeys
   ollamaBaseUrl: string
-  openaiCompatBaseUrl: string
   counter: SubagentCounter
   systemPrompt: string
 }

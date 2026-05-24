@@ -14,7 +14,7 @@ import type { StreamResult } from './llmClient'
 import type { AgentContext, SubagentCounter } from './agentRunner'
 import type { SubagentTurnContext, ToolSourceName } from './toolRegistry'
 import { buildAgentMd } from './agentMd'
-import { selectModel, extractErrorMessage } from './modelSelection'
+import { selectModel } from './modelSelection'
 import { logAssistantMessage, logUserMessage } from './memory/conversationLog'
 
 // Screenshot result shape — duplicated from llmClient.ts so chatSession.ts
@@ -184,14 +184,12 @@ export class ChatSession {
   /**
    * Run a single user turn end-to-end on this session.
    *
-   * The body owns: extension `on_user_message` firing, model selection
-   * (including fallback to the default model on first failure), system
-   * prompt construction, subagent/skill tool context build-out, the
+   * The body owns: extension `on_user_message` firing, model selection,
+   * system prompt construction, subagent/skill tool context build-out, the
    * extension injection loop, and the streaming wire-up via `streamChat`.
-   * Notifications (`AI_MODEL_SELECTED`, `AI_STREAM_RESET`,
-   * `AI_INJECTED_MESSAGE`) are emitted directly to the renderer with the
-   * session id attached so the renderer can drop late events from
-   * abandoned sessions.
+   * Notifications (`AI_MODEL_SELECTED`, `AI_INJECTED_MESSAGE`) are emitted
+   * directly to the renderer with the session id attached so the renderer
+   * can drop late events from abandoned sessions.
    *
    * `runOnce` is exposed as a parameter so tests can substitute a fake
    * LLM without spinning up the full streaming path. In production the
@@ -231,9 +229,7 @@ export class ChatSession {
       void logUserMessage({ sessionId, rootPath, content: userMessage })
     }
     const selectedModel = await selectModel(userMessage, settings)
-    const defaultModel =
-      settings.models.find((m) => m.id === settings.defaultModelId) ?? settings.models[0]
-    const modelDisplay = selectedModel.displayName || selectedModel.modelName
+    const modelDisplay = selectedModel.modelName
     // Only main chat notifies the renderer about model selection. Subagent
     // and one-shot sessions are background work — their model events should
     // not show up in the user's main timeline.
@@ -268,9 +264,7 @@ export class ChatSession {
         ? {
             agentCtx,
             model: m,
-            providerKeys: settings.providerKeys,
             ollamaBaseUrl: settings.ollamaBaseUrl,
-            openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
             counter,
             systemPrompt,
           }
@@ -287,9 +281,7 @@ export class ChatSession {
       systemPrompt,
       getSystemPrompt,
       enabledExtensionIds,
-      providerKeys: settings.providerKeys,
       ollamaBaseUrl: settings.ollamaBaseUrl,
-      openaiCompatBaseUrl: settings.openaiCompatBaseUrl,
       projectRoot: rootPath,
       disabledTools,
       abortSignal: abortController.signal,
@@ -297,9 +289,7 @@ export class ChatSession {
       include,
     }
 
-    let activeModel = selectedModel
-    let activeModelDisplay = modelDisplay
-    let fallbackUsed = false
+    const activeModel = selectedModel
     let lastStreamResult: StreamResult | undefined
     let preBuiltCoreMessages: ModelMessage[] | undefined
 
@@ -326,32 +316,7 @@ export class ChatSession {
           },
         })
 
-      try {
-        lastStreamResult = await runOnce(activeModel)
-      } catch (err) {
-        if (abortController.signal.aborted) throw err
-        const isAlreadyDefault = !defaultModel || activeModel.id === defaultModel.id
-        if (isAlreadyDefault || fallbackUsed) throw err
-
-        const errorMessage = extractErrorMessage(err)
-        const fallbackDisplay = defaultModel.displayName || defaultModel.modelName
-        if (isMain) {
-          notify(IPC.AI_STREAM_RESET, {
-            sessionId,
-            errorMessage,
-            fallbackModel: fallbackDisplay,
-          })
-        }
-        // Clear any modified-files recorded during the failed primary
-        // attempt so the renderer only sees the fallback's writes.
-        this.modifiedFiles.length = 0
-
-        activeModel = defaultModel
-        activeModelDisplay = fallbackDisplay
-        fallbackUsed = true
-
-        lastStreamResult = await runOnce(activeModel)
-      }
+      lastStreamResult = await runOnce(activeModel)
 
       // Subagent / one-shot: a single iteration. Even if an extension hook
       // somehow snuck an injection in, the role bound on collectInjections
@@ -392,7 +357,7 @@ export class ChatSession {
     return {
       content: lastStreamResult.content,
       modifiedFiles,
-      modelDisplay: activeModelDisplay,
+      modelDisplay,
     }
   }
 }

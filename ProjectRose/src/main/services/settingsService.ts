@@ -6,15 +6,7 @@ import { DEFAULT_MEMORY_SETTINGS, type MemorySettings } from '../../shared/memor
 import { DEFAULT_EMAIL_SETTINGS, type EmailSettings } from '../../shared/email'
 
 export interface ModelConfig {
-  id: string
-  displayName: string
-  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible' | 'bedrock' | 'projectrose'
-  modelName: string
-  tags: string[]
-}
-
-export interface RouterConfig {
-  enabled: boolean
+  provider: 'ollama' | 'projectrose'
   modelName: string
 }
 
@@ -26,16 +18,15 @@ export interface AppSettings {
   activeListeningSetupComplete: boolean
   activeListeningDraftSeconds: number
   whisperModel: string
-  models: ModelConfig[]
-  defaultModelId: string
-  providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string } }
-  router: RouterConfig
   hostMode: 'projectrose' | 'self'
   includeThinkingInContext: boolean
   agentStartsExpanded: boolean
   lastMainView: 'bloom' | 'editor'
   ollamaBaseUrl: string
-  openaiCompatBaseUrl: string
+  // The single Ollama model name to run when hostMode === 'self'. Empty until
+  // the user types one in Settings → Providers → Ollama. ProjectRose mode
+  // ignores this and uses the inline 'managed' model in modelSelection.ts.
+  ollamaModelName: string
   // Fraction (0..1) of the model's context window at which the compression
   // toast suggests the user compress older turns. Pairs with a separate
   // tool-step threshold in the renderer.
@@ -66,17 +57,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   activeListeningSetupComplete: false,
   activeListeningDraftSeconds: 8,
   whisperModel: 'Xenova/whisper-tiny.en',
-  models: [],
-  defaultModelId: '',
-  providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' } },
-  router: { enabled: false, modelName: '' },
   hostMode: 'self',
   includeThinkingInContext: false,
   agentStartsExpanded: false,
   lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
-  openaiCompatBaseUrl: '',
-  openaiCompatApiKey: '',
+  ollamaModelName: '',
   compressionThresholdPct: 0.70,
   memory: DEFAULT_MEMORY_SETTINGS,
   email: DEFAULT_EMAIL_SETTINGS
@@ -101,12 +87,30 @@ export async function readSettings(_rootPath?: string): Promise<AppSettings> {
   // Drop any legacy navItems entry — the host no longer has a navigation bar.
   delete (merged as Record<string, unknown>).navItems
 
-  // Drop any legacy providerKeys.projectrose blob — the cookie-derived token
-  // is incompatible with the new opaque-bearer scheme and lives in
-  // safeStorage now (userData/session.bin).
-  if (merged.providerKeys && (merged.providerKeys as Record<string, unknown>).projectrose !== undefined) {
-    delete (merged.providerKeys as Record<string, unknown>).projectrose
+  // Drop legacy provider config (anthropic/openai/bedrock/openai-compatible
+  // were removed when ProjectRose narrowed to projectrose + ollama). Older
+  // ~/.rose/settings.json files may still carry these fields.
+  delete (merged as Record<string, unknown>).providerKeys
+  delete (merged as Record<string, unknown>).openaiCompatBaseUrl
+  delete (merged as Record<string, unknown>).openaiCompatApiKey
+
+  // Migrate from the old multi-model + router shape: lift the default Ollama
+  // model name out of models[] and drop the now-unused fields. Runs once per
+  // settings.json that still has the old shape.
+  const legacyModels = (merged as Record<string, unknown>).models
+  const legacyDefaultId = (merged as Record<string, unknown>).defaultModelId
+  if (Array.isArray(legacyModels) && !merged.ollamaModelName) {
+    const ollamaModels = legacyModels.filter(
+      (m): m is { id?: string; provider?: string; modelName?: string } =>
+        !!m && typeof m === 'object' && (m as { provider?: unknown }).provider === 'ollama'
+    )
+    const chosen =
+      ollamaModels.find((m) => m.id && m.id === legacyDefaultId) ?? ollamaModels[0]
+    if (chosen?.modelName) merged.ollamaModelName = chosen.modelName
   }
+  delete (merged as Record<string, unknown>).models
+  delete (merged as Record<string, unknown>).defaultModelId
+  delete (merged as Record<string, unknown>).router
 
   // Strip the legacy per-extension namespaced blob if a pre-refactor
   // ~/.rose/settings.json (or the carried-over userData/settings.json) still

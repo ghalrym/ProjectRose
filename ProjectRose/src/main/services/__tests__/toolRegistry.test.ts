@@ -116,9 +116,7 @@ describe('ToolRegistry', () => {
       // for these dependencies — only that the factory receives the object.
       agentCtx: { tag: 'agentCtx' } as unknown,
       model: { tag: 'model' } as unknown,
-      providerKeys: { tag: 'keys' } as unknown,
       ollamaBaseUrl: 'http://ollama',
-      openaiCompatBaseUrl: 'http://openai',
       counter: { value: 0 } as unknown,
       systemPrompt: 'sys'
     } as unknown as SubagentTurnContext

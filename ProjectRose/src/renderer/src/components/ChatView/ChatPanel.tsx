@@ -110,10 +110,8 @@ export function ChatPanel(): JSX.Element {
 
   const settingsLoaded = useSettingsStore((s) => s.loaded)
   const hostMode = useSettingsStore((s) => s.hostMode)
-  const modelCount = useSettingsStore((s) => s.models.length)
-  const providerKeys = useSettingsStore((s) => s.providerKeys)
   const ollamaBaseUrl = useSettingsStore((s) => s.ollamaBaseUrl)
-  const openaiCompatBaseUrl = useSettingsStore((s) => s.openaiCompatBaseUrl)
+  const ollamaModelName = useSettingsStore((s) => s.ollamaModelName)
   const setActiveView = useViewStore((s) => s.setActiveView)
   const setSettingsTarget = useViewStore((s) => s.setSettingsTarget)
   const activeView = useViewStore((s) => s.activeView)
@@ -121,16 +119,14 @@ export function ChatPanel(): JSX.Element {
   const toggleChatFullWidth = useViewStore((s) => s.toggleChatFullWidth)
   const showExpandToggle = activeView === 'chat'
 
-  const hasAnyProvider =
-    !!providerKeys.anthropic ||
-    !!providerKeys.openai ||
-    !!providerKeys.bedrock?.accessKeyId ||
-    !!ollamaBaseUrl ||
-    !!openaiCompatBaseUrl
+  // hostMode === 'self' means the user is using their own provider (Ollama
+  // only, since projectrose is the managed path). Without an Ollama base URL
+  // or a model, chatting can't go anywhere.
+  const hasAnyProvider = !!ollamaBaseUrl
   const setupNeeded =
     settingsLoaded &&
     hostMode === 'self' &&
-    (!hasAnyProvider || modelCount === 0)
+    (!hasAnyProvider || !ollamaModelName)
   const setupKind: 'provider' | 'model' = !hasAnyProvider ? 'provider' : 'model'
 
   const openAgentSettings = (): void => {

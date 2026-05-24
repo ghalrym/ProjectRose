@@ -28,8 +28,8 @@ export function SessionSidebar(): JSX.Element {
   const deleteSession = useChat((s) => s.deleteSession)
   const rootPath = useProjectStore((s) => s.rootPath)
   const agentName = useSettingsStore((s) => s.agentName)
-  const defaultModelId = useSettingsStore((s) => s.defaultModelId)
-  const models = useSettingsStore((s) => s.models)
+  const hostMode = useSettingsStore((s) => s.hostMode)
+  const ollamaModelName = useSettingsStore((s) => s.ollamaModelName)
   const theme = useThemeStore((s) => s.theme)
 
   const isActiveListening = useActiveListeningStore((s) => s.isActive)
@@ -47,8 +47,8 @@ export function SessionSidebar(): JSX.Element {
     s.title.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const activeModel = models.find((m) => m.id === defaultModelId)
-  const modelLabel = activeModel?.displayName ?? activeModel?.modelName ?? '—'
+  const modelLabel =
+    hostMode === 'projectrose' ? 'ProjectRose · managed' : ollamaModelName || '—'
   const contextCount = messages.length
 
   function handleNewSession(): void {

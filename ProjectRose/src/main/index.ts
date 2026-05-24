@@ -84,9 +84,7 @@ app.whenReady().then(async () => {
     buildSubagentTools(
       turn.agentCtx,
       turn.model,
-      turn.providerKeys,
       turn.ollamaBaseUrl,
-      turn.openaiCompatBaseUrl,
       turn.counter,
       turn.systemPrompt
     )

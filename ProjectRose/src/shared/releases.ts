@@ -12,9 +12,13 @@ export const RELEASES: ReleaseEntry[] = [
     version: '1.9.1',
     tag: null,
     date: null,
-    title: 'Chat timeline fixes',
+    title: 'Provider trim and chat timeline fixes',
     unreleased: true,
     highlights: [
+      'Providers narrowed to ProjectRose (managed) and Ollama (local) — Anthropic, OpenAI, Amazon Bedrock, and OpenAI-compatible options have been removed',
+      'Ollama now holds a single model name instead of a list — pick it once under Settings → Providers → Ollama',
+      'Router removed entirely; every chat goes to the configured model with no classification step',
+      'Existing API keys, OpenAI-compatible base URLs, and the legacy model catalogue are dropped from settings on first launch (the previously-default Ollama model is preserved)',
       'Fix: blank assistant cells no longer appear when the agent finishes a step with only thinking and tool calls'
     ]
   },

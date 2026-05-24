@@ -157,9 +157,7 @@ export async function compressToolNoise(
   return compressTurnsForContext(
     messages,
     model,
-    settings.providerKeys,
-    settings.ollamaBaseUrl,
-    settings.openaiCompatBaseUrl
+    settings.ollamaBaseUrl
   )
 }
 

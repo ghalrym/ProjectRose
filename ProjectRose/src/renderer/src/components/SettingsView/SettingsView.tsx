@@ -8,7 +8,7 @@ import { useProjectStore } from '../../stores/useProjectStore'
 import { useViewStore } from '../../stores/useViewStore'
 import { useWhisperPreloadStore } from '../../stores/useWhisperPreloadStore'
 import { subscribeToExtensionsChange } from '../../extensions/registry'
-import type { ModelConfig, ToolMeta } from '@shared/types'
+import type { ToolMeta } from '@shared/types'
 import type { GoogleSyncStatus } from '@shared/memory'
 import styles from './SettingsView.module.css'
 import { WhisperModelInstallModal, type WhisperModelOption } from './WhisperModelInstallModal'
@@ -45,23 +45,8 @@ interface FieldDef {
 }
 
 const PROVIDER_FIELD_DEFS: Record<string, FieldDef[]> = {
-  anthropic: [
-    { key: 'apiKey', label: 'API KEY', placeholder: 'sk-ant-...', secret: true, hint: 'console.anthropic.com' },
-  ],
-  openai: [
-    { key: 'apiKey', label: 'API KEY', placeholder: 'sk-...', secret: true, hint: 'platform.openai.com' },
-  ],
-  bedrock: [
-    { key: 'region', label: 'AWS REGION', placeholder: 'us-east-1', secret: false },
-    { key: 'accessKeyId', label: 'ACCESS KEY ID', placeholder: 'AKIA...', secret: true },
-    { key: 'secretAccessKey', label: 'SECRET ACCESS KEY', placeholder: 'wJalrXUtn...', secret: true },
-  ],
   ollama: [
     { key: 'baseUrl', label: 'BASE URL', placeholder: 'http://localhost:11434', secret: false, hint: 'no key required · local' },
-  ],
-  compat: [
-    { key: 'baseUrl', label: 'BASE URL', placeholder: 'https://api.example.com/v1', secret: false },
-    { key: 'apiKey', label: 'API KEY (optional)', placeholder: 'leave blank if none', secret: true },
   ],
 }
 
@@ -75,25 +60,6 @@ interface ProviderMeta {
 const PROVIDERS: ProviderMeta[] = [
   { kind: 'projectrose', spec: '00', name: 'ProjectRose',       latin: 'Rosa managed'    },
   { kind: 'ollama',      spec: '01', name: 'Ollama',            latin: 'Rosa localis'    },
-  { kind: 'anthropic',   spec: '02', name: 'Anthropic',         latin: 'Rosa claudia'    },
-  { kind: 'openai',      spec: '03', name: 'OpenAI',            latin: 'Rosa generativa' },
-  { kind: 'bedrock',     spec: '04', name: 'Amazon Bedrock',    latin: 'Rosa nubila'     },
-  { kind: 'compat',      spec: '05', name: 'OpenAI-compatible', latin: 'Rosa heterodoxa' },
-]
-
-// ─────────────────────────────────────────────────────────────
-// Model fallbacks
-// ─────────────────────────────────────────────────────────────
-
-const ANTHROPIC_FALLBACK = ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001']
-const OPENAI_FALLBACK = ['gpt-4o', 'gpt-4o-mini', 'o1', 'o1-mini', 'o3', 'o3-mini', 'o4-mini']
-const BEDROCK_FALLBACK = [
-  'anthropic.claude-opus-4-20250514-v1:0',
-  'anthropic.claude-3-5-sonnet-20241022-v2:0',
-  'anthropic.claude-3-5-haiku-20241022-v1:0',
-  'meta.llama3-70b-instruct-v1:0',
-  'meta.llama3-8b-instruct-v1:0',
-  'amazon.titan-text-express-v1',
 ]
 
 // ─────────────────────────────────────────────────────────────
@@ -113,28 +79,6 @@ function ProviderGlyph({ kind, size = 28 }: { kind: string; size?: number }): JS
           <path d="M4 16 C8 12 12 12 16 16 C12 20 8 20 4 16 Z" opacity="0.7" />
         </svg>
       )
-    case 'anthropic':
-      return (
-        <svg viewBox="0 0 32 32" width={size} height={size}>
-          <path d="M16 4 L26 26 L21 26 L19 21 L13 21 L11 26 L6 26 Z M14.5 17 L17.5 17 L16 13 Z" fill={c}/>
-        </svg>
-      )
-    case 'openai':
-      return (
-        <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.6">
-          <circle cx="16" cy="16" r="11"/>
-          <path d="M9 12 L23 12 M9 16 L23 16 M9 20 L23 20" opacity="0.5"/>
-          <circle cx="16" cy="16" r="3" fill={c} stroke="none"/>
-        </svg>
-      )
-    case 'bedrock':
-      return (
-        <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.6">
-          <path d="M4 22 L16 8 L28 22 Z"/>
-          <path d="M9 22 L16 14 L23 22" opacity="0.5"/>
-          <circle cx="16" cy="22" r="1.5" fill={c} stroke="none"/>
-        </svg>
-      )
     case 'ollama':
       return (
         <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.6">
@@ -143,13 +87,6 @@ function ProviderGlyph({ kind, size = 28 }: { kind: string; size?: number }): JS
           <ellipse cx="21" cy="10" rx="3" ry="4" fill={c} stroke="none"/>
           <circle cx="13" cy="17" r="1" fill={c} stroke="none"/>
           <circle cx="19" cy="17" r="1" fill={c} stroke="none"/>
-        </svg>
-      )
-    case 'compat':
-      return (
-        <svg viewBox="0 0 32 32" width={size} height={size} fill="none" stroke={c} strokeWidth="1.6">
-          <rect x="6" y="10" width="20" height="12" rx="1"/>
-          <path d="M10 14 L14 18 L10 22 M16 22 L22 22" opacity="0.7"/>
         </svg>
       )
     case 'google':
@@ -376,9 +313,8 @@ function UsageBar({ usage, loading, error, onRefresh }: {
 export function SettingsView(): JSX.Element {
   const {
     micDeviceId, userName, agentName, activeListeningDraftSeconds, whisperModel,
-    models, defaultModelId, providerKeys, router,
     includeThinkingInContext, agentStartsExpanded, compressionThresholdPct,
-    ollamaBaseUrl, openaiCompatBaseUrl, openaiCompatApiKey,
+    ollamaBaseUrl, ollamaModelName,
     update,
   } = useSettingsStore()
 
@@ -395,13 +331,8 @@ export function SettingsView(): JSX.Element {
   const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([])
 
   // ── model fetch state ──
-  const [tagInputs, setTagInputs] = useState<Record<string, string>>({})
   const [ollamaModels, setOllamaModels] = useState<Record<string, string[]>>({})
   const [ollamaFetching, setOllamaFetching] = useState<Record<string, boolean>>({})
-  const [anthropicModels, setAnthropicModels] = useState<string[]>([])
-  const [openaiModels, setOpenaiModels] = useState<string[]>([])
-  const [anthropicFetching, setAnthropicFetching] = useState(false)
-  const [openaiFetching, setOpenaiFetching] = useState(false)
 
   // ── provider card state ──
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
@@ -716,47 +647,11 @@ export function SettingsView(): JSX.Element {
     }
   }, [])
 
-  const fetchAnthropicModels = useCallback(async (apiKey: string) => {
-    if (!apiKey) return
-    setAnthropicFetching(true)
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/models?limit=100', {
-        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      })
-      if (!res.ok) throw new Error('failed')
-      const data = await res.json() as { data: { id: string }[] }
-      setAnthropicModels(data.data.map((m) => m.id))
-    } catch {
-      setAnthropicModels([])
-    } finally {
-      setAnthropicFetching(false)
-    }
-  }, [])
-
-  const fetchOpenAIModels = useCallback(async (apiKey: string) => {
-    if (!apiKey) return
-    setOpenaiFetching(true)
-    try {
-      const res = await fetch('https://api.openai.com/v1/models', {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      })
-      if (!res.ok) throw new Error('failed')
-      const data = await res.json() as { data: { id: string }[] }
-      setOpenaiModels(data.data.map((m) => m.id).filter((id) => /^(gpt|o\d|chatgpt)/i.test(id)).sort())
-    } catch {
-      setOpenaiModels([])
-    } finally {
-      setOpenaiFetching(false)
-    }
-  }, [])
-
   useEffect(() => {
     if (activePage !== 'providers') return
     if (ollamaBaseUrl && !('__ollama_provider__' in ollamaModels)) {
       fetchOllamaModels('__ollama_provider__', ollamaBaseUrl)
     }
-    if (providerKeys.anthropic && anthropicModels.length === 0) fetchAnthropicModels(providerKeys.anthropic)
-    if (providerKeys.openai && openaiModels.length === 0) fetchOpenAIModels(providerKeys.openai)
   }, [activePage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─────────────────────────────────────────────────────────
@@ -765,17 +660,9 @@ export function SettingsView(): JSX.Element {
 
   function getProviderFields(kind: string): Record<string, string> {
     switch (kind) {
-      case 'anthropic': return { apiKey: providerKeys.anthropic }
-      case 'openai':    return { apiKey: providerKeys.openai }
-      case 'bedrock':   return {
-        region: providerKeys.bedrock?.region ?? 'us-east-1',
-        accessKeyId: providerKeys.bedrock?.accessKeyId ?? '',
-        secretAccessKey: providerKeys.bedrock?.secretAccessKey ?? '',
-      }
-      case 'ollama':  return { baseUrl: ollamaBaseUrl }
-      case 'compat':  return { baseUrl: openaiCompatBaseUrl, apiKey: openaiCompatApiKey }
+      case 'ollama':      return { baseUrl: ollamaBaseUrl }
       case 'projectrose': return {}
-      default: return {}
+      default:            return {}
     }
   }
 
@@ -785,77 +672,28 @@ export function SettingsView(): JSX.Element {
     if (testedProviders[kind] === 'error') return 'error'
     const fields = getProviderFields(kind)
     const hasContent = Object.values(fields).some((v) => v && v !== '')
-    if (kind === 'bedrock') {
-      return fields.accessKeyId ? 'unverified' : 'missing'
-    }
     return hasContent ? 'unverified' : 'missing'
   }
 
-  function handleProviderFieldChange(kind: string, key: string, value: string): void {
+  function handleProviderFieldChange(kind: string, _key: string, value: string): void {
     setTestedProviders((prev) => { const n = { ...prev }; delete n[kind]; return n })
-    switch (kind) {
-      case 'anthropic':
-        update({ providerKeys: { ...providerKeys, anthropic: value } }); break
-      case 'openai':
-        update({ providerKeys: { ...providerKeys, openai: value } }); break
-      case 'bedrock':
-        update({ providerKeys: { ...providerKeys, bedrock: { ...providerKeys.bedrock, [key]: value } } }); break
-      case 'ollama':
-        update({ ollamaBaseUrl: value }); break
-      case 'compat':
-        if (key === 'baseUrl') update({ openaiCompatBaseUrl: value })
-        else update({ openaiCompatApiKey: value })
-        break
-    }
+    if (kind === 'ollama') update({ ollamaBaseUrl: value })
   }
 
   function clearProvider(kind: string): void {
     setTestedProviders((prev) => { const n = { ...prev }; delete n[kind]; return n })
-    switch (kind) {
-      case 'anthropic':
-        update({ providerKeys: { ...providerKeys, anthropic: '' } }); break
-      case 'openai':
-        update({ providerKeys: { ...providerKeys, openai: '' } }); break
-      case 'bedrock':
-        update({ providerKeys: { ...providerKeys, bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' } } }); break
-      case 'ollama':
-        update({ ollamaBaseUrl: '' }); break
-      case 'compat':
-        update({ openaiCompatBaseUrl: '', openaiCompatApiKey: '' }); break
-    }
+    if (kind === 'ollama') update({ ollamaBaseUrl: '' })
   }
 
   async function verifyProvider(kind: string): Promise<void> {
     setProviderTesting((prev) => ({ ...prev, [kind]: true }))
     try {
       let ok = false
-      if (kind === 'anthropic') {
-        const res = await fetch('https://api.anthropic.com/v1/models?limit=100', {
-          headers: { 'x-api-key': providerKeys.anthropic, 'anthropic-version': '2023-06-01' },
-        })
-        ok = res.ok
-        if (ok) {
-          const data = await res.json() as { data: { id: string }[] }
-          setAnthropicModels(data.data.map((m) => m.id))
-        }
-      } else if (kind === 'openai') {
-        const res = await fetch('https://api.openai.com/v1/models', {
-          headers: { Authorization: `Bearer ${providerKeys.openai}` },
-        })
-        ok = res.ok
-      } else if (kind === 'bedrock') {
-        ok = !!(providerKeys.bedrock?.accessKeyId && providerKeys.bedrock?.secretAccessKey)
-      } else if (kind === 'ollama') {
+      if (kind === 'ollama') {
         const url = (ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '')
         const res = await fetch(`${url}/api/tags`)
         ok = res.ok
         if (ok) fetchOllamaModels('__ollama_provider__', ollamaBaseUrl)
-      } else if (kind === 'compat') {
-        const url = openaiCompatBaseUrl.replace(/\/$/, '')
-        const headers: Record<string, string> = {}
-        if (openaiCompatApiKey) headers.Authorization = `Bearer ${openaiCompatApiKey}`
-        const res = await fetch(`${url}/models`, { headers })
-        ok = res.ok
       }
       setTestedProviders((prev) => ({ ...prev, [kind]: ok ? 'connected' : 'error' }))
     } catch {
@@ -863,74 +701,6 @@ export function SettingsView(): JSX.Element {
     } finally {
       setProviderTesting((prev) => { const n = { ...prev }; delete n[kind]; return n })
     }
-  }
-
-  // ─────────────────────────────────────────────────────────
-  // Model helpers
-  // ─────────────────────────────────────────────────────────
-
-  function addModel(provider: ModelConfig['provider']): void {
-    const newModel: ModelConfig = {
-      id: crypto.randomUUID(), displayName: '', provider, modelName: '', tags: [],
-    }
-    const updated = [...models, newModel]
-    update({ models: updated, defaultModelId: updated.length === 1 ? newModel.id : defaultModelId })
-  }
-
-  function removeModel(id: string): void {
-    const updated = models.filter((m) => m.id !== id)
-    update({ models: updated, defaultModelId: defaultModelId === id ? (updated[0]?.id ?? '') : defaultModelId })
-  }
-
-  function patchModel(id: string, patch: Partial<ModelConfig>): void {
-    update({ models: models.map((m) => m.id === id ? { ...m, ...patch } : m) })
-  }
-
-  function renderModelSelectForRow(
-    provider: ModelConfig['provider'],
-    value: string,
-    onChange: (v: string) => void
-  ): JSX.Element {
-    if (provider === 'openai-compatible') {
-      return (
-        <input
-          className={styles.modelTechInput}
-          type="text"
-          placeholder="model name"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      )
-    }
-    if (provider === 'projectrose') {
-      return (
-        <input
-          className={styles.modelTechInput}
-          type="text"
-          placeholder="managed"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      )
-    }
-    let options: string[]
-    if (provider === 'anthropic') options = anthropicModels.length > 0 ? anthropicModels : ANTHROPIC_FALLBACK
-    else if (provider === 'openai') options = openaiModels.length > 0 ? openaiModels : OPENAI_FALLBACK
-    else if (provider === 'bedrock') options = BEDROCK_FALLBACK
-    else options = ollamaModels['__ollama_provider__'] ?? []
-
-    return (
-      <select
-        className={styles.modelTechInput}
-        style={{ appearance: 'none', cursor: 'pointer' }}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        {!value && <option value="" disabled>select model</option>}
-        {value && !options.includes(value) && <option value={value}>{value}</option>}
-        {options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-      </select>
-    )
   }
 
   // ─────────────────────────────────────────────────────────
@@ -964,8 +734,6 @@ export function SettingsView(): JSX.Element {
       setSettingsTarget(null)
     }
   }, [settingsTarget]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const connectedCount = PROVIDERS.filter((p) => getProviderStatus(p.kind) === 'connected').length
 
   // ─────────────────────────────────────────────────────────
   // Render: General
@@ -1110,7 +878,7 @@ export function SettingsView(): JSX.Element {
             <div className={styles.pageTitle}>
               <span className={styles.pageTitleAccent}>Providers</span>
               {' · '}
-              <span className={styles.pageTitleSub}>endpoints & router</span>
+              <span className={styles.pageTitleSub}>endpoints</span>
             </div>
           </div>
           <div className={styles.pageHeaderRight}>
@@ -1126,13 +894,6 @@ export function SettingsView(): JSX.Element {
             n="I"
             title="Providers"
             sub="One drawer per provider — keys are masked and status is verified."
-            right={
-              <div className={styles.sectionMeta}>
-                <span className={styles.sectionMetaCount}>
-                  {connectedCount} of {PROVIDERS.length} connected
-                </span>
-              </div>
-            }
           />
           <div className={styles.sectionGap} />
 
@@ -1144,8 +905,6 @@ export function SettingsView(): JSX.Element {
             const isTesting = !!providerTesting[p.kind]
             const filledCount = Object.values(fields).filter((v) => v && v !== '').length
             const totalFields = fieldDefs.length
-            const modelProvider: ModelConfig['provider'] = p.kind === 'compat' ? 'openai-compatible' : (p.kind as ModelConfig['provider'])
-            const modelsForProvider = models.filter((m) => m.provider === modelProvider)
 
             return (
               <div key={p.kind} className={styles.providerCard}>
@@ -1173,10 +932,10 @@ export function SettingsView(): JSX.Element {
                         <span className={styles.providerFieldInfo}>
                           {p.kind === 'projectrose'
                             ? prAccount.loggedIn
-                              ? `signed in · ${modelsForProvider.length} model${modelsForProvider.length === 1 ? '' : 's'}`
+                              ? 'signed in'
                               : 'sign in to use the managed endpoint'
                             : status === 'connected' || status === 'unverified'
-                              ? `${filledCount}/${totalFields} field${totalFields === 1 ? '' : 's'} · ${modelsForProvider.length} model${modelsForProvider.length === 1 ? '' : 's'}`
+                              ? `${filledCount}/${totalFields} field${totalFields === 1 ? '' : 's'}`
                               : `${totalFields} field${totalFields === 1 ? '' : 's'} required`}
                         </span>
                       </div>
@@ -1249,6 +1008,27 @@ export function SettingsView(): JSX.Element {
                             />
                           </FieldRow>
                         ))}
+                        {p.kind === 'ollama' && (
+                          <FieldRow label="MODEL NAME" hint="exact tag pulled via `ollama pull`">
+                            {(() => {
+                              const options = ollamaModels['__ollama_provider__'] ?? []
+                              return (
+                                <select
+                                  className={styles.hSelect}
+                                  value={ollamaModelName}
+                                  onChange={(e) => update({ ollamaModelName: e.target.value })}
+                                  onFocus={() => fetchOllamaModels('__ollama_provider__', ollamaBaseUrl)}
+                                >
+                                  {!ollamaModelName && <option value="" disabled>Select a model</option>}
+                                  {ollamaModelName && !options.includes(ollamaModelName) && (
+                                    <option value={ollamaModelName}>{ollamaModelName}</option>
+                                  )}
+                                  {options.map((m) => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                              )
+                            })()}
+                          </FieldRow>
+                        )}
                       </>
                     )}
                     {p.kind === 'projectrose' ? (
@@ -1269,9 +1049,6 @@ export function SettingsView(): JSX.Element {
                       </div>
                     ) : (
                       <div className={styles.providerCardFooter}>
-                        <span className={styles.providerStorageHint}>
-                          stored in {p.kind === 'ollama' ? 'config file' : 'system keychain'}
-                        </span>
                         <div className={styles.providerFooterBtns}>
                           <button
                             type="button"
@@ -1292,91 +1069,6 @@ export function SettingsView(): JSX.Element {
                       </div>
                     )}
 
-                    {p.kind !== 'projectrose' && (
-                      <div className={styles.providerModelsDivider}>MODELS</div>
-                    )}
-
-                    {p.kind !== 'projectrose' && modelsForProvider.length === 0 && (
-                      <div className={styles.providerModelsEmpty}>
-                        No models yet — add one below.
-                      </div>
-                    )}
-
-                    {p.kind !== 'projectrose' && modelsForProvider.map((m) => (
-                      <div key={m.id} className={styles.providerModelRow}>
-                        <input
-                          type="radio"
-                          name="defaultModel"
-                          checked={defaultModelId === m.id}
-                          onChange={() => update({ defaultModelId: m.id })}
-                          style={{ accentColor: 'var(--color-accent)', cursor: 'pointer', marginTop: 6 }}
-                        />
-
-                        <div className={styles.providerModelNameCell}>
-                          <input
-                            className={styles.modelDisplayInput}
-                            type="text"
-                            placeholder="Display name"
-                            value={m.displayName}
-                            onChange={(e) => patchModel(m.id, { displayName: e.target.value })}
-                          />
-                          {renderModelSelectForRow(m.provider, m.modelName, (v) => patchModel(m.id, { modelName: v }))}
-                        </div>
-
-                        <div className={styles.modelTagsCell}>
-                          {m.tags.map((t) => (
-                            <span key={t} className={styles.tagChip}>
-                              {t}
-                              <button
-                                type="button"
-                                className={styles.tagRemoveBtn}
-                                onClick={() => patchModel(m.id, { tags: m.tags.filter((x) => x !== t) })}
-                              >
-                                ×
-                              </button>
-                            </span>
-                          ))}
-                          <input
-                            className={styles.tagAddInput}
-                            type="text"
-                            placeholder="+ tag"
-                            value={m.id in tagInputs ? tagInputs[m.id] : ''}
-                            onChange={(e) => setTagInputs((prev) => ({ ...prev, [m.id]: e.target.value }))}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ',') {
-                                e.preventDefault()
-                                const val = (tagInputs[m.id] ?? '').trim()
-                                if (val) patchModel(m.id, { tags: [...m.tags, val] })
-                                setTagInputs((prev) => { const n = { ...prev }; delete n[m.id]; return n })
-                              }
-                            }}
-                            onBlur={() => {
-                              const val = (tagInputs[m.id] ?? '').trim()
-                              if (val) patchModel(m.id, { tags: [...m.tags, val] })
-                              setTagInputs((prev) => { const n = { ...prev }; delete n[m.id]; return n })
-                            }}
-                          />
-                        </div>
-
-                        <button
-                          type="button"
-                          className={styles.modelRemoveBtn}
-                          onClick={() => removeModel(m.id)}
-                        >
-                          REMOVE
-                        </button>
-                      </div>
-                    ))}
-
-                    {p.kind !== 'projectrose' && (
-                      <button
-                        type="button"
-                        className={styles.providerAddModelBtn}
-                        onClick={() => addModel(modelProvider)}
-                      >
-                        + ADD MODEL
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
@@ -1384,52 +1076,10 @@ export function SettingsView(): JSX.Element {
           })}
         </div>
 
-        {/* ══ PLATE II · ROUTER ══ */}
+        {/* ══ PLATE II · BEHAVIOR & CONTEXT ══ */}
         <div className={styles.plateSection}>
           <SectionHeader
             n="II"
-            title="Router"
-            sub="A small local model that picks which model to use per request — tagged by use-case."
-          />
-          <div className={styles.sectionGapSm} />
-
-          <div className={styles.settingsBlock}>
-            <HSettingRow
-              label="Enable Router"
-              desc="Every prompt is first sent to a small local Ollama model that decides which cataloged model to dispatch to. Uses the Ollama provider's base URL."
-            >
-              <HToggle
-                on={router.enabled}
-                onChange={(v) => update({ router: { ...router, enabled: v } })}
-              />
-            </HSettingRow>
-            {router.enabled && (
-              <div className={`${styles.drawerBody} ${styles.drawerIn}`}>
-                <FieldRow label="ROUTER MODEL" hint="lightweight · fast">
-                  <select
-                    className={styles.hSelect}
-                    value={router.modelName}
-                    onChange={(e) => update({ router: { ...router, modelName: e.target.value } })}
-                    onFocus={() => fetchOllamaModels('__ollama_provider__', ollamaBaseUrl)}
-                  >
-                    <option value="" disabled>Select a router model</option>
-                    {(ollamaModels['__ollama_provider__'] ?? []).map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                    {router.modelName && !(ollamaModels['__ollama_provider__'] ?? []).includes(router.modelName) && (
-                      <option value={router.modelName}>{router.modelName}</option>
-                    )}
-                  </select>
-                </FieldRow>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ══ PLATE III · BEHAVIOR & CONTEXT ══ */}
-        <div className={styles.plateSection}>
-          <SectionHeader
-            n="III"
             title="Behavior & Context"
             sub="How the agent uses the model's context window across a session."
           />
@@ -1478,14 +1128,14 @@ export function SettingsView(): JSX.Element {
           </div>
         </div>
 
-        {/* ══ PLATE IV · CONNECTED ACCOUNTS ══ */}
+        {/* ══ PLATE III · CONNECTED ACCOUNTS ══ */}
         {/* External identities the app can read/write on the user's behalf.
             Lives here (not inside Memory or Contacts) because the auth is a
             shared, app-wide concern — features in other tabs consume the
             signed-in state rather than each owning their own sign-in. */}
         <div className={styles.plateSection}>
           <SectionHeader
-            n="IV"
+            n="III"
             title="Connected Accounts"
             sub="Third-party services the agent can read or write on your behalf."
           />

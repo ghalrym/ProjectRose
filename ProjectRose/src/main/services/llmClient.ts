@@ -1,9 +1,7 @@
-import { streamText, generateText, stepCountIs, tool, extractReasoningMiddleware, wrapLanguageModel } from 'ai'
+import { streamText, generateText, stepCountIs, tool } from 'ai'
 import type { ModelMessage, ToolExecutionOptions } from 'ai'
-import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOllama } from 'ai-sdk-ollama'
-import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { z } from 'zod'
 import { BrowserWindow } from 'electron'
 import { IPC } from '../../shared/ipcChannels'
@@ -58,7 +56,7 @@ import {
 } from './email/tools'
 import type { ExtensionToolCtx } from '../../shared/extension-types'
 import type { Message } from '../../shared/roseModelTypes'
-import type { ModelConfig, RouterConfig } from './settingsService'
+import type { ModelConfig } from './settingsService'
 import type { InjectionRecord } from '../../shared/extensionHooks'
 import { fireThoughtHook, fireMessageHook, fireTokenHook } from './extensionHooks'
 import { loadSession } from '../lib/session'
@@ -80,12 +78,6 @@ function notifyRenderer(channel: string, payload: unknown): void {
 // next to the pending-screenshots Map that owns it; re-exported here for
 // callers that historically imported it from llmClient.
 export type { ScreenshotResult } from './chatSession'
-
-export type ProviderKeys = {
-  anthropic: string
-  openai: string
-  bedrock?: { region: string; accessKeyId: string; secretAccessKey: string }
-}
 
 // SSE chunk patcher for the projectrose Responses endpoint. Tracks the
 // output_index assigned to each item by response.output_item.added events,
@@ -185,15 +177,9 @@ const patchProjectroseResponsesFetch: typeof fetch = async (input, init) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function resolveModel(
   model: ModelConfig,
-  providerKeys: ProviderKeys,
-  ollamaBaseUrl: string,
-  openaiCompatBaseUrl: string
+  ollamaBaseUrl: string
 ): Promise<any> {
   switch (model.provider) {
-    case 'openai': {
-      const provider = createOpenAI({ apiKey: providerKeys.openai || undefined })
-      return provider(model.modelName || 'gpt-4o')
-    }
     case 'ollama': {
       // Workaround for ai-sdk-ollama 3.8.3: it omits tool_call_id on role:"tool" messages,
       // which breaks the link to the assistant's tool_calls and confuses models like Qwen3.
@@ -238,26 +224,8 @@ export async function resolveModel(
       })
       return provider(model.modelName || 'llama3', { think: true })
     }
-    case 'openai-compatible': {
-      const provider = createOpenAI({
-        apiKey: 'not-needed',
-        baseURL: openaiCompatBaseUrl
-      })
-      return wrapLanguageModel({
-        model: provider.chat(model.modelName),
-        middleware: extractReasoningMiddleware({ tagName: 'think' })
-      })
-    }
-    case 'bedrock': {
-      const creds = providerKeys.bedrock
-      const provider = createAmazonBedrock({
-        region: creds?.region || 'us-east-1',
-        accessKeyId: creds?.accessKeyId || undefined,
-        secretAccessKey: creds?.secretAccessKey || undefined
-      })
-      return provider(model.modelName)
-    }
-    case 'projectrose': {
+    case 'projectrose':
+    default: {
       const session = await loadSession()
       const token = session?.token ?? ''
       const provider = createOpenAI({
@@ -279,29 +247,7 @@ export async function resolveModel(
       // only flow through the Responses transport.
       return provider.responses(model.modelName || 'managed')
     }
-    case 'anthropic':
-    default: {
-      const provider = createAnthropic({ apiKey: providerKeys.anthropic || undefined })
-      return provider(model.modelName || 'claude-sonnet-4-6')
-    }
   }
-}
-
-export async function routeRequest(
-  userMessage: string,
-  router: RouterConfig,
-  ollamaBaseUrl: string
-): Promise<string> {
-  const provider = createOllama({ baseURL: ollamaBaseUrl || 'http://localhost:11434' })
-  const model = provider(router.modelName)
-  const { text } = await generateText({
-    model,
-    messages: [{
-      role: 'user' as const,
-      content: `Categorize this request in one or two words:\n\n${userMessage}\n\nOutput only the category, nothing else.`
-    }]
-  })
-  return text.trim().toLowerCase()
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -760,9 +706,7 @@ export async function streamChat(params: {
   systemPrompt: string
   enabledExtensionIds?: string[]
   model: ModelConfig
-  providerKeys: ProviderKeys
   ollamaBaseUrl: string
-  openaiCompatBaseUrl: string
   projectRoot: string
   disabledTools?: string[]
   abortSignal?: AbortSignal
@@ -791,11 +735,11 @@ export async function streamChat(params: {
   // full assistant tool-call structure across iterations (Message[] is lossy).
   preBuiltCoreMessages?: ModelMessage[]
 }): Promise<StreamResult> {
-  const { messages, systemPrompt, enabledExtensionIds, model: modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl, projectRoot, disabledTools, abortSignal } = params
+  const { messages, systemPrompt, enabledExtensionIds, model: modelConfig, ollamaBaseUrl, projectRoot, disabledTools, abortSignal } = params
   const emit: EmitFn = params.notify ?? notifyRenderer
   const hookCtx: HookCtx | undefined = params.turnId ? { turnId: params.turnId, rootPath: projectRoot } : undefined
   const toolCtx: ExtensionToolCtx = { sessionId: params.sessionId, turnId: params.turnId }
-  const model = await resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
+  const model = await resolveModel(modelConfig, ollamaBaseUrl)
   const tools = toolRegistry.getToolsForSession({
     rootPath: projectRoot,
     emit,
@@ -1079,9 +1023,7 @@ export interface CompressionResult {
 export async function compressTurnsForContext(
   messages: RendererMessage[],
   modelConfig: ModelConfig,
-  providerKeys: ProviderKeys,
-  ollamaBaseUrl: string,
-  openaiCompatBaseUrl: string
+  ollamaBaseUrl: string
 ): Promise<CompressionResult | null> {
   const turns = splitIntoTurns(messages)
   if (turns.length <= KEEP_RECENT_TURNS) return null
@@ -1093,7 +1035,7 @@ export async function compressTurnsForContext(
     .map((t, idx) => `### Turn ${idx + 1}\n${describeTurnForSummary(messages, t)}`)
     .join('\n\n')
 
-  const model = await resolveModel(modelConfig, providerKeys, ollamaBaseUrl, openaiCompatBaseUrl)
+  const model = await resolveModel(modelConfig, ollamaBaseUrl)
   const summaryPrompt = `You are compressing the older portion of a coding-assistant chat session to keep the model's context focused. For each turn below, write ONE short sentence (max 25 words) that captures: what the user asked, which tools the assistant used, and the outcome. Output as a numbered list with no preamble or trailing remarks.
 
 ${oldDescriptions}`

@@ -6,7 +6,6 @@ import { streamChat } from './llmClient'
 import { saveSubagentSession } from './sessionService'
 import type { AgentContext, SubagentCounter } from './agentRunner'
 import type { ModelConfig } from './settingsService'
-import type { ProviderKeys } from './llmClient'
 import { IPC } from '../../shared/ipcChannels'
 
 const EXPLORE_SYSTEM_PROMPT =
@@ -37,9 +36,7 @@ function decomposeExploreQueries(topic: string): string[] {
 export function buildSubagentTools(
   ctx: AgentContext,
   model: ModelConfig,
-  providerKeys: ProviderKeys,
   ollamaBaseUrl: string,
-  openaiCompatBaseUrl: string,
   counter: SubagentCounter,
   systemPrompt: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,9 +60,7 @@ export function buildSubagentTools(
         messages,
         systemPrompt: subSystemPrompt ?? systemPrompt,
         model,
-        providerKeys,
         ollamaBaseUrl,
-        openaiCompatBaseUrl,
         projectRoot: ctx.rootPath,
         notify: () => {},  // subagents do not stream tokens to renderer
         abortSignal: ctx.abortSignal,

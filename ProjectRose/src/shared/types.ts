@@ -27,15 +27,7 @@ export type BaseView = 'editor' | 'chat' | 'settings'
 export type ActiveView = BaseView | (string & Record<never, never>)
 
 export interface ModelConfig {
-  id: string
-  displayName: string
-  provider: 'anthropic' | 'openai' | 'ollama' | 'openai-compatible' | 'bedrock' | 'projectrose'
-  modelName: string
-  tags: string[]
-}
-
-export interface RouterConfig {
-  enabled: boolean
+  provider: 'ollama' | 'projectrose'
   modelName: string
 }
 

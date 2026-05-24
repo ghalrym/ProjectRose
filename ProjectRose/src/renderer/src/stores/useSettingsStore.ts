@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import type { ModelConfig, RouterConfig } from '@shared/types'
 import { useProjectStore } from './useProjectStore'
 import { useStatusStore } from './useStatusStore'
 
@@ -11,17 +10,12 @@ interface SettingsState {
   activeListeningSetupComplete: boolean
   activeListeningDraftSeconds: number
   whisperModel: string
-  models: ModelConfig[]
-  defaultModelId: string
-  providerKeys: { anthropic: string; openai: string; bedrock: { region: string; accessKeyId: string; secretAccessKey: string } }
-  router: RouterConfig
   hostMode: 'projectrose' | 'self'
   includeThinkingInContext: boolean
   agentStartsExpanded: boolean
   lastMainView: 'bloom' | 'editor'
   ollamaBaseUrl: string
-  openaiCompatBaseUrl: string
-  openaiCompatApiKey: string
+  ollamaModelName: string
   compressionThresholdPct: number
   extensions: Record<string, Record<string, unknown>>
   loaded: boolean
@@ -43,17 +37,12 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   activeListeningSetupComplete: false,
   activeListeningDraftSeconds: 8,
   whisperModel: 'Xenova/whisper-tiny.en',
-  models: [],
-  defaultModelId: '',
-  providerKeys: { anthropic: '', openai: '', bedrock: { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' } },
-  router: { enabled: false, modelName: '' },
   hostMode: 'self',
   includeThinkingInContext: false,
   agentStartsExpanded: false,
   lastMainView: 'bloom',
   ollamaBaseUrl: 'http://localhost:11434',
-  openaiCompatBaseUrl: '',
-  openaiCompatApiKey: '',
+  ollamaModelName: '',
   compressionThresholdPct: 0.70,
   extensions: {},
   loaded: false,

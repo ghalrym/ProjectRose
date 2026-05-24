@@ -7,21 +7,9 @@ vi.mock('../settingsService', () => ({
   readSettings: vi.fn(async () => ({
     userName: 'tester',
     agentName: 'rose',
-    models: [
-      {
-        id: 'm1',
-        displayName: 'Fake Model',
-        provider: 'anthropic',
-        modelName: 'fake',
-        tags: [],
-      },
-    ],
-    defaultModelId: 'm1',
-    hostMode: 'local',
-    providerKeys: { anthropic: '', openai: '' },
+    hostMode: 'self',
     ollamaBaseUrl: '',
-    openaiCompatBaseUrl: '',
-    router: { enabled: false, modelName: '' },
+    ollamaModelName: 'fake',
     includeThinkingInContext: false,
   })),
 }))
@@ -47,11 +35,8 @@ vi.mock('../modelSelection', async () => {
   return {
     ...actual,
     selectModel: vi.fn(async () => ({
-      id: 'm1',
-      displayName: 'Fake Model',
-      provider: 'anthropic',
+      provider: 'ollama',
       modelName: 'fake',
-      tags: [],
     })),
   }
 })
@@ -86,7 +71,7 @@ describe('ChatSession.run', () => {
 
     expect(response.content).toBe('hello back')
     expect(response.modifiedFiles).toEqual([])
-    expect(response.modelDisplay).toBe('Fake Model')
+    expect(response.modelDisplay).toBe('fake')
     expect(runOnce).toHaveBeenCalledTimes(1)
   })
 
