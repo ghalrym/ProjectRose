@@ -18,6 +18,16 @@ if (env.WEB_BASE_URL) {
   mainProcessEnvDefines['process.env.WEB_BASE_URL'] = JSON.stringify(env.WEB_BASE_URL)
 }
 
+// Optional bundled Google OAuth pair (ADR 0009 amendment 2026-05-24). CI release
+// builds inject these from GitHub Actions secrets so the app works without the
+// user creating their own Google Cloud project; dev/local builds leave them empty
+// and fall back to the bring-your-own credential path. Skipping empty values means
+// `process.env.GOOGLE_OAUTH_*` reads as undefined at runtime in unbundled builds.
+if (env.GOOGLE_OAUTH_CLIENT_ID && env.GOOGLE_OAUTH_CLIENT_SECRET) {
+  mainProcessEnvDefines['process.env.GOOGLE_OAUTH_CLIENT_ID'] = JSON.stringify(env.GOOGLE_OAUTH_CLIENT_ID)
+  mainProcessEnvDefines['process.env.GOOGLE_OAUTH_CLIENT_SECRET'] = JSON.stringify(env.GOOGLE_OAUTH_CLIENT_SECRET)
+}
+
 // Suppress the Monaco marked.js missing-sourcemap warning.
 // The warning fires on the server logger — intercepting here is the guaranteed fix.
 const rendererLogger = createLogger()

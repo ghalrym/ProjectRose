@@ -1095,6 +1095,10 @@ export function SettingsView(): JSX.Element {
             const signedIn = googleStatus?.signedIn ?? false
             const accountEmail = googleStatus?.accountEmail ?? null
             const credsConfigured = googleStatus?.credentialsConfigured ?? false
+            // This build ships its own Google OAuth pair (ADR 0009 amendment):
+            // it always wins over user-supplied creds, so we hide the BYO inputs,
+            // the "how do I get these?" help, and the SAVE/CLEAR actions.
+            const credsBundled = googleStatus?.credentialsBundled ?? false
             const status: ProviderStatus =
               signedIn ? 'connected' : credsConfigured ? 'unverified' : 'missing'
             const draftReady =
@@ -1126,9 +1130,11 @@ export function SettingsView(): JSX.Element {
                         <span className={styles.providerFieldInfo}>
                           {signedIn
                             ? `signed in${accountEmail ? ` · ${accountEmail}` : ''}`
-                            : credsConfigured
-                              ? 'sign in to enable Contacts sync'
-                              : 'paste OAuth credentials to enable'}
+                            : credsBundled
+                              ? 'sign in to enable Google features'
+                              : credsConfigured
+                                ? 'sign in to enable Contacts sync'
+                                : 'paste OAuth credentials to enable'}
                         </span>
                       </div>
                     </div>
@@ -1145,11 +1151,15 @@ export function SettingsView(): JSX.Element {
                   <div className={`${styles.providerCardBody} ${styles.drawerIn}`}>
                     <div style={{ padding: '12px 16px 4px' }}>
                       <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, margin: '0 0 12px' }}>
-                        {credsConfigured
+                        {credsBundled
                           ? (signedIn
                             ? 'Active — features that consume Google (currently Settings → Contacts > sync) will use this account.'
-                            : 'Credentials saved. Sign in once below; other Google features (Contacts sync today, Gmail/Calendar/Drive later) will pick it up automatically.')
-                          : 'Paste a Google OAuth client ID + secret to enable Google features. The credentials are yours; they stay on this machine.'}
+                            : 'This build ships with Google credentials, so there is nothing to set up. Just sign in below to enable Google features (Contacts sync today, Gmail/Calendar/Drive later).')
+                          : credsConfigured
+                            ? (signedIn
+                              ? 'Active — features that consume Google (currently Settings → Contacts > sync) will use this account.'
+                              : 'Credentials saved. Sign in once below; other Google features (Contacts sync today, Gmail/Calendar/Drive later) will pick it up automatically.')
+                            : 'Paste a Google OAuth client ID + secret to enable Google features. The credentials are yours; they stay on this machine.'}
                       </p>
                       {signedIn && accountEmail && (
                         <div style={{ fontSize: 12, color: 'var(--color-text-primary)', marginBottom: 12 }}>
@@ -1160,6 +1170,7 @@ export function SettingsView(): JSX.Element {
                         <p style={{ fontSize: 11, color: 'var(--color-error)', margin: '0 0 12px' }}>{googleError}</p>
                       )}
 
+                      {!credsBundled && (
                       <button
                         type="button"
                         onClick={() => setGoogleHelpOpen((o) => !o)}
@@ -1177,7 +1188,8 @@ export function SettingsView(): JSX.Element {
                       >
                         {googleHelpOpen ? '▾ HOW DO I GET THESE?' : '▸ HOW DO I GET THESE?'}
                       </button>
-                      {googleHelpOpen && (
+                      )}
+                      {!credsBundled && googleHelpOpen && (
                         <div
                           style={{
                             fontSize: 11,
@@ -1223,45 +1235,53 @@ export function SettingsView(): JSX.Element {
                         </div>
                       )}
 
-                      <FieldRow
-                        label="OAUTH CLIENT ID"
-                        hint="console.cloud.google.com/apis/credentials"
-                      >
-                        <KeyInput
-                          value={googleClientIdDraft}
-                          placeholder="xxx.apps.googleusercontent.com"
-                          onChange={setGoogleClientIdDraft}
-                          type="text"
-                        />
-                      </FieldRow>
-                      <FieldRow label="OAUTH CLIENT SECRET" hint="stored in system keychain">
-                        <KeyInput
-                          value={googleClientSecretDraft}
-                          placeholder="GOCSPX-..."
-                          onChange={setGoogleClientSecretDraft}
-                        />
-                      </FieldRow>
+                      {!credsBundled && (
+                        <>
+                          <FieldRow
+                            label="OAUTH CLIENT ID"
+                            hint="console.cloud.google.com/apis/credentials"
+                          >
+                            <KeyInput
+                              value={googleClientIdDraft}
+                              placeholder="xxx.apps.googleusercontent.com"
+                              onChange={setGoogleClientIdDraft}
+                              type="text"
+                            />
+                          </FieldRow>
+                          <FieldRow label="OAUTH CLIENT SECRET" hint="stored in system keychain">
+                            <KeyInput
+                              value={googleClientSecretDraft}
+                              placeholder="GOCSPX-..."
+                              onChange={setGoogleClientSecretDraft}
+                            />
+                          </FieldRow>
+                        </>
+                      )}
                     </div>
                     <div className={styles.providerCardFooter} style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        type="button"
-                        className={styles.ghostBtn}
-                        style={{ flex: 1 }}
-                        onClick={googleClearCredentials}
-                        disabled={(!credsConfigured && !signedIn) || googleBusy !== null}
-                        title="Wipes the saved client ID, client secret, and refresh token."
-                      >
-                        CLEAR
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.primaryBtn}
-                        style={{ flex: 1 }}
-                        onClick={googleSaveCredentials}
-                        disabled={!draftReady || googleBusy !== null}
-                      >
-                        SAVE
-                      </button>
+                      {!credsBundled && (
+                        <>
+                          <button
+                            type="button"
+                            className={styles.ghostBtn}
+                            style={{ flex: 1 }}
+                            onClick={googleClearCredentials}
+                            disabled={(!credsConfigured && !signedIn) || googleBusy !== null}
+                            title="Wipes the saved client ID, client secret, and refresh token."
+                          >
+                            CLEAR
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.primaryBtn}
+                            style={{ flex: 1 }}
+                            onClick={googleSaveCredentials}
+                            disabled={!draftReady || googleBusy !== null}
+                          >
+                            SAVE
+                          </button>
+                        </>
+                      )}
                       {signedIn ? (
                         <button
                           type="button"

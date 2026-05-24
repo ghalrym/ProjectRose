@@ -20,7 +20,8 @@ import type { GoogleOAuthCredentials } from '../../../shared/googleOAuth'
 import {
   readGoogleOAuthCredentials,
   saveGoogleOAuthCredentials,
-  clearGoogleOAuthCredentials
+  clearGoogleOAuthCredentials,
+  googleOAuthCredentialsBundled
 } from './googleOAuthCredentialsStore'
 import { applySettingsPatch, readSettings } from '../settingsService'
 
@@ -202,6 +203,9 @@ async function startPkceFlow(creds: GoogleOAuthCredentials, redirectUri: string)
 
 export interface GoogleAuthStatus {
   credentialsConfigured: boolean
+  // True when this build ships its own Google OAuth pair (ADR 0009 amendment
+  // 2026-05-24). The renderer hides the BYO credential inputs in this case.
+  credentialsBundled: boolean
   signedIn: boolean
   accountEmail: string | null
 }
@@ -212,6 +216,7 @@ export async function googleAuthGetStatus(): Promise<GoogleAuthStatus> {
   const accountEmail = creds && hasToken ? await readSignedInEmail() : null
   return {
     credentialsConfigured: !!creds,
+    credentialsBundled: googleOAuthCredentialsBundled(),
     signedIn: !!creds && hasToken,
     accountEmail
   }

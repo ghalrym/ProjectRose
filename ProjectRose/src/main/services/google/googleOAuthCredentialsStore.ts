@@ -15,6 +15,24 @@ import { applySettingsPatch, readSettings } from '../settingsService'
 
 const SECRET_FILENAME = 'google-oauth-secret.bin'
 
+// Build-time injected bundled OAuth pair (ADR 0009 amendment 2026-05-24). CI
+// release builds replace these `process.env` reads with literals via
+// electron.vite.config.ts; dev/local builds leave them undefined. When present,
+// the bundled pair ALWAYS wins over any user-supplied credentials — see
+// `readGoogleOAuthCredentials` — so the user never has to create their own
+// Google Cloud project.
+function bundledGoogleOAuthCredentials(): GoogleOAuthCredentials | null {
+  const pair = {
+    clientId: (process.env.GOOGLE_OAUTH_CLIENT_ID ?? '').trim(),
+    clientSecret: (process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? '').trim()
+  }
+  return hasGoogleOAuthCredentials(pair) ? pair : null
+}
+
+export function googleOAuthCredentialsBundled(): boolean {
+  return bundledGoogleOAuthCredentials() !== null
+}
+
 function secretPath(): string {
   return join(app.getPath('userData'), SECRET_FILENAME)
 }
@@ -47,8 +65,13 @@ export async function readGoogleClientId(): Promise<string> {
  * Combined view used by the OAuth flow. Returns null when either half of the
  * credential pair is missing, so callers can short-circuit with a clear
  * "not configured" state instead of trying to sign in with half a credential.
+ *
+ * A build-time bundled pair, when present, takes precedence over anything the
+ * user has saved (ADR 0009 amendment 2026-05-24).
  */
 export async function readGoogleOAuthCredentials(): Promise<GoogleOAuthCredentials | null> {
+  const bundled = bundledGoogleOAuthCredentials()
+  if (bundled) return bundled
   const clientId = await readGoogleClientId()
   const clientSecret = (await readGoogleClientSecret()) ?? ''
   const pair = { clientId, clientSecret }

@@ -128,9 +128,16 @@ jobs:
           iconutil -c icns icon.iconset
           rm -rf icon.iconset
 
+      # Bundled Google OAuth pair (ADR 0009 amendment 2026-05-24). These come from
+      # repo/org Actions secrets — never committed — and are compiled into the main
+      # bundle by electron.vite.config.ts. If the secrets are unset, the build falls
+      # back to the bring-your-own credential path and the UI shows the inputs.
       - name: Build and package
         working-directory: ProjectRose
         shell: bash
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
         run: npm run dist -- --${{ matrix.platform }} --publish never -c.extraMetadata.version=${{ steps.ver.outputs.version }}
 
       - name: Upload release artifacts

@@ -14,6 +14,12 @@ htmlcov/
 venv/
 env/
 .env
+# Per-developer local env overrides, anywhere in the tree (real secrets live
+# here, e.g. ProjectRose/.env.development.local). Repo-wide so they can't leak
+# regardless of which subdir they land in; the committed .env.development files
+# hold documented placeholders only.
+.env.local
+.env.*.local
 .python-version
 
 # Node / Electron (per-subproject .gitignore handles more)

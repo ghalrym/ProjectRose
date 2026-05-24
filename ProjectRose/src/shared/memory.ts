@@ -143,6 +143,9 @@ export interface ContactsUpdaterStatus {
 
 export interface GoogleSyncStatus {
   credentialsConfigured: boolean
+  // True when the running build ships its own Google OAuth pair, so the user
+  // doesn't supply (or see) credential inputs. See ADR 0009 amendment.
+  credentialsBundled: boolean
   signedIn: boolean
   accountEmail: string | null
   lastPullAt: number | null

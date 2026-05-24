@@ -82,6 +82,7 @@ export async function googleGetStatus(): Promise<GoogleSyncStatus> {
   const sync = await readGoogleSyncSettings()
   return {
     credentialsConfigured: auth.credentialsConfigured,
+    credentialsBundled: auth.credentialsBundled,
     signedIn: auth.signedIn,
     accountEmail: auth.accountEmail,
     lastPullAt: sync.lastPullAt,

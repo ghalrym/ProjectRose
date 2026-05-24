@@ -20,6 +20,7 @@ export const RELEASES: ReleaseEntry[] = [
       'Router removed entirely; every chat goes to the configured model with no classification step',
       'Settings → Providers loses the Behavior & Context section; the compression toast still fires automatically and the never-used thinking-in-context and inline-tool-result toggles are gone',
       'Existing API keys, OpenAI-compatible base URLs, and the legacy model catalogue are dropped from settings on first launch (the previously-default Ollama model is preserved)',
+      'Google integration now works out of the box in official builds — just sign in; there\'s no longer any need to create your own Google Cloud OAuth credentials. Builds without bundled keys (e.g. self-built) still let you paste your own under Settings → Providers → Google',
       'The Compress button now summarises the whole conversation, not just the older turns — the automatic suggestion still keeps your most recent turns verbatim',
       'Compressed turns collapse behind a single divider so it\'s obvious they were summarised; expand it any time to read the originals',
       'Fix: blank assistant cells no longer appear when the agent finishes a step with only thinking and tool calls',
