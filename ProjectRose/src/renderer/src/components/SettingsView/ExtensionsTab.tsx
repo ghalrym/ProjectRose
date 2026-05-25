@@ -10,8 +10,6 @@ import { loadDynamicExtensions } from '../../extensions/registry'
 import { FEATURED_CATALOG, type CatalogEntry } from '../../extensions/featuredCatalog'
 import styles from './SettingsView.module.css'
 
-type ExtensionPane = 'discover' | 'installed'
-
 interface PendingPreview {
   token: string
   manifest: ExtensionManifest
@@ -26,7 +24,6 @@ export function ExtensionsTab(): JSX.Element {
   const [installingIds, setInstallingIds] = useState<Set<string>>(new Set())
   const [gitUrl, setGitUrl] = useState('')
   const [installError, setInstallError] = useState<string | null>(null)
-  const [activePane, setActivePane] = useState<ExtensionPane>('discover')
   const [pendingPreview, setPendingPreview] = useState<PendingPreview | null>(null)
   const [confirming, setConfirming] = useState(false)
 
@@ -131,7 +128,6 @@ export function ExtensionsTab(): JSX.Element {
         return
       }
       await finalizeInstall()
-      setActivePane('installed')
       setGitUrl('')
       setPendingPreview(null)
       if (result.warning) setInstallError(result.warning)
@@ -303,74 +299,78 @@ export function ExtensionsTab(): JSX.Element {
           </div>
         )}
 
-        {rootPath && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-            <button
-              type="button"
-              className={`${styles.tabBtn} ${activePane === 'discover' ? styles.tabBtnActive : ''}`}
-              onClick={() => setActivePane('discover')}
-            >
-              Discover
-            </button>
-            <button
-              type="button"
-              className={`${styles.tabBtn} ${activePane === 'installed' ? styles.tabBtnActive : ''}`}
-              onClick={() => setActivePane('installed')}
-            >
-              Installed{installed.length > 0 ? ` (${installed.length})` : ''}
-            </button>
-          </div>
-        )}
-
-        {rootPath && activePane === 'discover' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {FEATURED_CATALOG.map((entry) => (
-              <CatalogRow
-                key={entry.id}
-                entry={entry}
-                installed={installedIds.has(entry.id)}
-                installing={installingIds.has(entry.id)}
-                onInstall={() => handleInstallFromCatalog(entry)}
+        {rootPath && installed.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+            <SectionHeader label="INSTALLED" count={installed.length} />
+            {installed.map((ext) => (
+              <ExtensionRow
+                key={ext.manifest.id}
+                name={ext.manifest.name}
+                description={ext.manifest.description}
+                version={ext.manifest.version}
+                author={ext.manifest.author}
+                enabled={ext.enabled}
+                onToggle={() => handleToggle(ext.manifest.id, ext.enabled)}
+                onUninstall={() => handleUninstall(ext)}
               />
             ))}
           </div>
         )}
 
-        {rootPath && activePane === 'installed' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {installed.length === 0 ? (
-              <div className={styles.emptyState}>
-                No extensions installed. Switch to Discover or paste a Git URL above to add one.
-              </div>
-            ) : (
-              installed.map((ext) => (
-                <ExtensionRow
-                  key={ext.manifest.id}
-                  name={ext.manifest.name}
-                  description={ext.manifest.description}
-                  version={ext.manifest.version}
-                  author={ext.manifest.author}
-                  enabled={ext.enabled}
-                  onToggle={() => handleToggle(ext.manifest.id, ext.enabled)}
-                  onUninstall={() => handleUninstall(ext)}
+        {rootPath && (() => {
+          const available = FEATURED_CATALOG.filter((entry) => !installedIds.has(entry.id))
+          if (available.length === 0) return null
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              <SectionHeader label="AVAILABLE" count={available.length} />
+              {available.map((entry) => (
+                <CatalogRow
+                  key={entry.id}
+                  entry={entry}
+                  installing={installingIds.has(entry.id)}
+                  onInstall={() => handleInstallFromCatalog(entry)}
                 />
-              ))
-            )}
-          </div>
-        )}
+              ))}
+            </div>
+          )
+        })()}
       </div>
     </section>
   )
 }
 
+function SectionHeader({ label, count }: { label: string; count: number }): JSX.Element {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      paddingTop: 4,
+    }}>
+      <span style={{
+        fontSize: 11,
+        letterSpacing: '1.4px',
+        fontFamily: 'var(--font-family-mono)',
+        color: 'var(--color-text-secondary)',
+      }}>
+        {label} ({count})
+      </span>
+      <span style={{
+        flex: 1,
+        height: 1,
+        background: 'var(--color-border)',
+      }} />
+    </div>
+  )
+}
+
 interface CatalogRowProps {
   entry: CatalogEntry
-  installed: boolean
   installing: boolean
   onInstall: () => void
 }
 
-function CatalogRow({ entry, installed, installing, onInstall }: CatalogRowProps): JSX.Element {
+function CatalogRow({ entry, installing, onInstall }: CatalogRowProps): JSX.Element {
   return (
     <div style={{
       display: 'flex',
@@ -396,38 +396,26 @@ function CatalogRow({ entry, installed, installing, onInstall }: CatalogRowProps
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        {installed ? (
-          <span style={{
+        <button
+          type="button"
+          disabled={installing}
+          onClick={onInstall}
+          style={{
+            padding: '6px 12px',
+            borderRadius: 'var(--radius-sm, 4px)',
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-bg-secondary)',
+            color: installing ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
+            cursor: installing ? 'not-allowed' : 'pointer',
             fontSize: 11,
             letterSpacing: '1px',
             fontFamily: 'var(--font-family-mono)',
-            color: 'var(--color-text-muted)',
-            padding: '6px 10px',
-          }}>
-            INSTALLED
-          </span>
-        ) : (
-          <button
-            type="button"
-            disabled={installing}
-            onClick={onInstall}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 'var(--radius-sm, 4px)',
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-bg-secondary)',
-              color: installing ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
-              cursor: installing ? 'not-allowed' : 'pointer',
-              fontSize: 11,
-              letterSpacing: '1px',
-              fontFamily: 'var(--font-family-mono)',
-              whiteSpace: 'nowrap',
-              opacity: installing ? 0.5 : 1,
-            }}
-          >
-            {installing ? 'INSTALLING…' : 'INSTALL'}
-          </button>
-        )}
+            whiteSpace: 'nowrap',
+            opacity: installing ? 0.5 : 1,
+          }}
+        >
+          {installing ? 'INSTALLING…' : 'INSTALL'}
+        </button>
       </div>
     </div>
   )
