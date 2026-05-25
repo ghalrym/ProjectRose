@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { BrowserWindow } from 'electron'
-import { compressTurnsForContext } from './llmClient'
+import type { ModelMessage } from 'ai'
+import { compressTurnsForContext, streamChat } from './llmClient'
 import type { ApiShapeMessage, CompressionResult, CompressionOutcome } from './llmClient'
 import { getContextLength } from './contextLengthRegistry'
 import { estimateTokens } from './tokenCounter'
@@ -11,6 +12,12 @@ import { ChatSession } from './chatSession'
 import type { ChatResponse } from './chatSession'
 import { sessionRegistry } from './sessionRegistry'
 import { pickActiveModel } from './modelSelection'
+import { toolRegistry } from './toolRegistry'
+import { listInstalledExtensions } from './extensionService'
+import type {
+  RoutineTranscript,
+  RoutineTranscriptEntry
+} from '../../shared/routineTranscript'
 
 export type { ChatResponse }
 
@@ -63,6 +70,196 @@ export async function runAgentOnce(
   } finally {
     sessionRegistry.unregister(session.sessionId)
     session.dispose()
+  }
+}
+
+// ── Detached Run with tools (ADR 0014) ──
+//
+// Sibling to `runAgentOnce`: runs a one-shot turn with an explicit tool
+// allowlist and returns a structured transcript instead of a single string.
+// Interactive tools (ask_user / screenshot) are stripped before the model
+// sees the toolbox — routine fires happen with no user present, so any call
+// to them would block forever or return an opaque '[cancelled]' the model
+// can't interpret. See ADR 0014.
+
+// Tools that need a user to be present. Always stripped from a routine's
+// allowlist regardless of what the caller passed in. ask_user pushes a
+// pending-resolver onto the session and waits for the renderer to reply;
+// screenshot emits a capture request and waits for the renderer to send
+// back a data URL. Neither has a meaningful headless behaviour.
+const INTERACTIVE_TOOL_NAMES = new Set<string>(['ask_user', 'screenshot'])
+
+export interface RoutineRunWarnings {
+  /** Tool names the caller requested but the host did not find at fire time. */
+  unknownTools: string[]
+  /** Tool names the caller requested but the host auto-stripped (interactive). */
+  strippedTools: string[]
+}
+
+export interface RoutineRunResult {
+  transcript: RoutineTranscript
+  warnings: RoutineRunWarnings
+}
+
+/**
+ * Run a one-shot Agent turn with the supplied prompt and the explicit tool
+ * allowlist. Returns the structured transcript plus warnings about tool
+ * names that were stripped or unknown.
+ *
+ * Mirrors `runAgentOnce` in shape (single-iteration, no hooks, no subagent
+ * recursion) but bypasses `ChatSession.run` because we need `finalMessages`
+ * back to build the transcript.
+ */
+export async function runAgentOnceWithTools(
+  prompt: string,
+  systemPrompt: string,
+  allowedTools: string[],
+  rootPath: string
+): Promise<RoutineRunResult> {
+  const startedAt = Date.now()
+  const sessionId = randomUUID()
+  const settings = await readSettings(rootPath)
+  const model = pickActiveModel(settings)
+  if (!model) {
+    throw new Error('No LLM model configured — open Settings → Providers to pick one.')
+  }
+
+  const installed = await listInstalledExtensions(rootPath)
+  const enabledExtensionIds = installed.filter((e) => e.enabled).map((e) => e.manifest.id)
+
+  // Compute the universe of tool names visible this run, then derive the
+  // disabled list from "everything not in the allowlist, plus the always-
+  // stripped interactive tools".
+  const coreNames = new Set(toolRegistry.getCoreToolNames())
+  const extensionNames = new Set(
+    toolRegistry.getEnabledExtensionToolEntries(rootPath, enabledExtensionIds).map((e) => e.name)
+  )
+  const universe = new Set<string>([...coreNames, ...extensionNames])
+
+  const allowed = new Set(allowedTools)
+  const warnings: RoutineRunWarnings = {
+    unknownTools: [],
+    strippedTools: []
+  }
+  for (const name of allowed) {
+    if (INTERACTIVE_TOOL_NAMES.has(name)) {
+      warnings.strippedTools.push(name)
+    } else if (!universe.has(name)) {
+      warnings.unknownTools.push(name)
+    }
+  }
+
+  const disabledTools: string[] = []
+  for (const name of universe) {
+    if (!allowed.has(name) || INTERACTIVE_TOOL_NAMES.has(name)) {
+      disabledTools.push(name)
+    }
+  }
+
+  // Register a one-shot session so any tool that reaches into the session
+  // registry (recordModifiedFile, ask_user) finds a valid object — ask_user
+  // and screenshot would normally hit pending-resolver tables on the session,
+  // but we have already stripped them above.
+  const session = new ChatSession({ sessionId, rootPath, role: 'one-shot' })
+  sessionRegistry.register(session)
+
+  try {
+    const result = await streamChat({
+      messages: [{ role: 'user', content: prompt }],
+      systemPrompt,
+      enabledExtensionIds,
+      model,
+      ollamaBaseUrl: settings.ollamaBaseUrl,
+      projectRoot: rootPath,
+      disabledTools,
+      include: ['core', 'extension'],
+      notify: () => {},
+      sessionId,
+      abortSignal: session.abortSignal
+    })
+
+    const entries = buildTranscriptEntries(prompt, result.finalMessages)
+    const transcript: RoutineTranscript = {
+      entries,
+      finalText: result.content,
+      durationMs: Date.now() - startedAt,
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      modelDisplay: model.modelName
+    }
+    return { transcript, warnings }
+  } finally {
+    sessionRegistry.unregister(session.sessionId)
+    session.dispose()
+  }
+}
+
+/**
+ * Walk the Vercel AI SDK `ModelMessage[]` produced by `streamChat` and
+ * emit a flat `RoutineTranscriptEntry[]` the renderer can render top-to-
+ * bottom. We treat the initial user message (which was the prompt we
+ * sent) as the first entry, then unfold each assistant/tool message into
+ * one entry per content part.
+ */
+function buildTranscriptEntries(prompt: string, messages: ModelMessage[]): RoutineTranscriptEntry[] {
+  const entries: RoutineTranscriptEntry[] = []
+  entries.push({ kind: 'user_message', content: prompt })
+
+  for (const msg of messages) {
+    if (msg.role === 'user' || msg.role === 'system') continue // already captured / not useful for audit
+    if (msg.role === 'assistant') {
+      const parts = normaliseContentParts(msg.content)
+      for (const part of parts) {
+        const partRecord = part as Record<string, unknown>
+        const type = partRecord.type as string | undefined
+        if (type === 'text') {
+          const text = typeof partRecord.text === 'string' ? partRecord.text : ''
+          if (text.length > 0) entries.push({ kind: 'assistant_message', content: text })
+        } else if (type === 'reasoning') {
+          const text = typeof partRecord.text === 'string' ? partRecord.text : ''
+          if (text.length > 0) entries.push({ kind: 'assistant_thought', content: text })
+        } else if (type === 'tool-call') {
+          const toolName = typeof partRecord.toolName === 'string' ? partRecord.toolName : 'unknown'
+          const toolCallId = typeof partRecord.toolCallId === 'string' ? partRecord.toolCallId : ''
+          const input = (partRecord.input ?? partRecord.args) as unknown
+          entries.push({ kind: 'tool_call', toolName, toolCallId, input })
+        }
+      }
+      continue
+    }
+    if (msg.role === 'tool') {
+      const parts = normaliseContentParts(msg.content)
+      for (const part of parts) {
+        const partRecord = part as Record<string, unknown>
+        if (partRecord.type === 'tool-result') {
+          const toolName = typeof partRecord.toolName === 'string' ? partRecord.toolName : 'unknown'
+          const toolCallId = typeof partRecord.toolCallId === 'string' ? partRecord.toolCallId : ''
+          const output = stringifyToolOutput(partRecord.output ?? partRecord.result)
+          entries.push({ kind: 'tool_result', toolName, toolCallId, output })
+        }
+      }
+      continue
+    }
+  }
+  return entries
+}
+
+function normaliseContentParts(content: unknown): unknown[] {
+  if (typeof content === 'string') return [{ type: 'text', text: content }]
+  if (Array.isArray(content)) return content
+  return []
+}
+
+function stringifyToolOutput(output: unknown): string {
+  if (output == null) return ''
+  if (typeof output === 'string') return output
+  // The Vercel AI SDK wraps tool results in a `{ type: 'json' | 'text' | ..., value }` shape.
+  const r = output as Record<string, unknown>
+  if (typeof r.value === 'string') return r.value
+  try {
+    return JSON.stringify(output)
+  } catch {
+    return String(output)
   }
 }
 

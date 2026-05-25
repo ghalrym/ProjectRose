@@ -31,6 +31,7 @@ export const CAPABILITY_KEYS = [
   'chatHooks',
   'agentSession',
   'backgroundAgent',
+  'detachedRunWithTools',
   'notifyStatus',
   'broadcast'
 ] as const

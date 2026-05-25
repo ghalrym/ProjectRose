@@ -1,4 +1,4 @@
-import { app, Tray, Menu, nativeImage, BrowserWindow, ipcMain } from 'electron'
+import { app, Tray, Menu, Notification, nativeImage, BrowserWindow, ipcMain } from 'electron'
 import type { NativeImage } from 'electron'
 import { join } from 'path'
 import { IPC } from '../shared/ipcChannels'
@@ -171,6 +171,29 @@ export function createTray(): Tray {
   })
 
   return tray
+}
+
+/**
+ * Surface a native OS notification about a background task failure. Used by
+ * the routines extension's scheduler so the user finds out about a failed
+ * routine fire without having to open the Routines UI. Silently no-ops when
+ * the platform does not support notifications.
+ */
+export function notifyFailure(title: string, body: string): void {
+  if (!Notification.isSupported()) return
+  try {
+    const n = new Notification({
+      title,
+      body,
+      icon: baseIcon ?? undefined,
+      silent: false
+    })
+    n.on('click', () => ensureWindow())
+    n.show()
+  } catch {
+    // Notification creation can throw on some platforms — failing the
+    // notification is never worth crashing the run, so swallow.
+  }
 }
 
 export function destroyTray(): void {

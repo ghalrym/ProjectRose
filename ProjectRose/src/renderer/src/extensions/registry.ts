@@ -84,6 +84,13 @@ export async function loadDynamicExtensions(rootPath: string): Promise<void> {
     return
   }
 
+  // Load the main-process halves of built-in extensions that ship one. The
+  // renderer halves are statically registered in BUILTIN_EXTENSIONS, but
+  // anything that needs to run in main (schedulers, IPC handlers,
+  // capability-gated host hooks) registers here on every workspace open. See
+  // src/main/extensions/builtins/index.ts.
+  await window.api.extension.loadBuiltinMains(rootPath).catch(() => {})
+
   const { installed } = await window.api.extension.list(rootPath)
 
   for (const ext of installed.filter((e) => e.enabled)) {

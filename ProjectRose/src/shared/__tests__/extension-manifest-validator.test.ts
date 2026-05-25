@@ -51,7 +51,7 @@ describe('extension-manifest-validator', () => {
   })
 
   describe('capability surface', () => {
-    it('exposes the 10 capability keys agreed in the PRD', () => {
+    it('exposes the documented capability keys (PRD + ADR 0014 amendment)', () => {
       expect(CAPABILITY_KEYS).toEqual([
         'pageView',
         'main',
@@ -61,6 +61,7 @@ describe('extension-manifest-validator', () => {
         'chatHooks',
         'agentSession',
         'backgroundAgent',
+        'detachedRunWithTools',
         'notifyStatus',
         'broadcast'
       ])

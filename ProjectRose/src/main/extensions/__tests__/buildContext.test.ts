@@ -13,6 +13,14 @@ function makeHost(): HostExtensionSurface {
     registerTools: vi.fn(),
     registerHooks: vi.fn(),
     runBackgroundAgent: vi.fn(async () => 'ok'),
+    runDetachedRunWithTools: vi.fn(async () => ({
+      entries: [],
+      finalText: '',
+      durationMs: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      modelDisplay: 'mock'
+    })),
     openAgentSession: vi.fn(() => ({
       send: async () => 'r',
       close: () => {}
@@ -172,6 +180,7 @@ describe('buildContext', () => {
         agentTools: 'registerTools',
         chatHooks: 'registerHooks',
         backgroundAgent: 'runBackgroundAgent',
+        detachedRunWithTools: 'runDetachedRunWithTools',
         agentSession: 'openAgentSession',
         notifyStatus: 'notifyStatus',
         broadcast: 'broadcast'

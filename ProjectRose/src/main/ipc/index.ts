@@ -76,6 +76,20 @@ import { sessionRegistry } from '../services/sessionRegistry'
 
 import { extensionIpc } from '../services/extensionService.ipc'
 import {
+  loadAllBuiltinMains,
+  unloadAllBuiltinMains
+} from '../extensions/builtins'
+import { routinesIpc } from '../extensions/builtins/rose-routines/routinesService.ipc'
+import {
+  listRoutines as routinesList,
+  readRoutine as routinesRead,
+  saveRoutine as routinesSave,
+  deleteRoutine as routinesDelete,
+  runNow as routinesRunNow,
+  listRuns as routinesListRuns,
+  readRun as routinesReadRun
+} from '../extensions/builtins/rose-routines/main'
+import {
   listExtensions,
   installFromGit,
   installFromDisk,
@@ -279,7 +293,24 @@ export function registerIpcManifests(): void {
     enable: enableExtension,
     disable: disableExtension,
     loadRendererCode,
-    loadMainModule
+    loadMainModule,
+    loadBuiltinMains: async (rootPath: string) => {
+      await loadAllBuiltinMains(rootPath)
+      return { ok: true }
+    },
+    unloadBuiltinMains: async (rootPath: string) => {
+      unloadAllBuiltinMains(rootPath)
+      return { ok: true }
+    }
+  })
+  routinesIpc.register({
+    list: routinesList,
+    read: routinesRead,
+    save: routinesSave,
+    delete: routinesDelete,
+    runNow: routinesRunNow,
+    listRuns: routinesListRuns,
+    readRun: routinesReadRun
   })
   activeSpeechIpc.register({
     getSpeakers,

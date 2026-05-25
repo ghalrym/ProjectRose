@@ -7,7 +7,7 @@ import { spawn } from 'child_process'
 import { IPC } from '../../shared/ipcChannels'
 import { prPath } from '../lib/projectPaths'
 import { agentExtensionsDir, ensureAgentHome } from '../lib/agentHome'
-import { runAgentOnce } from './aiService'
+import { runAgentOnce, runAgentOnceWithTools } from './aiService'
 import {
   registerHooks as registerExtensionHooks,
   unregisterHooks as unregisterExtensionHooks,
@@ -122,7 +122,7 @@ async function writeEnabledState(rootPath: string, id: string, enabled: boolean)
 // Per-workspace extension settings — the backing store for ctx.getSettings()
 // and ctx.updateSettings(). Distinct from AppSettings (agent-global host
 // settings) and from state.json (the enable flag).
-async function readExtensionSettings(rootPath: string, id: string): Promise<Record<string, unknown>> {
+export async function readExtensionSettings(rootPath: string, id: string): Promise<Record<string, unknown>> {
   try {
     const path = join(getWorkspaceExtensionsDir(rootPath), id, 'settings.json')
     return JSON.parse(await readFile(path, 'utf-8')) as Record<string, unknown>
@@ -131,7 +131,7 @@ async function readExtensionSettings(rootPath: string, id: string): Promise<Reco
   }
 }
 
-async function writeExtensionSettings(rootPath: string, id: string, patch: Record<string, unknown>): Promise<void> {
+export async function writeExtensionSettings(rootPath: string, id: string, patch: Record<string, unknown>): Promise<void> {
   const overlayDir = join(getWorkspaceExtensionsDir(rootPath), id)
   await mkdir(overlayDir, { recursive: true })
   const path = join(overlayDir, 'settings.json')
@@ -281,6 +281,76 @@ function reconcileHookCatalog(id: string, key: string, manifest: ExtensionManife
   if (lines.length > 0) throw new HookCatalogDriftError(id, lines.join('; '))
 }
 
+/**
+ * Construct the host surface handed to an extension's `register(ctx)` via
+ * the slicer. Shared between dynamic extension loading (this module) and
+ * built-in extension registration (`src/main/extensions/builtins/index.ts`).
+ *
+ * `key` is `${rootPath}/${id}` — the owner key the hook pipeline and agent-
+ * session subsystem use to scope per-extension registrations.
+ */
+export function buildHostSurface(
+  rootPath: string,
+  id: string,
+  key: string,
+  manifestForHooks: ExtensionManifest
+): HostExtensionSurface {
+  return {
+    rootPath,
+    getSettings: () => readExtensionSettings(rootPath, id),
+    updateSettings: (patch: Record<string, unknown>) => writeExtensionSettings(rootPath, id, patch),
+    broadcast: (channel: string, data: unknown) => {
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send(channel, data)
+      }
+    },
+    notifyStatus: (text: string, opts?: { tone?: 'info' | 'success' | 'error' | 'warning'; durationMs?: number }) => {
+      const payload = { text, tone: opts?.tone, durationMs: opts?.durationMs }
+      for (const win of BrowserWindow.getAllWindows()) {
+        if (!win.isDestroyed()) win.webContents.send(IPC.STATUS_NOTIFY, payload)
+      }
+    },
+    registerTools: (tools: ExtensionToolEntry[]) => {
+      toolRegistry.registerExtensionTools(id, rootPath, tools)
+    },
+    registerSensitiveFields: (_keys: string[]) => {
+      /* deprecated no-op; per-workspace per-extension settings replaced the sensitive-fields machinery */
+    },
+    runBackgroundAgent: async (prompt: string, systemPrompt: string) => {
+      const { content } = await runAgentOnce(
+        [{ role: 'user', content: prompt }],
+        rootPath,
+        systemPrompt,
+      )
+      return content
+    },
+    runDetachedRunWithTools: async (prompt, systemPrompt, options) => {
+      const { transcript } = await runAgentOnceWithTools(
+        prompt,
+        systemPrompt,
+        options.allowedTools,
+        rootPath
+      )
+      return transcript
+    },
+    registerHooks: (hooks: ChatHook[]) => {
+      registerExtensionHooks(
+        key,
+        {
+          extensionId: id,
+          extensionName: manifestForHooks?.name ?? id,
+          extensionIcon: manifestForHooks?.icon,
+          rootPath
+        },
+        hooks,
+        manifestForHooks?.provides.hooks
+      )
+    },
+    openAgentSession: ({ systemPrompt }: { systemPrompt: string }) =>
+      createAgentSession({ rootPath, systemPrompt, ownerKey: key })
+  }
+}
+
 function loadExtensionMainModule(rootPath: string, id: string): void {
   const key = `${rootPath}/${id}`
   if (loadedMains.has(key)) return
@@ -318,51 +388,7 @@ function loadExtensionMainModule(rootPath: string, id: string): void {
     const wrapper = new Function('module', 'exports', 'require', '__dirname', '__filename', code)
     wrapper(mod, mod.exports, hostedRequire, dirname(mainPath), mainPath)
 
-    const host: HostExtensionSurface = {
-      rootPath,
-      getSettings: () => readExtensionSettings(rootPath, id),
-      updateSettings: (patch: Record<string, unknown>) => writeExtensionSettings(rootPath, id, patch),
-      broadcast: (channel: string, data: unknown) => {
-        for (const win of BrowserWindow.getAllWindows()) {
-          if (!win.isDestroyed()) win.webContents.send(channel, data)
-        }
-      },
-      notifyStatus: (text: string, opts?: { tone?: 'info' | 'success' | 'error' | 'warning'; durationMs?: number }) => {
-        const payload = { text, tone: opts?.tone, durationMs: opts?.durationMs }
-        for (const win of BrowserWindow.getAllWindows()) {
-          if (!win.isDestroyed()) win.webContents.send(IPC.STATUS_NOTIFY, payload)
-        }
-      },
-      registerTools: (tools: ExtensionToolEntry[]) => {
-        toolRegistry.registerExtensionTools(id, rootPath, tools)
-      },
-      registerSensitiveFields: (_keys: string[]) => {
-        /* deprecated no-op; per-workspace per-extension settings replaced the sensitive-fields machinery */
-      },
-      runBackgroundAgent: async (prompt: string, systemPrompt: string) => {
-        const { content } = await runAgentOnce(
-          [{ role: 'user', content: prompt }],
-          rootPath,
-          systemPrompt,
-        )
-        return content
-      },
-      registerHooks: (hooks: ChatHook[]) => {
-        registerExtensionHooks(
-          key,
-          {
-            extensionId: id,
-            extensionName: manifestForHooks?.name ?? id,
-            extensionIcon: manifestForHooks?.icon,
-            rootPath
-          },
-          hooks,
-          manifestForHooks?.provides.hooks
-        )
-      },
-      openAgentSession: ({ systemPrompt }: { systemPrompt: string }) =>
-        createAgentSession({ rootPath, systemPrompt, ownerKey: key })
-    }
+    const host: HostExtensionSurface = buildHostSurface(rootPath, id, key, manifestForHooks)
 
     const ctx: ExtensionMainContext = buildContext({
       extensionId: id,

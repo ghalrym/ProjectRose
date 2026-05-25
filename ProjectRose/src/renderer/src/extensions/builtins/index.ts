@@ -2,6 +2,7 @@ import type { RendererExtension } from '../registry'
 import * as roseContacts from './rose-contacts'
 import * as roseEmail from './rose-email'
 import * as roseCalendar from './rose-calendar'
+import * as roseRoutines from './rose-routines'
 
 // Built-in extensions — ship inside the host repo, register at module load,
 // always enabled, cannot be uninstalled. See docs/adr/0010-built-in-extensions.md
@@ -27,6 +28,11 @@ export const BUILTIN_EXTENSIONS: RendererExtension[] = [
     manifest: roseCalendar.manifest,
     PageView: roseCalendar.PageView,
     SettingsView: roseCalendar.SettingsView,
+    provenance: 'builtin'
+  },
+  {
+    manifest: roseRoutines.manifest,
+    PageView: roseRoutines.PageView,
     provenance: 'builtin'
   }
 ]

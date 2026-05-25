@@ -1,0 +1,236 @@
+/* rose-routines — list + editor drawer + runs viewer + transcript view. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.title {
+  font-size: 12px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.btn {
+  all: unset;
+  cursor: pointer;
+  padding: 5px 10px;
+  border: 1px solid var(--color-border);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+  text-align: center;
+}
+.btn:hover { border-color: var(--color-accent, #e05c84); }
+.btn:disabled { cursor: not-allowed; opacity: 0.4; }
+
+.btnPrimary {
+  background: var(--color-accent, #e05c84);
+  color: white;
+  border-color: var(--color-accent, #e05c84);
+}
+.btnDanger {
+  color: #c44;
+  border-color: #c44;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.listColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  padding-right: 12px;
+}
+
+.detailColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  padding-left: 4px;
+}
+
+.routineRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  cursor: pointer;
+}
+.routineRow:hover { border-color: var(--color-accent, #e05c84); }
+.routineRowActive { border-color: var(--color-accent, #e05c84); background: var(--color-bg-hover, rgba(224, 92, 132, 0.08)); }
+
+.routineRowName { font-size: 13px; font-weight: 500; }
+.routineRowMeta { font-size: 11px; color: var(--color-text-secondary); }
+.routineRowDisabled { opacity: 0.55; }
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fieldLabel {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+.input, .textarea, .select {
+  font: inherit;
+  padding: 6px 8px;
+  background: var(--color-bg-input, var(--color-bg-elevated));
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  width: 100%;
+  box-sizing: border-box;
+}
+.textarea { min-height: 140px; resize: vertical; font-family: inherit; }
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.rowEnd { justify-content: flex-end; }
+
+.weekdayPicker {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.weekdayBtn {
+  all: unset;
+  cursor: pointer;
+  padding: 4px 9px;
+  border: 1px solid var(--color-border);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  text-transform: uppercase;
+}
+.weekdayBtn:hover { border-color: var(--color-accent, #e05c84); }
+.weekdayBtnActive {
+  background: var(--color-accent, #e05c84);
+  color: white;
+  border-color: var(--color-accent, #e05c84);
+}
+
+.toolList {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+.toolListItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.runsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 12px;
+}
+.runRow {
+  display: grid;
+  grid-template-columns: 1fr 80px 80px 28px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  font-size: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.runRow:hover { background: var(--color-bg-elevated); border-color: var(--color-border); }
+.runRowFailed { color: #c44; }
+.runRowManual { font-style: italic; }
+
+.transcriptBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+.transcriptHeader {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.transcriptCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+.transcriptCellUser { border-left-color: #888; }
+.transcriptCellAssistant { border-left-color: var(--color-accent, #e05c84); }
+.transcriptCellThought { border-left-color: #888; opacity: 0.85; font-style: italic; }
+.transcriptCellToolCall { border-left-color: #4a90e2; }
+.transcriptCellToolResult { border-left-color: #4a90e2; }
+
+.transcriptKind {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-secondary);
+}
+.transcriptContent {
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.transcriptError {
+  padding: 8px 10px;
+  border: 1px solid #c44;
+  color: #c44;
+  background: rgba(204, 68, 68, 0.06);
+}
+
+.empty {
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding: 24px 8px;
+}

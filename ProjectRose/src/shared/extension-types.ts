@@ -44,6 +44,11 @@ export interface ExtensionManifest {
     agentSession?: boolean
     // ctx.runBackgroundAgent(...) is available.
     backgroundAgent?: boolean
+    // ctx.runDetachedRunWithTools(...) is available — a sibling to
+    // backgroundAgent that runs a one-shot Agent turn with an explicit tool
+    // allowlist and returns a structured transcript instead of a single
+    // string. See ADR 0014 for the contract amendment rationale.
+    detachedRunWithTools?: boolean
     // ctx.notifyStatus(...) is available.
     notifyStatus?: boolean
     // ctx.broadcast(...) is available.

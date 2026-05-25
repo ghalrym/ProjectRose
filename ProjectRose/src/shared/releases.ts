@@ -13,7 +13,8 @@ export const RELEASES: ReleaseEntry[] = [
     date: null,
     title: 'Multi-query contact search',
     highlights: [
-      'Contact search now accepts multiple queries in one call and ranks hits by how many matched'
+      'Contact search now accepts multiple queries in one call and ranks hits by how many matched',
+      'New built-in Routines extension — schedule a prompt to fire the Agent on a weekly / bi-weekly / monthly / yearly cadence with a tool allowlist, and audit every fire'
     ]
   },
   {

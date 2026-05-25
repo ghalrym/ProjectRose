@@ -16,6 +16,7 @@ import { authIpc } from '../main/services/authService.ipc'
 import { aiIpc } from '../main/services/aiService.ipc'
 import { activeSpeechIpc } from '../main/services/speech/activeSpeechService.ipc'
 import { extensionIpc } from '../main/services/extensionService.ipc'
+import { routinesIpc } from '../main/extensions/builtins/rose-routines/routinesService.ipc'
 import { memoryIpc } from '../main/services/memory/memoryService.ipc'
 import { emailIpc } from '../main/services/email/emailService.ipc'
 
@@ -344,6 +345,10 @@ const api = {
 
   // Extensions
   extension: extensionIpc.bindings,
+
+  // Routines (built-in rose-routines extension's IPC surface). Bound flat on
+  // api.routines.* mirroring api.memory / api.email.
+  routines: routinesIpc.bindings,
 
   // Memory (~/.rose/memory/) — diary, behaviour records, contacts, scheduler.
   // Bound flat on api.memory.* so renderer call sites mirror window.api.skills,

@@ -32,6 +32,7 @@ import type { ExtensionManifest, ExtensionToolEntry } from '../../shared/extensi
 import type { ChatHook } from '../../shared/extensionHooks'
 import type { ExtensionMainContext } from '../../shared/extension-contract'
 import type { AgentSession } from '../../shared/extension-agent-session'
+import type { RoutineTranscript } from '../../shared/routineTranscript'
 import { logActivity } from '../services/memory/agentActivity'
 
 /** Full host surface, with no manifest gating. The slicer picks from this. */
@@ -49,6 +50,11 @@ export interface HostExtensionSurface {
   registerTools: (tools: ExtensionToolEntry[]) => void
   registerHooks: (hooks: ChatHook[]) => void
   runBackgroundAgent: (prompt: string, systemPrompt: string) => Promise<string>
+  runDetachedRunWithTools: (
+    prompt: string,
+    systemPrompt: string,
+    options: { allowedTools: string[] }
+  ) => Promise<RoutineTranscript>
   openAgentSession: (opts: { systemPrompt: string }) => AgentSession
 }
 
@@ -61,6 +67,7 @@ export const CAPABILITY_TO_METHOD = {
   agentTools: 'registerTools',
   chatHooks: 'registerHooks',
   backgroundAgent: 'runBackgroundAgent',
+  detachedRunWithTools: 'runDetachedRunWithTools',
   agentSession: 'openAgentSession',
   notifyStatus: 'notifyStatus',
   broadcast: 'broadcast'
@@ -134,6 +141,35 @@ export function buildContext(opts: {
       }
     : (makeMissingCapabilityStub(extensionId, 'backgroundAgent', 'runBackgroundAgent') as HostExtensionSurface['runBackgroundAgent'])
 
+  const runDetachedRunWithTools: HostExtensionSurface['runDetachedRunWithTools'] = provides.detachedRunWithTools
+    ? async (prompt, systemPrompt, options) => {
+        const preview = truncatePreview(prompt)
+        const toolList = options.allowedTools.join(',') || '(none)'
+        void logActivity(
+          extensionId,
+          'detached-run-start',
+          `tools: [${toolList}] prompt: ${preview}`
+        )
+        try {
+          const transcript = await host.runDetachedRunWithTools(prompt, systemPrompt, options)
+          void logActivity(
+            extensionId,
+            'detached-run-end',
+            `final: ${truncatePreview(transcript.finalText)} (${transcript.durationMs}ms, ${transcript.entries.length} entries)`
+          )
+          return transcript
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          void logActivity(extensionId, 'detached-run-end', `error: ${msg.slice(0, 200)}`)
+          throw err
+        }
+      }
+    : (makeMissingCapabilityStub(
+        extensionId,
+        'detachedRunWithTools',
+        'runDetachedRunWithTools'
+      ) as HostExtensionSurface['runDetachedRunWithTools'])
+
   const openAgentSession: HostExtensionSurface['openAgentSession'] = provides.agentSession
     ? (opts) => {
         // Memory: log when an extension opens an Agent Handle and wrap the
@@ -172,6 +208,7 @@ export function buildContext(opts: {
     registerTools,
     registerHooks,
     runBackgroundAgent,
+    runDetachedRunWithTools,
     openAgentSession
   }
 }

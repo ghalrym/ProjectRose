@@ -68,6 +68,7 @@ export const capabilityLabels: Readonly<Record<_Capability, string>> = Object.fr
   chatHooks: 'Modify chat behavior (hooks)',
   agentSession: 'Open additional agent sessions',
   backgroundAgent: 'Run scheduled background tasks',
+  detachedRunWithTools: 'Run scheduled prompts with selected tools',
   notifyStatus: 'Show status notifications',
   broadcast: 'Broadcast IPC events'
 })
@@ -77,6 +78,19 @@ export const capabilityLabels: Readonly<Record<_Capability, string>> = Object.fr
 // the host (`src/main/services/agentSession.ts`) and is constructed by the
 // host when an extension calls `ctx.openAgentSession(...)`.
 export type { AgentSession } from './extension-agent-session'
+
+// --- Detached Run with tools (ADR 0014) -----------------------------------
+// Sibling to `runBackgroundAgent`. The host runs a one-shot Agent turn with
+// a pre-filtered tool set (the `allowedTools` allowlist; interactive tools
+// like `ask_user` / `screenshot` are auto-stripped) and returns a structured
+// transcript instead of a single string.
+export type {
+  RoutineTranscript,
+  RoutineTranscriptEntry,
+  RoutineRunRecord,
+  RoutineRunTrigger,
+  RoutineRunStatus
+} from './routineTranscript'
 
 // --- View id ---------------------------------------------------------------
 // New rule, documented as part of the contract: **`manifest.id` IS the
@@ -108,6 +122,7 @@ import type {
 } from './extension-types'
 import type { ChatHook } from './extensionHooks'
 import type { AgentSession } from './extension-agent-session'
+import type { RoutineTranscript } from './routineTranscript'
 
 // Suppress unused import warning — kept for documentation that ToolCtx is
 // part of this contract.
@@ -162,6 +177,19 @@ export interface ExtensionMainContext {
    * NOT fire during background-agent runs.
    */
   runBackgroundAgent: (prompt: string, systemPrompt: string) => Promise<string>
+
+  /**
+   * Run a one-shot Agent turn with an explicit tool allowlist, returning a
+   * structured transcript instead of a single string. Interactive tools
+   * (`ask_user`, `screenshot`) are auto-stripped from the allowlist before
+   * the model sees the toolbox — routines run with no user present. Hooks
+   * do NOT fire during these runs. See ADR 0014.
+   */
+  runDetachedRunWithTools: (
+    prompt: string,
+    systemPrompt: string,
+    options: { allowedTools: string[] }
+  ) => Promise<RoutineTranscript>
 
   /**
    * Register chat hooks. Hooks fire only for the user-visible main chat;
