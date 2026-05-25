@@ -1,6 +1,6 @@
 import { readFile, writeFile, readdir, unlink, mkdir } from 'fs/promises'
 import { memoryContactDir } from '../../lib/agentHome'
-import type { ContactEntity, ContactKind, ContactSearchResult } from '../../../shared/memory'
+import type { ContactEntity, ContactKind, ContactSearchHit, ContactSearchResult } from '../../../shared/memory'
 import { contactPath, safeEntityName } from './paths'
 
 // File format per the user's spec, plus one typed line lifted from the bullet
@@ -168,41 +168,84 @@ export async function setContactKind(entity: string, kind: ContactKind): Promise
 }
 
 /**
- * Spec-shape contact search:
- *   - direct match: the contact file whose entity name matches (case-insensitive
- *     substring) is returned verbatim under `contact`.
- *   - relations: every other contact whose body mentions the query string;
- *     each relation row is one matching note from that contact.
+ * Multi-query contact search. For each query (case-insensitive substring), we
+ * check every contact's entity name and notes. A contact becomes a hit if at
+ * least one query matched anywhere. Hits are ranked by how many distinct
+ * queries matched (primary), total match count across name + notes (tiebreak),
+ * then entity name alphabetical.
  *
- * Done as a directory walk + read; the contact dir is small enough that a
- * proper text-search index would be overkill.
+ * Done as a directory walk + per-file read; the contact dir is small enough
+ * that a proper text-search index would be overkill.
  */
-export async function searchContacts(query: string): Promise<ContactSearchResult> {
-  const q = query.trim()
-  if (!q) return { contact: null, relations: [] }
-  const lower = q.toLowerCase()
-  const names = await listContacts()
+export async function searchContacts(queries: string[]): Promise<ContactSearchResult> {
+  const trimmed = queries.map((q) => q.trim()).filter((q) => q.length > 0)
+  const dedup: string[] = []
+  const seen = new Set<string>()
+  for (const q of trimmed) {
+    const key = q.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    dedup.push(q)
+  }
+  if (dedup.length === 0) return { queries: [], hits: [] }
 
-  let direct: string | null = null
-  const relations: { entity: string; note: string }[] = []
+  const lowered = dedup.map((q) => q.toLowerCase())
+  const names = await listContacts()
+  const hits: ContactSearchHit[] = []
 
   for (const name of names) {
-    const lowerName = name.toLowerCase()
     const file = await readContact(name)
     if (!file) continue
-
-    if (direct === null && lowerName.includes(lower)) {
-      direct = file
-      continue
-    }
-
     const parsed = parseFile(name, file)
-    for (const note of parsed.notes) {
-      if (note.toLowerCase().includes(lower)) {
-        relations.push({ entity: name, note })
+    const lowerName = name.toLowerCase()
+    const lowerNotes = parsed.notes.map((n) => n.toLowerCase())
+
+    const nameMatches: string[] = []
+    const noteHitsByIndex = new Map<number, string[]>()
+    let totalMatches = 0
+
+    for (let i = 0; i < dedup.length; i++) {
+      const q = dedup[i]
+      const lq = lowered[i]
+      if (lowerName.includes(lq)) {
+        nameMatches.push(q)
+        totalMatches += 1
+      }
+      for (let j = 0; j < parsed.notes.length; j++) {
+        if (lowerNotes[j].includes(lq)) {
+          const existing = noteHitsByIndex.get(j) ?? []
+          existing.push(q)
+          noteHitsByIndex.set(j, existing)
+          totalMatches += 1
+        }
       }
     }
+
+    const matchedQuerySet = new Set<string>(nameMatches)
+    const noteMatches: { note: string; queries: string[] }[] = []
+    for (const [idx, qs] of [...noteHitsByIndex.entries()].sort((a, b) => a[0] - b[0])) {
+      noteMatches.push({ note: parsed.notes[idx], queries: qs })
+      for (const q of qs) matchedQuerySet.add(q)
+    }
+
+    if (matchedQuerySet.size === 0) continue
+
+    hits.push({
+      entity: name,
+      kind: parsed.kind,
+      matchedQueryCount: matchedQuerySet.size,
+      totalMatches,
+      nameMatches,
+      noteMatches,
+      contact: nameMatches.length > 0 ? file : null
+    })
   }
 
-  return { contact: direct, relations }
+  hits.sort((a, b) => {
+    if (b.matchedQueryCount !== a.matchedQueryCount) return b.matchedQueryCount - a.matchedQueryCount
+    if (b.totalMatches !== a.totalMatches) return b.totalMatches - a.totalMatches
+    return a.entity.localeCompare(b.entity)
+  })
+
+  return { queries: dedup, hits }
 }

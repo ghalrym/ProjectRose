@@ -39,10 +39,36 @@ export interface ContactEntity {
   path: string
 }
 
-/** Search-contacts result per the original spec — direct match plus relations. */
-export interface ContactSearchResult {
+/**
+ * One contact in a search result. A hit appears if at least one query matched
+ * the entity name or one of its notes (case-insensitive substring).
+ * `matchedQueryCount` and `totalMatches` drive ranking — higher = more
+ * relevant.
+ */
+export interface ContactSearchHit {
+  entity: string
+  kind: ContactKind
+  /** Distinct queries that matched somewhere on this contact. */
+  matchedQueryCount: number
+  /** Sum of name + note matches across every query (a query that matches both name and a note counts as 2). */
+  totalMatches: number
+  /** Queries that matched the entity name. */
+  nameMatches: string[]
+  /** Notes that matched at least one query, deduped, with the queries each note matched. */
+  noteMatches: { note: string; queries: string[] }[]
+  /** Full contact file markdown — supplied only when the hit's name matched a query. */
   contact: string | null
-  relations: { entity: string; note: string }[]
+}
+
+/**
+ * Multi-query contact search result. Hits are ranked: higher
+ * `matchedQueryCount` first, then higher `totalMatches`, then alphabetical
+ * by entity. Hits whose name matched a query carry the full contact markdown
+ * in `contact`; relation-only hits carry `contact: null`.
+ */
+export interface ContactSearchResult {
+  queries: string[]
+  hits: ContactSearchHit[]
 }
 
 /** One row in the per-day conversation log (.jsonl). */

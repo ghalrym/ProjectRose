@@ -464,9 +464,9 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
       execute: wrapExecute('memory_read_contact', handleMemoryReadContact, projectRoot, emit, toolCtx, hookCtx)
     }),
     memory_search_contacts: tool({
-      description: 'Search your contacts for a term. Returns JSON: { contact: <direct-match markdown or null>, relations: [{entity, note}] } — direct match is the contact whose name matches; relations are notes from other contacts that mention the term.',
+      description: 'Search your contacts using one or more query strings (case-insensitive substring). Each query is checked against every contact\'s name and notes; a contact becomes a hit if at least one query matches anywhere. Returns JSON: { queries: string[], hits: [{ entity, kind, matchedQueryCount, totalMatches, nameMatches: string[], noteMatches: [{ note, queries }], contact: <markdown if a query matched the name, else null> }] }. Hits are ranked highest first — more distinct queries matched is the primary signal, then total match count, then alphabetical. Pass multiple queries to look up several candidates at once (e.g. variant spellings, related people, related topics).',
       inputSchema: z.object({
-        query: z.string().describe('Term to search for in contact names and notes')
+        queries: z.array(z.string()).min(1).describe('One or more terms to search for in contact names and notes. Each is matched independently; results combine and rank by match count.')
       }),
       execute: wrapExecute('memory_search_contacts', handleMemorySearchContacts, projectRoot, emit, toolCtx, hookCtx)
     }),

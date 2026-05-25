@@ -51,7 +51,7 @@ export const memoryIpc = defineIpc('memory', {
   addContactNote: method<[payload: { entity: string; note: string }], ContactEntity>(),
   removeContactNote: method<[payload: { entity: string; note: string }], ContactEntity | null>(),
   setContactKind: method<[payload: { entity: string; kind: ContactKind }], ContactEntity>(),
-  searchContacts: method<[query: string], ContactSearchResult>(),
+  searchContacts: method<[queries: string[]], ContactSearchResult>(),
 
   // Diary scheduler
   runDiaryNow: method<[], { written: boolean; dateKey: string }>(),

@@ -9,6 +9,16 @@ export interface ReleaseEntry {
 
 export const RELEASES: ReleaseEntry[] = [
   {
+    version: '1.9.2',
+    tag: null,
+    date: null,
+    title: 'Multi-query contact search',
+    unreleased: true,
+    highlights: [
+      'Contact search now accepts multiple queries in one call and ranks hits by how many matched'
+    ]
+  },
+  {
     version: '1.9.1',
     tag: null,
     date: null,

@@ -123,9 +123,11 @@ export async function handleMemoryReadContact(input: Record<string, unknown>): P
 }
 
 export async function handleMemorySearchContacts(input: Record<string, unknown>): Promise<string> {
-  const query = asString(input.query)
-  if (!query) return 'Missing `query`.'
-  const result = await searchContacts(query)
+  const raw = input.queries
+  if (!Array.isArray(raw)) return 'Missing `queries` (string[]).'
+  const queries = raw.filter((q): q is string => typeof q === 'string')
+  if (queries.length === 0) return 'Missing `queries` (string[]).'
+  const result = await searchContacts(queries)
   return JSON.stringify(result, null, 2)
 }
 

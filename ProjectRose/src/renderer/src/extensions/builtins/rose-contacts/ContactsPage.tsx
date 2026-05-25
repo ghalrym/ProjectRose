@@ -90,9 +90,12 @@ export function ContactsPage(): JSX.Element {
   useEffect(() => {
     const term = search.trim()
     if (!term) { setSearchResult(null); return }
+    // Whitespace-split into independent queries so a search like "alice acme"
+    // pulls up contacts matching either word, ranked by how many matched.
+    const queries = term.split(/\s+/).filter(Boolean)
     let cancelled = false
     const t = setTimeout(async () => {
-      const result = await window.api.memory.searchContacts(term)
+      const result = await window.api.memory.searchContacts(queries)
       if (!cancelled) setSearchResult(result)
     }, 200)
     return () => { cancelled = true; clearTimeout(t) }
@@ -222,14 +225,24 @@ export function ContactsPage(): JSX.Element {
           {searchResult && (
             <div className={styles.relations}>
               <div className={styles.relationsHead}>
-                <strong>Direct match:</strong> {searchResult.contact ? 'yes' : 'none'}
-                {'  ·  '}
-                <strong>Relations ({searchResult.relations.length})</strong>
+                <strong>Hits ({searchResult.hits.length})</strong>
+                {searchResult.queries.length > 1 && (
+                  <> {'  ·  '}<span>{searchResult.queries.length} queries</span></>
+                )}
               </div>
-              {searchResult.relations.map((r, i) => (
-                <div key={i} className={styles.relationRow}>
-                  <code>{r.entity}</code>: {r.note}
-                </div>
+              {searchResult.hits.map((h) => (
+                <button
+                  key={h.entity}
+                  className={styles.relationRow}
+                  onClick={() => setSelected(h.entity)}
+                  title={`${h.matchedQueryCount}/${searchResult.queries.length} queries matched · ${h.totalMatches} total`}
+                >
+                  <code>{h.entity}</code>
+                  {h.nameMatches.length > 0 && <em> (name)</em>}
+                  {h.noteMatches.length > 0 && (
+                    <span>: {h.noteMatches.map((m) => m.note).join(' · ')}</span>
+                  )}
+                </button>
               ))}
             </div>
           )}
