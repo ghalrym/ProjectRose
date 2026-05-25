@@ -23,6 +23,7 @@ import { CompressionToast } from './CompressionToast'
 import { CompressedTurns } from './CompressedTurns'
 import { ContextStatusBar } from './ContextStatusBar'
 import { TranscriptView } from './TranscriptView'
+import { TtsAutoPlayer } from './TtsAutoPlayer'
 import type { CompressionSnapshot } from '../../types/chatMessages'
 import styles from './ChatPanel.module.css'
 
@@ -283,6 +284,7 @@ export function ChatPanel(): JSX.Element {
       <ContextStatusBar />
       <ChatInput notched={activeView === 'chat' && isChatFullWidth} />
       <CompressionToast />
+      <TtsAutoPlayer />
     </div>
   )
 }

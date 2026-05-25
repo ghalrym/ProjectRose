@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useProjectStore } from './useProjectStore'
 import { useStatusStore } from './useStatusStore'
+import { DEFAULT_TTS_SETTINGS, type TtsSettings } from '@shared/tts'
 
 interface SettingsState {
   micDeviceId: string
@@ -16,6 +17,7 @@ interface SettingsState {
   ollamaBaseUrl: string
   ollamaModelName: string
   extensions: Record<string, Record<string, unknown>>
+  tts: TtsSettings
   loaded: boolean
   load: () => Promise<void>
   update: (patch: Partial<Omit<SettingsState, 'loaded' | 'load' | 'update'>>) => Promise<void>
@@ -41,6 +43,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModelName: '',
   extensions: {},
+  tts: DEFAULT_TTS_SETTINGS,
   loaded: false,
 
   load: async () => {

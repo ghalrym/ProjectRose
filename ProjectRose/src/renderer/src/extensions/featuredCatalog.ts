@@ -50,13 +50,6 @@ export const FEATURED_CATALOG: CatalogEntry[] = [
     repoUrl: 'https://github.com/RoseAgent/projectrose-qwen-director.git'
   },
   {
-    id: 'rose-vllm-tts',
-    name: 'vLLM TTS',
-    description: 'Streaming text-to-speech via vLLM-Omni-compatible audio endpoints. Speaks the assistant\'s chat replies aloud.',
-    author: 'ProjectRose',
-    repoUrl: 'https://github.com/RoseAgent/projectrose-vllm-tts.git'
-  },
-  {
     id: 'rose-coding-agents',
     name: 'Coding Agents',
     description: 'Headless harnesses for Claude Code, Codex, and OpenCode. Lets the host agent delegate tasks to other coding agents.',

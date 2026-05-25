@@ -5,6 +5,7 @@ import { registerLspHandlers } from './lspHandlers'
 import { registerActiveSpeechHandlers } from './activeSpeechHandlers'
 import { registerSkillHandlers } from './skillHandlers'
 import { registerScreenHandlers } from './screenHandlers'
+import { registerTtsManifest } from './ttsHandlers'
 
 import { sessionIpc } from '../services/sessionService.ipc'
 import { listSessions, loadSession, saveSession, deleteSession } from '../services/sessionService'
@@ -393,6 +394,7 @@ export function registerIpcManifests(): void {
     googleCalendarPreviewPush,
     googleCalendarApplyPush
   })
+  registerTtsManifest()
   emailIpc.register({
     getStatus: getEmailStatus,
     saveImap: saveImapTransport,

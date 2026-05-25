@@ -19,6 +19,7 @@ import { extensionIpc } from '../main/services/extensionService.ipc'
 import { routinesIpc } from '../main/extensions/builtins/rose-routines/routinesService.ipc'
 import { memoryIpc } from '../main/services/memory/memoryService.ipc'
 import { emailIpc } from '../main/services/email/emailService.ipc'
+import { ttsIpc } from '../main/services/tts/ttsService.ipc'
 
 const api = {
   // Theme
@@ -358,6 +359,36 @@ const api = {
   // Email — bound flat on api.email.* for the rose-email built-in's
   // InboxPage and EmailSettings views.
   email: emailIpc.bindings,
+
+  // TTS — manifest bindings (synthesize, cancel, listVoices, downloadVoice,
+  // uninstallVoice, getReadiness) plus the hand-written progress broadcast
+  // subscription that powers the install pill in Settings.
+  tts: {
+    ...ttsIpc.bindings,
+    onDownloadProgress: (
+      callback: (payload: {
+        voiceId: string
+        stage: string
+        percent: number
+        bytesLoaded: number
+        bytesTotal: number
+        status: 'preparing' | 'downloading' | 'ready' | 'error'
+        error?: string
+      }) => void
+    ): (() => void) => {
+      const handler = (_e: unknown, payload: {
+        voiceId: string
+        stage: string
+        percent: number
+        bytesLoaded: number
+        bytesTotal: number
+        status: 'preparing' | 'downloading' | 'ready' | 'error'
+        error?: string
+      }): void => callback(payload)
+      ipcRenderer.on(IPC.TTS_DOWNLOAD_PROGRESS, handler)
+      return () => { ipcRenderer.removeListener(IPC.TTS_DOWNLOAD_PROGRESS, handler) }
+    }
+  },
 
   // Account auth — request methods from the manifest; event subscriptions
   // (onChanged, onPairingPending) stay hand-written.

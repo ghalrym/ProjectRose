@@ -5,6 +5,7 @@ import { UpdatesTab } from './UpdatesTab'
 import { MemoryTab } from './MemoryTab'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useProjectStore } from '../../stores/useProjectStore'
+import { useStatusStore } from '../../stores/useStatusStore'
 import { useViewStore } from '../../stores/useViewStore'
 import { useWhisperPreloadStore } from '../../stores/useWhisperPreloadStore'
 import { subscribeToExtensionsChange } from '../../extensions/registry'
@@ -315,6 +316,7 @@ export function SettingsView(): JSX.Element {
     micDeviceId, userName, agentName, activeListeningDraftSeconds, whisperModel,
     agentStartsExpanded,
     ollamaBaseUrl, ollamaModelName,
+    tts,
     update,
   } = useSettingsStore()
 
@@ -565,6 +567,193 @@ export function SettingsView(): JSX.Element {
       setPendingWhisperModel(target)
       setInstallModalOpen(true)
     }
+  }
+
+  // ── TTS state ─────────────────────────────────────────────
+  // Voice catalog mirrored from huggingface.co/rhasspy/piper-voices' canonical
+  // voices.json — ~100 voices across many languages. We fetch on General tab
+  // open, re-fetch after each download, and offer a manual refresh button.
+  interface TtsCatalogRow {
+    id: string
+    speakerName: string
+    displayName: string
+    languageCode: string
+    languageFamily: string
+    languageEnglish: string
+    languageNative: string
+    country: string
+    quality: 'x_low' | 'low' | 'medium' | 'high'
+    approxSizeMB: number
+    parentId: string | null
+    speakerKey: string | null
+    speakerIndex: number | null
+    totalSpeakers: number
+    installed: boolean
+  }
+  const [ttsCatalog, setTtsCatalog] = useState<TtsCatalogRow[]>([])
+  const [ttsProgress, setTtsProgress] = useState<Record<string, { percent: number; status: 'preparing' | 'downloading' | 'ready' | 'error'; error?: string }>>({})
+  const [ttsVoiceMenuOpen, setTtsVoiceMenuOpen] = useState(false)
+  const [ttsBusyToggle, setTtsBusyToggle] = useState(false)
+  const [ttsSearchQuery, setTtsSearchQuery] = useState('')
+  const [ttsLanguageFilter, setTtsLanguageFilter] = useState<string>('all')
+  const [ttsQualityFilter, setTtsQualityFilter] = useState<'all' | 'x_low' | 'low' | 'medium' | 'high'>('all')
+  const [ttsRefreshing, setTtsRefreshing] = useState(false)
+
+  const reloadTtsCatalog = useCallback(async () => {
+    try {
+      const list = await window.api.tts.listVoices() as TtsCatalogRow[]
+      setTtsCatalog(list)
+    } catch { /* engine unavailable yet — empty list is fine */ }
+  }, [])
+
+  async function handleRefreshTtsCatalog(): Promise<void> {
+    setTtsRefreshing(true)
+    try {
+      const result = await window.api.tts.refreshCatalog()
+      await reloadTtsCatalog()
+      useStatusStore.getState().notify(`Voice catalog refreshed (${result.count} voices)`, { tone: 'success' })
+    } catch (err) {
+      useStatusStore.getState().notify(
+        `Catalog refresh failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        { tone: 'error' }
+      )
+    } finally {
+      setTtsRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activePage !== 'general') return
+    reloadTtsCatalog()
+  }, [activePage, reloadTtsCatalog])
+
+  useEffect(() => {
+    const off = window.api.tts.onDownloadProgress((p) => {
+      setTtsProgress((prev) => ({
+        ...prev,
+        [p.voiceId]: { percent: p.percent, status: p.status, error: p.error }
+      }))
+      if (p.status === 'ready') {
+        reloadTtsCatalog()
+        useStatusStore.getState().notify(`Voice ready (${p.voiceId})`, { tone: 'success' })
+        // Clear progress after a beat so the row stops showing the bar.
+        setTimeout(() => {
+          setTtsProgress((prev) => { const n = { ...prev }; delete n[p.voiceId]; return n })
+        }, 1200)
+      } else if (p.status === 'error') {
+        useStatusStore.getState().notify(`TTS download failed: ${p.error ?? 'unknown error'}`, { tone: 'error' })
+      }
+    })
+    return off
+  }, [reloadTtsCatalog])
+
+  const ttsInstalledVoices = ttsCatalog.filter((v) => v.installed)
+  const ttsCurrentVoiceRow = ttsCatalog.find((v) => v.id === tts.voice) ?? null
+  const ttsHasAnyInstalled = ttsInstalledVoices.length > 0
+
+  // Unique language families present in the catalog, with a representative
+  // english label, for the language-filter dropdown. Sorted by english label.
+  const ttsLanguageOptions = (() => {
+    const map = new Map<string, string>()
+    for (const v of ttsCatalog) {
+      if (!map.has(v.languageFamily)) map.set(v.languageFamily, v.languageEnglish)
+    }
+    return Array.from(map.entries())
+      .map(([family, english]) => ({ family, english }))
+      .sort((a, b) => a.english.localeCompare(b.english))
+  })()
+
+  // Filter pipeline: language family → quality → free-text search across
+  // speaker name, language code, english/native language, country, voice id.
+  // Cheap for ~100 entries; no debounce or memoization needed.
+  const ttsFilteredCatalog = (() => {
+    const q = ttsSearchQuery.trim().toLowerCase()
+    return ttsCatalog.filter((v) => {
+      if (ttsLanguageFilter !== 'all' && v.languageFamily !== ttsLanguageFilter) return false
+      if (ttsQualityFilter !== 'all' && v.quality !== ttsQualityFilter) return false
+      if (!q) return true
+      const hay = [
+        v.speakerName, v.languageCode, v.languageEnglish, v.languageNative,
+        v.country, v.id, v.quality
+      ].join(' ').toLowerCase()
+      return hay.includes(q)
+    })
+  })()
+  const ttsCatalogCount = ttsCatalog.length
+  const ttsFilteredCount = ttsFilteredCatalog.length
+  // Soft-cap rendered rows: libritts alone can contribute hundreds of
+  // speakers, and mounting that many DOM nodes inside a 360px scroll
+  // container chokes the UI. The user has search + filters to narrow.
+  const TTS_VISIBLE_LIMIT = 200
+  const ttsVisibleCatalog = ttsFilteredCatalog.slice(0, TTS_VISIBLE_LIMIT)
+  const ttsHiddenCount = Math.max(0, ttsFilteredCount - TTS_VISIBLE_LIMIT)
+
+  async function handleTtsToggle(next: boolean): Promise<void> {
+    if (!next) {
+      // Stop any current playback and clear in-flight synth before flipping off
+      try { await window.api.tts.cancelAll() } catch { /* ignore */ }
+      await update({ tts: { ...tts, enabled: false } })
+      return
+    }
+    // Turning on: if neither the engine nor the configured voice is installed,
+    // kick off the download. We optimistically flip the toggle so the user
+    // gets immediate feedback; if the download fails we flip it back.
+    setTtsBusyToggle(true)
+    try {
+      await update({ tts: { ...tts, enabled: true } })
+      if (!ttsCurrentVoiceRow?.installed) {
+        useStatusStore.getState().notify(
+          `Installing TTS voice (${ttsCurrentVoiceRow?.displayName ?? tts.voice})…`,
+          { tone: 'info' }
+        )
+        await window.api.tts.downloadVoice(tts.voice)
+      }
+    } catch (err) {
+      useStatusStore.getState().notify(
+        `TTS install failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        { tone: 'error' }
+      )
+      await update({ tts: { ...tts, enabled: false } })
+    } finally {
+      setTtsBusyToggle(false)
+    }
+  }
+
+  async function handleDownloadVoice(voiceId: string): Promise<void> {
+    try {
+      await window.api.tts.downloadVoice(voiceId)
+    } catch (err) {
+      useStatusStore.getState().notify(
+        `Download failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        { tone: 'error' }
+      )
+    }
+  }
+
+  async function handleUninstallVoice(voiceId: string): Promise<void> {
+    // Multi-speaker voices share their model files — removing any one
+    // sibling un-installs them all. Guard against pulling the rug out from
+    // under whichever sibling is currently selected.
+    const row = ttsCatalog.find((x) => x.id === voiceId)
+    const targetModelId = row?.parentId ?? row?.id ?? voiceId
+    const activeRow = ttsCatalog.find((x) => x.id === tts.voice)
+    const activeModelId = activeRow?.parentId ?? activeRow?.id ?? tts.voice
+    if (targetModelId === activeModelId) {
+      useStatusStore.getState().notify('Can\'t remove the active voice — switch first.', { tone: 'info' })
+      return
+    }
+    await window.api.tts.uninstallVoice(voiceId)
+    await reloadTtsCatalog()
+  }
+
+  async function handleSelectVoice(voiceId: string): Promise<void> {
+    await update({ tts: { ...tts, voice: voiceId } })
+    setTtsVoiceMenuOpen(false)
+  }
+
+  async function handleSpeedChange(speed: number): Promise<void> {
+    const clamped = Math.max(0.5, Math.min(2.0, speed))
+    await update({ tts: { ...tts, speed: clamped } })
   }
 
   // ── skills ──
@@ -840,6 +1029,290 @@ export function SettingsView(): JSX.Element {
               ))}
             </select>
           </div>
+        </section>
+
+        <section className={styles.section} style={{ paddingTop: 16 }}>
+          <div className={styles.sectionTitle}>Text-to-Speech</div>
+          <div className={styles.settingRow}>
+            <div className={styles.settingInfo}>
+              <div className={styles.settingLabel}>Read agent responses aloud</div>
+              <div className={styles.settingDesc}>
+                Speaks each completed assistant message through your speakers using Piper, an on-device neural voice. The first time you turn this on, the engine plus the default voice ({ttsCurrentVoiceRow?.approxSizeMB ?? 63} MB) download to your machine and stay cached. Nothing is sent to a server.
+              </div>
+            </div>
+            <HToggle
+              on={tts.enabled}
+              onChange={(v) => { void handleTtsToggle(v) }}
+            />
+          </div>
+          {tts.enabled && (
+            <>
+              <div className={styles.settingRow}>
+                <div className={styles.settingInfo}>
+                  <div className={styles.settingLabel}>Voice</div>
+                  <div className={styles.settingDesc}>
+                    {ttsHasAnyInstalled
+                      ? 'Pick which voice to speak with. Download more from the list below.'
+                      : ttsBusyToggle
+                        ? 'Downloading the default voice — this can take a minute on first run.'
+                        : 'No voices installed yet. The default voice will download in the background.'}
+                  </div>
+                </div>
+                <select
+                  className={styles.select}
+                  value={tts.voice}
+                  onChange={(e) => { void handleSelectVoice(e.target.value) }}
+                >
+                  {!ttsHasAnyInstalled && (
+                    <option value={tts.voice}>{ttsCurrentVoiceRow?.displayName ?? tts.voice} (installing…)</option>
+                  )}
+                  {ttsInstalledVoices.map((v) => (
+                    <option key={v.id} value={v.id}>{v.displayName}</option>
+                  ))}
+                </select>
+              </div>
+              <div className={styles.settingRow}>
+                <div className={styles.settingInfo}>
+                  <div className={styles.settingLabel}>Speed</div>
+                  <div className={styles.settingDesc}>
+                    Playback rate — 1.0 is natural pace, higher is faster.
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={2}
+                    step={0.05}
+                    value={tts.speed}
+                    onChange={(e) => { void handleSpeedChange(Number(e.target.value)) }}
+                    style={{ width: 140 }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)', minWidth: 28, textAlign: 'right' }}>
+                    {tts.speed.toFixed(2)}×
+                  </span>
+                </div>
+              </div>
+              <div className={styles.settingRow} style={{ alignItems: 'flex-start' }}>
+                <div className={styles.settingInfo} style={{ flex: 1, minWidth: 0 }}>
+                  <div className={styles.settingLabel}>Voice library</div>
+                  <div className={styles.settingDesc}>
+                    {ttsVoiceMenuOpen
+                      ? `${ttsCatalogCount} voices in the Rhasspy/Piper catalog · click DOWNLOAD to install one.`
+                      : 'Browse and download additional voices — every Piper voice from rhasspy/piper-voices.'}
+                  </div>
+                  {ttsVoiceMenuOpen && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <input
+                          type="text"
+                          className={styles.input}
+                          placeholder="Search voices, languages, countries…"
+                          value={ttsSearchQuery}
+                          onChange={(e) => setTtsSearchQuery(e.target.value)}
+                          style={{ flex: '1 1 220px', minWidth: 160 }}
+                        />
+                        <select
+                          className={styles.select}
+                          value={ttsLanguageFilter}
+                          onChange={(e) => setTtsLanguageFilter(e.target.value)}
+                          title="Filter by language"
+                        >
+                          <option value="all">All languages</option>
+                          {ttsLanguageOptions.map((l) => (
+                            <option key={l.family} value={l.family}>{l.english} ({l.family})</option>
+                          ))}
+                        </select>
+                        <select
+                          className={styles.select}
+                          value={ttsQualityFilter}
+                          onChange={(e) => setTtsQualityFilter(e.target.value as typeof ttsQualityFilter)}
+                          title="Filter by quality"
+                        >
+                          <option value="all">All qualities</option>
+                          <option value="high">High</option>
+                          <option value="medium">Medium</option>
+                          <option value="low">Low</option>
+                          <option value="x_low">Extra low</option>
+                        </select>
+                        <button
+                          type="button"
+                          className={styles.ghostBtn}
+                          onClick={() => { void handleRefreshTtsCatalog() }}
+                          disabled={ttsRefreshing}
+                          title="Re-fetch voices.json from Hugging Face"
+                        >
+                          {ttsRefreshing ? 'REFRESHING…' : '↻ REFRESH'}
+                        </button>
+                      </div>
+                      <div style={{
+                        marginTop: 8,
+                        fontSize: 10,
+                        letterSpacing: 1.2,
+                        color: 'var(--color-text-muted)',
+                        textTransform: 'uppercase'
+                      }}>
+                        Showing {Math.min(ttsFilteredCount, TTS_VISIBLE_LIMIT)} of {ttsFilteredCount}
+                        {ttsFilteredCount !== ttsCatalogCount && <> · {ttsCatalogCount} total</>}
+                        {' · '}
+                        {ttsInstalledVoices.length} installed
+                      </div>
+                      <div style={{
+                        marginTop: 8,
+                        border: '1px solid var(--color-bg-secondary)',
+                        borderRadius: 4,
+                        overflow: 'hidden',
+                        maxHeight: 360,
+                        overflowY: 'auto'
+                      }}>
+                        {ttsFilteredCount === 0 && (
+                          <div style={{
+                            padding: '18px 14px',
+                            fontSize: 11,
+                            color: 'var(--color-text-muted)',
+                            fontStyle: 'italic',
+                            textAlign: 'center'
+                          }}>
+                            No voices match — try a different search or refresh the catalog.
+                          </div>
+                        )}
+                        {ttsVisibleCatalog.map((v, idx) => {
+                          const prog = ttsProgress[v.id]
+                          const busy = !!prog && (prog.status === 'preparing' || prog.status === 'downloading')
+                          const isActive = v.id === tts.voice
+                          const isSpeaker = v.parentId !== null
+                          const isMultiSpeakerParent = v.parentId === null && v.totalSpeakers > 1
+                          return (
+                            <div
+                              key={v.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '10px 12px',
+                                paddingLeft: isSpeaker ? 28 : 12,
+                                borderTop: idx === 0 ? 'none' : '1px solid var(--color-bg-secondary)',
+                                fontSize: 12,
+                                background: isActive ? 'var(--color-bg-secondary)' : 'transparent'
+                              }}
+                            >
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                  <span>{v.displayName}</span>
+                                  {isActive && (
+                                    <span style={{ fontSize: 9, letterSpacing: 1, color: 'var(--color-accent)' }}>· ACTIVE</span>
+                                  )}
+                                  {isMultiSpeakerParent && (
+                                    <span style={{
+                                      fontSize: 9,
+                                      letterSpacing: 1,
+                                      padding: '1px 6px',
+                                      border: '1px solid var(--color-text-muted)',
+                                      borderRadius: 2,
+                                      color: 'var(--color-text-muted)'
+                                    }}>
+                                      MULTI
+                                    </span>
+                                  )}
+                                  {isSpeaker && v.speakerKey && (
+                                    <span style={{
+                                      fontSize: 9,
+                                      letterSpacing: 1,
+                                      padding: '1px 6px',
+                                      border: '1px solid var(--color-text-muted)',
+                                      borderRadius: 2,
+                                      color: 'var(--color-text-muted)'
+                                    }}>
+                                      SPK {v.speakerKey}
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', letterSpacing: 0.6, marginTop: 2 }}>
+                                  {v.languageCode} · {v.quality.toUpperCase().replace('_', '-')} · ~{v.approxSizeMB} MB · {v.id}
+                                </div>
+                                {isMultiSpeakerParent && (
+                                  <div style={{ fontSize: 10, color: 'var(--color-text-muted)', letterSpacing: 0.4, marginTop: 2, fontStyle: 'italic' }}>
+                                    One install unlocks all {v.totalSpeakers} speakers.
+                                  </div>
+                                )}
+                                {busy && (
+                                  <div style={{
+                                    marginTop: 6,
+                                    height: 4,
+                                    background: 'var(--color-bg-secondary)',
+                                    borderRadius: 2,
+                                    overflow: 'hidden'
+                                  }}>
+                                    <div style={{
+                                      height: '100%',
+                                      width: `${Math.max(0, Math.min(100, prog?.percent ?? 0))}%`,
+                                      background: 'var(--color-accent)',
+                                      transition: 'width 200ms ease'
+                                    }} />
+                                  </div>
+                                )}
+                              </div>
+                              {v.installed ? (
+                                <>
+                                  <span style={{ fontSize: 9, color: 'var(--color-saved)', letterSpacing: 1.2 }}>INSTALLED</span>
+                                  {!isActive && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className={styles.ghostBtn}
+                                        onClick={() => { void handleSelectVoice(v.id) }}
+                                      >
+                                        USE
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={styles.ghostBtn}
+                                        onClick={() => { void handleUninstallVoice(v.id) }}
+                                      >
+                                        REMOVE
+                                      </button>
+                                    </>
+                                  )}
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className={styles.ghostBtn}
+                                  disabled={busy}
+                                  onClick={() => { void handleDownloadVoice(v.id) }}
+                                >
+                                  {busy ? `${(prog?.percent ?? 0).toFixed(0)}%` : 'DOWNLOAD'}
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })}
+                        {ttsHiddenCount > 0 && (
+                          <div style={{
+                            padding: '12px 14px',
+                            borderTop: '1px solid var(--color-bg-secondary)',
+                            fontSize: 11,
+                            color: 'var(--color-text-muted)',
+                            fontStyle: 'italic',
+                            textAlign: 'center'
+                          }}>
+                            + {ttsHiddenCount} more match — narrow your search to see them.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className={styles.ghostBtn}
+                  onClick={() => setTtsVoiceMenuOpen((o) => !o)}
+                >
+                  {ttsVoiceMenuOpen ? 'CLOSE' : 'BROWSE'}
+                </button>
+              </div>
+            </>
+          )}
         </section>
 
         <section className={styles.section} style={{ paddingTop: 16 }}>

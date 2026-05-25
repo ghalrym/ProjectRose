@@ -4,6 +4,7 @@ import { agentSettingsPath } from '../lib/agentHome'
 import { serviceStatus } from './serviceStatus'
 import { DEFAULT_MEMORY_SETTINGS, type MemorySettings } from '../../shared/memory'
 import { DEFAULT_EMAIL_SETTINGS, type EmailSettings } from '../../shared/email'
+import { DEFAULT_TTS_SETTINGS, type TtsSettings } from '../../shared/tts'
 
 export interface ModelConfig {
   provider: 'ollama' | 'projectrose'
@@ -34,6 +35,9 @@ export interface AppSettings {
   // so built-ins can read/write directly. IMAP/SMTP passwords are NOT here —
   // they live in userData/email-imap.bin via safeStorage.
   email: EmailSettings
+  // Text-to-speech (built-in Piper). Auto-play toggle + voice + speed; voice
+  // files live under ~/.rose/cache/piper/voices/.
+  tts: TtsSettings
   // User-supplied Google OAuth credentials plus the signed-in account email.
   // Only the clientId is persisted here; the client_secret is sealed in
   // userData/google-oauth-secret.bin via safeStorage (ADR 0009). The
@@ -58,7 +62,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModelName: '',
   memory: DEFAULT_MEMORY_SETTINGS,
-  email: DEFAULT_EMAIL_SETTINGS
+  email: DEFAULT_EMAIL_SETTINGS,
+  tts: DEFAULT_TTS_SETTINGS
 }
 
 export async function readSettings(_rootPath?: string): Promise<AppSettings> {
@@ -74,7 +79,10 @@ export async function readSettings(_rootPath?: string): Promise<AppSettings> {
     memory: { ...DEFAULT_MEMORY_SETTINGS, ...(stored.memory ?? {}) },
     // email is also a nested block — same shallow-merge rule so users on old
     // settings.json get the new fields filled with their defaults.
-    email: { ...DEFAULT_EMAIL_SETTINGS, ...(stored.email ?? {}) }
+    email: { ...DEFAULT_EMAIL_SETTINGS, ...(stored.email ?? {}) },
+    // tts is also a nested block; same merge rule applies so flipping the
+    // toggle on a fresh install doesn't drop the default voice/speed.
+    tts: { ...DEFAULT_TTS_SETTINGS, ...(stored.tts ?? {}) }
   }
 
   // Drop any legacy navItems entry — the host no longer has a navigation bar.

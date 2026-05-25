@@ -15,7 +15,8 @@ export const RELEASES: ReleaseEntry[] = [
     highlights: [
       'Contact search now accepts multiple queries in one call and ranks hits by how many matched',
       'New built-in Routines extension — schedule a prompt to fire the Agent on a weekly / bi-weekly / monthly / yearly cadence with a tool allowlist, and audit every fire',
-      'Extensions settings page unified into a single view — Installed and Available extensions are now visible together instead of behind a tab switch'
+      'Extensions settings page unified into a single view — Installed and Available extensions are now visible together instead of behind a tab switch',
+      'Read agent responses aloud — new built-in on-device text-to-speech via Piper, toggled from Settings → General. Replaces the vLLM TTS extension; voice files download on demand to ~/.rose/cache/piper/voices/.'
     ]
   },
   {

@@ -79,6 +79,11 @@ export const IPC = {
   // are declared in services/whisperService.ipc.ts.
   WHISPER_PRELOAD_PROGRESS: 'whisper:preloadProgress',
 
+  // TTS engine + voice download progress (main → renderer). Synthesize,
+  // cancel, listVoices, downloadVoice, uninstallVoice are declared by
+  // services/tts/ttsService.ipc.ts.
+  TTS_DOWNLOAD_PROGRESS: 'tts:downloadProgress',
+
   // Auto-updater event broadcasts (main → renderer). Request channels —
   // check, download, install, skipVersion — are declared by the typed manifest
   // in services/updaterService.ipc.ts.
