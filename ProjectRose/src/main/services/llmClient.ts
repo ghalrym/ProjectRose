@@ -66,6 +66,7 @@ import { toolRegistry, wrapExecute } from './toolRegistry'
 import type { ToolSourceContext, EmitFn, HookCtx, ToolSourceName, SubagentTurnContext } from './toolRegistry'
 import { readRecentInteractions } from './interactionLog'
 import { INTERACTION_LOG_CAPACITY } from '../../shared/interactionLog'
+import { buildSettingsSnapshot } from './settingsSnapshot'
 import type { ScreenshotResult } from './chatSession'
 
 function notifyRenderer(channel: string, payload: unknown): void {
@@ -670,6 +671,22 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
       description: 'Release a quarantined message so email_get_message will return its body again.',
       inputSchema: z.object({ messageId: z.string() }),
       execute: wrapExecute('email_release_from_quarantine', handleEmailReleaseFromQuarantine, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    // ── Settings snapshot (configuration + live connection tests) ───────────
+    read_settings_snapshot: tool({
+      description: 'Return a structured snapshot of the user\'s current ProjectRose configuration plus live connection-test results for every configured provider. Two top-level keys: `configuration` (the user\'s settings, with credentials stripped) and `connections` (one entry per provider with `status: "ok" | "not-configured" | "failed: <reason>"` and optional `detail`). Providers tested: projectRose (managed model auth), ollama (local model server), googleAuth (OAuth token refresh), googleCalendar (scope check), imap, smtp. Use when the user asks "is X working", "what\'s configured", "why isn\'t Y connecting", or before suggesting they change a provider. Calls hit the network — only invoke when you actually need a live read; one call per turn is typically enough.',
+      inputSchema: z.object({}),
+      execute: wrapExecute(
+        'read_settings_snapshot',
+        async (_input, root) => {
+          const snapshot = await buildSettingsSnapshot(root)
+          return JSON.stringify(snapshot)
+        },
+        projectRoot,
+        emit,
+        toolCtx,
+        hookCtx
+      )
     }),
     // ── User-interaction log (in-memory ring, capacity 50) ───────────────────
     read_recent_interactions: tool({

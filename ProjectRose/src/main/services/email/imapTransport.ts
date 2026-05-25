@@ -91,6 +91,41 @@ async function buildSmtpTransporter(): Promise<Transporter> {
   })
 }
 
+// Open a short-lived IMAP connection and immediately close it. Used by the
+// settings-snapshot tool to answer "does the user's IMAP setup actually work
+// right now?" without leaking the password.
+export async function verifyImapConnection(): Promise<void> {
+  const s = await readSettings()
+  const imap = s.email?.imap
+  if (!imap) throw new Error('IMAP config missing.')
+  const pwds = await readImapPasswords()
+  if (!pwds) throw new Error('IMAP password not available.')
+  const client = new ImapFlow({
+    host: imap.host,
+    port: imap.port,
+    secure: imap.secure,
+    auth: { user: imap.username, pass: pwds.imapPassword },
+    logger: false
+  })
+  try {
+    await client.connect()
+  } finally {
+    try { await client.logout() } catch { /* ignore */ }
+  }
+}
+
+// Open an SMTP transporter and call nodemailer's verify() — performs the
+// connect + STARTTLS + auth handshake without sending mail. Same purpose as
+// verifyImapConnection for the outbound side.
+export async function verifySmtpConnection(): Promise<void> {
+  const transporter = await buildSmtpTransporter()
+  try {
+    await transporter.verify()
+  } finally {
+    try { transporter.close() } catch { /* ignore */ }
+  }
+}
+
 function snippetFrom(body: string): string {
   return body.replace(/\s+/g, ' ').trim().slice(0, 200)
 }
