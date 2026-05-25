@@ -8,8 +8,11 @@ interface ChatCellProps {
   message: UserMessage | AssistantMessage | ThinkingMessage
 }
 
+const stripEdgeNewlines = (s: string): string => s.replace(/^[\r\n]+|[\r\n]+$/g, '')
+
 export function ChatCell({ message }: ChatCellProps): JSX.Element {
   const [expanded, setExpanded] = useState(true)
+  const displayContent = stripEdgeNewlines(message.content)
 
   const handleCopy = async (e: MouseEvent): Promise<void> => {
     e.stopPropagation()
@@ -52,7 +55,7 @@ export function ChatCell({ message }: ChatCellProps): JSX.Element {
           </span>
         </div>
         {expanded && (
-          <div className={styles.thinkingContent}>{message.content}</div>
+          <div className={styles.thinkingContent}>{displayContent}</div>
         )}
       </div>
     )
@@ -103,7 +106,7 @@ export function ChatCell({ message }: ChatCellProps): JSX.Element {
           {!isUser && (message as AssistantMessage).fallbackNotice && (
             <div className={styles.fallbackNotice}>{(message as AssistantMessage).fallbackNotice}</div>
           )}
-          {message.content}
+          {displayContent}
           {isStreaming && (
             <span className={styles.streamCursor} aria-hidden="true" />
           )}
