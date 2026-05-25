@@ -7,6 +7,7 @@ import memoryRaw from '../builtin-skills/memory.md?raw'
 import extensionsRaw from '../builtin-skills/extensions.md?raw'
 import toolsRaw from '../builtin-skills/tools.md?raw'
 import settingsRaw from '../builtin-skills/settings.md?raw'
+import reportBugRaw from '../builtin-skills/report-bug.md?raw'
 
 export const BUILTIN_SKILL_PREFIX = 'rose:'
 
@@ -70,6 +71,7 @@ const extensionsStatic = staticBody(extensionsRaw)
 const toolsStatic = staticBody(toolsRaw)
 const settingsStatic = staticBody(settingsRaw)
 const patchNotesStatic = staticBody(patchNotesRaw)
+const reportBugStatic = staticBody(reportBugRaw)
 
 const BUILTIN_SKILLS: BuiltinSkill[] = [
   { shortName: 'about', description: aboutStatic.description, resolveBody: aboutStatic.resolve },
@@ -87,7 +89,8 @@ const BUILTIN_SKILLS: BuiltinSkill[] = [
   { shortName: 'memory', description: memoryStatic.description, resolveBody: memoryStatic.resolve },
   { shortName: 'extensions', description: extensionsStatic.description, resolveBody: extensionsStatic.resolve },
   { shortName: 'tools', description: toolsStatic.description, resolveBody: toolsStatic.resolve },
-  { shortName: 'settings', description: settingsStatic.description, resolveBody: settingsStatic.resolve }
+  { shortName: 'settings', description: settingsStatic.description, resolveBody: settingsStatic.resolve },
+  { shortName: 'report-bug', description: reportBugStatic.description, resolveBody: reportBugStatic.resolve }
 ]
 
 const fullName = (shortName: string): string => `${BUILTIN_SKILL_PREFIX}${shortName}`

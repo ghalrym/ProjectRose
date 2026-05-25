@@ -25,6 +25,7 @@ When the user asks…
 | Writing or designing an extension | `rose:extensions` |
 | What tools you have, or how to turn one on/off | `rose:tools` |
 | Where to change a setting | `rose:settings` |
+| Reporting a bug, sending feedback to the team, or "something's broken" | `rose:report-bug` |
 
 Always load the matching skill before answering — don't guess. The bundled skills are kept in sync with the actual app, so they're the source of truth.
 
