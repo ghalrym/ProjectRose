@@ -12,6 +12,7 @@ import {
 } from '@shared/contactFields'
 import { FieldList } from './fields/FieldList'
 import { OrgList, type OrgEntry } from './fields/OrgList'
+import { logInteraction } from '../../../lib/interactionLog'
 import styles from './ContactsPage.module.css'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -121,6 +122,7 @@ export function ContactsPage(): JSX.Element {
     try {
       await window.api.memory.writeContact({ entity: selected, content: currentContent })
       setOriginalContent(currentContent)
+      logInteraction('contact.edited')
       void refresh()
     } finally { setBusy(null) }
   }
@@ -133,6 +135,7 @@ export function ContactsPage(): JSX.Element {
       setSelected(null)
       setOriginalContent('')
       setState(null)
+      logInteraction('contact.deleted')
       void refresh()
     } finally { setBusy(null) }
   }
@@ -146,6 +149,7 @@ export function ContactsPage(): JSX.Element {
       if (kind !== 'other') {
         await window.api.memory.setContactKind({ entity: created.entity, kind })
       }
+      logInteraction('contact.created')
       await refresh()
       setSelected(created.entity)
       setNewOpen(false)

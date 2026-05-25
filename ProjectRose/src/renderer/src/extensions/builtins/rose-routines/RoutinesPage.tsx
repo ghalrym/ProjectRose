@@ -20,6 +20,7 @@ import {
 import { parseRunMarkdown, type RoutineRunRecord } from '@shared/routineTranscript'
 import type { ToolMeta } from '@shared/types'
 import { useProjectStore } from '../../../stores/useProjectStore'
+import { logInteraction } from '../../../lib/interactionLog'
 import styles from './RoutinesPage.module.css'
 
 type View = { kind: 'list' } | { kind: 'edit'; slug: string | null } | { kind: 'run'; slug: string; filename: string }
@@ -378,7 +379,9 @@ function EditView({
       // markdown via buildRoutineMarkdown again on its side. The serialise
       // above is just a sanity check that the round-trip is clean.
       void serialised
+      const wasCreating = !slug
       const { slug: newSlug } = await window.api.routines.save(rootPath, slug ?? '', next)
+      logInteraction(wasCreating ? 'routine.created' : 'routine.edited')
       onSaved(newSlug)
     } finally {
       setSaving(false)
@@ -392,6 +395,7 @@ function EditView({
     }
     if (!window.confirm(`Delete routine "${name}"? Run history is preserved.`)) return
     await window.api.routines.delete(rootPath, slug)
+    logInteraction('routine.deleted')
     onDeleted()
   }
 

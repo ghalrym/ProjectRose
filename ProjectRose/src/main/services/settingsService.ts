@@ -5,6 +5,7 @@ import { serviceStatus } from './serviceStatus'
 import { DEFAULT_MEMORY_SETTINGS, type MemorySettings } from '../../shared/memory'
 import { DEFAULT_EMAIL_SETTINGS, type EmailSettings } from '../../shared/email'
 import { DEFAULT_TTS_SETTINGS, type TtsSettings } from '../../shared/tts'
+import { logInteraction } from './interactionLog'
 
 export interface ModelConfig {
   provider: 'ollama' | 'projectrose'
@@ -140,6 +141,12 @@ export async function applySettingsPatch(
   const current = await readSettings(rootPath)
   const updated = { ...current, ...patch }
   await writeSettings(updated, rootPath)
+  // Log one interaction per top-level key the user changed. We deliberately
+  // log the key name only — never the value — so the entry is privacy-safe
+  // even for password / token fields.
+  for (const key of Object.keys(patch)) {
+    logInteraction('settings.changed', key)
+  }
   return updated
 }
 

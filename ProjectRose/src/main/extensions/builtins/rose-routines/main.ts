@@ -17,6 +17,7 @@ import { join } from 'path'
 import { RRule, rrulestr } from 'rrule'
 import type { ExtensionManifest } from '@shared/extension-types'
 import type { ExtensionMainContext } from '@shared/extension-contract'
+import { logInteraction } from '../../../services/interactionLog'
 import {
   buildRoutineMarkdown,
   emptyRoutine,
@@ -350,6 +351,7 @@ async function fireRoutine(
     return
   }
   state.running.add(slug)
+  logInteraction('routine.fired', slug)
 
   const startedAt = new Date()
   const promptBody = getRoutinePrompt(routine).trim()

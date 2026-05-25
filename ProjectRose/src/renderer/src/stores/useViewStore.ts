@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { ActiveView } from '../../../shared/types'
+import { logInteraction } from '../lib/interactionLog'
 
 interface ViewState {
   activeView: ActiveView
@@ -16,17 +17,37 @@ interface ViewState {
   setSettingsTarget: (target: string | null) => void
 }
 
-export const useViewStore = create<ViewState>()((set) => ({
+// ActiveView is BaseView ('editor' | 'chat' | 'settings') | extension id.
+// We also recognize 'account' as a base view at the app level (see App.tsx).
+// Any other string is an extension id.
+const BASE_VIEWS = new Set(['editor', 'chat', 'settings', 'account'])
+
+export const useViewStore = create<ViewState>()((set, get) => ({
   activeView: 'chat',
   sidebarWidth: 240,
   terminalHeight: 200,
   isTerminalVisible: true,
   isChatFullWidth: false,
   settingsTarget: null,
-  setActiveView: (view) => set({ activeView: view }),
+  setActiveView: (view) => {
+    if (get().activeView !== view) {
+      if (BASE_VIEWS.has(view)) {
+        logInteraction('view.changed', view)
+      } else {
+        logInteraction('extension.opened', view)
+      }
+    }
+    set({ activeView: view })
+  },
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
   setTerminalHeight: (height) => set({ terminalHeight: height }),
-  toggleTerminal: () => set((s) => ({ isTerminalVisible: !s.isTerminalVisible })),
-  toggleChatFullWidth: () => set((s) => ({ isChatFullWidth: !s.isChatFullWidth })),
+  toggleTerminal: () => {
+    logInteraction('view.terminal-toggled')
+    set((s) => ({ isTerminalVisible: !s.isTerminalVisible }))
+  },
+  toggleChatFullWidth: () => {
+    logInteraction('view.chat-toggled')
+    set((s) => ({ isChatFullWidth: !s.isChatFullWidth }))
+  },
   setSettingsTarget: (target) => set({ settingsTarget: target })
 }))

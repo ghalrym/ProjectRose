@@ -8,6 +8,7 @@ import type {
   QuarantineEntry
 } from '@shared/email'
 import { useAppsDrawerStore } from '../../../stores/useAppsDrawerStore'
+import { logInteraction } from '../../../lib/interactionLog'
 import styles from './InboxPage.module.css'
 
 type Tab = 'inbox' | 'quarantine'
@@ -114,6 +115,7 @@ export function InboxPage(): JSX.Element {
     let cancelled = false
     setReader(null)
     setReaderErr(null)
+    logInteraction('email.opened')
     window.api.email.getMessage(selectedId).then((m) => {
       if (!cancelled) setReader(m)
     }).catch((e) => {
@@ -389,15 +391,15 @@ function ReaderPane(props: {
 
   const archive = async (): Promise<void> => {
     setBusy(true)
-    try { await window.api.email.archive(m.id); props.onRefreshList() } finally { setBusy(false) }
+    try { await window.api.email.archive(m.id); logInteraction('email.archived'); props.onRefreshList() } finally { setBusy(false) }
   }
   const del = async (): Promise<void> => {
     setBusy(true)
-    try { await window.api.email.deleteMessage(m.id); props.onRefreshList() } finally { setBusy(false) }
+    try { await window.api.email.deleteMessage(m.id); logInteraction('email.deleted'); props.onRefreshList() } finally { setBusy(false) }
   }
   const markUnread = async (): Promise<void> => {
     setBusy(true)
-    try { await window.api.email.markRead({ messageId: m.id, read: false }); props.onRefreshList() } finally { setBusy(false) }
+    try { await window.api.email.markRead({ messageId: m.id, read: false }); logInteraction('email.marked-unread'); props.onRefreshList() } finally { setBusy(false) }
   }
 
   return (
@@ -472,8 +474,10 @@ function ComposeModal(props: {
     try {
       if (props.replyToId) {
         await window.api.email.reply({ messageId: props.replyToId, body, replyAll: false })
+        logInteraction('email.replied')
       } else if (props.forwardFromId) {
         await window.api.email.forward({ messageId: props.forwardFromId, to: toList, body })
+        logInteraction('email.forwarded')
       } else {
         await window.api.email.sendMessage({
           to: toList,
@@ -482,6 +486,7 @@ function ComposeModal(props: {
           subject,
           body
         })
+        logInteraction('email.sent')
       }
       props.onSent()
     } catch (e: unknown) {
@@ -558,6 +563,7 @@ function QuarantineList(): JSX.Element {
     setBusy(messageId)
     try {
       await window.api.email.releaseFromQuarantine(messageId)
+      logInteraction('email.released-from-quarantine')
       void refresh()
     } finally { setBusy(null) }
   }

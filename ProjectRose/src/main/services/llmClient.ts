@@ -64,6 +64,8 @@ import { WEB_BASE_URL } from '../lib/webConfig'
 import { sessionRegistry } from './sessionRegistry'
 import { toolRegistry, wrapExecute } from './toolRegistry'
 import type { ToolSourceContext, EmitFn, HookCtx, ToolSourceName, SubagentTurnContext } from './toolRegistry'
+import { readRecentInteractions } from './interactionLog'
+import { INTERACTION_LOG_CAPACITY } from '../../shared/interactionLog'
 import type { ScreenshotResult } from './chatSession'
 
 function notifyRenderer(channel: string, payload: unknown): void {
@@ -668,6 +670,26 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
       description: 'Release a quarantined message so email_get_message will return its body again.',
       inputSchema: z.object({ messageId: z.string() }),
       execute: wrapExecute('email_release_from_quarantine', handleEmailReleaseFromQuarantine, projectRoot, emit, toolCtx, hookCtx)
+    }),
+    // ── User-interaction log (in-memory ring, capacity 50) ───────────────────
+    read_recent_interactions: tool({
+      description: `Read the most recent UI actions the user has taken in this app (this session only — the log is in-memory and resets on app restart). Returns up to ${INTERACTION_LOG_CAPACITY} entries, newest last, each shaped as { timestamp, kind, target? }. Use when the user refers to "what I just did", their current view, a setting they toggled, or otherwise expects you to know recent UI context. Kinds include: view.changed (target=view), view.chat-toggled, view.terminal-toggled, chat.message-sent, settings.changed (target=key path, never a value), project.opened, extension.installed/uninstalled/enabled/disabled/opened, email.opened/sent/replied/forwarded/archived/deleted/moved/labeled, contact.created/edited/deleted, calendar.event-created/edited/deleted, routine.created/edited/deleted/fired.`,
+      inputSchema: z.object({
+        limit: z.number().optional().describe(`Max entries to return (default and max ${INTERACTION_LOG_CAPACITY}).`)
+      }),
+      execute: wrapExecute(
+        'read_recent_interactions',
+        async (input) => {
+          const rawLimit = typeof input.limit === 'number' ? input.limit : INTERACTION_LOG_CAPACITY
+          const limit = Math.max(0, Math.min(INTERACTION_LOG_CAPACITY, Math.floor(rawLimit)))
+          const entries = readRecentInteractions(limit)
+          return JSON.stringify(entries)
+        },
+        projectRoot,
+        emit,
+        toolCtx,
+        hookCtx
+      )
     })
   }
 }

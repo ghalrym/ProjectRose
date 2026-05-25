@@ -23,6 +23,9 @@ import {
 import { skillIpc } from '../services/skillService.ipc'
 import { listSkills, deleteSkill } from '../services/skillService'
 
+import { interactionLogIpc } from '../services/interactionLog.ipc'
+import { logInteraction, readRecentInteractions } from '../services/interactionLog'
+
 import { fileIpc } from '../services/fileService.ipc'
 import {
   readFileContent,
@@ -228,6 +231,10 @@ export function registerIpcManifests(): void {
   skillIpc.register({
     list: listSkills,
     delete: deleteSkill
+  })
+  interactionLogIpc.register({
+    log: (kind, target) => { logInteraction(kind, target) },
+    list: (limit) => readRecentInteractions(limit)
   })
   fileIpc.register({
     read: readFileContent,

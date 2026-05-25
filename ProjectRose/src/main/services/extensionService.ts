@@ -25,6 +25,7 @@ import {
 import { buildContext, type HostExtensionSurface } from '../extensions/buildContext'
 import { toolRegistry } from './toolRegistry'
 import { withAugmentedPath } from '../lib/childProcessEnv'
+import { logInteraction } from './interactionLog'
 
 // Where the extension code lives — one copy per machine, shared across all
 // workspaces.
@@ -765,6 +766,7 @@ export async function installConfirm(token: string): Promise<InstallResult> {
   pendingInstalls.delete(token)
   try {
     const { manifest, warning } = await finalizePendingInstall(pending)
+    logInteraction('extension.installed', manifest.id)
     return { ok: true, manifest, warning }
   } catch (err) {
     await rm(pending.tmpDir, { recursive: true, force: true }).catch(() => {})
@@ -788,12 +790,14 @@ export async function uninstallExtension(rootPath: string, id: string): Promise<
   // already treats a missing install as a no-op.
   const installPath = join(getInstallDir(), id)
   await rm(installPath, { recursive: true, force: true })
+  logInteraction('extension.uninstalled', id)
   return { ok: true }
 }
 
 export async function enableExtension(rootPath: string, id: string): Promise<{ ok: boolean }> {
   await ensureWorkspaceExtensionsDir(rootPath)
   await writeEnabledState(rootPath, id, true)
+  logInteraction('extension.enabled', id)
   return { ok: true }
 }
 
@@ -801,6 +805,7 @@ export async function disableExtension(rootPath: string, id: string): Promise<{ 
   unloadExtensionMainModule(rootPath, id)
   await ensureWorkspaceExtensionsDir(rootPath)
   await writeEnabledState(rootPath, id, false)
+  logInteraction('extension.disabled', id)
   return { ok: true }
 }
 

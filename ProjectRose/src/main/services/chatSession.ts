@@ -16,6 +16,7 @@ import type { SubagentTurnContext, ToolSourceName } from './toolRegistry'
 import { buildAgentMd } from './agentMd'
 import { selectModel } from './modelSelection'
 import { logAssistantMessage, logUserMessage } from './memory/conversationLog'
+import { logInteraction } from './interactionLog'
 
 // Screenshot result shape — duplicated from llmClient.ts so chatSession.ts
 // does not import from llmClient (which would form a cycle).
@@ -227,6 +228,7 @@ export class ChatSession {
     // would clutter the diary's view of the user's day.
     if (isMain && userMessage) {
       void logUserMessage({ sessionId, rootPath, content: userMessage })
+      logInteraction('chat.message-sent')
     }
     const selectedModel = await selectModel(userMessage, settings)
     const modelDisplay = selectedModel.modelName

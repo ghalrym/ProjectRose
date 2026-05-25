@@ -5,6 +5,7 @@ import type { Message } from '../shared/roseModelTypes'
 import { sessionIpc } from '../main/services/sessionService.ipc'
 import { promptIpc } from '../main/services/promptService.ipc'
 import { skillIpc } from '../main/services/skillService.ipc'
+import { interactionLogIpc } from '../main/services/interactionLog.ipc'
 import { fileIpc } from '../main/services/fileService.ipc'
 import { recentProjectsIpc } from '../main/services/recentProjects.ipc'
 import { settingsIpc, healthIpc } from '../main/services/settingsService.ipc'
@@ -461,6 +462,10 @@ const api = {
     upload: (rootPath: string): Promise<{ ok: boolean; canceled?: boolean; skills?: { name: string; description: string }[] }> =>
       ipcRenderer.invoke(IPC.SKILLS_UPLOAD, rootPath)
   },
+
+  // In-memory user-interaction log — renderer chokepoints fire-and-forget here
+  // so the agent can read the most recent UI actions via read_recent_interactions.
+  interactions: interactionLogIpc.bindings,
 
   // Generic IPC bridge — used by dynamically-loaded extensions
   invoke: (channel: string, ...args: unknown[]): Promise<unknown> =>

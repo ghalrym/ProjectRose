@@ -6,6 +6,7 @@ import type {
   EventTime,
   ResolvedEventOccurrence
 } from '@shared/memory'
+import { logInteraction } from '../../../lib/interactionLog'
 import styles from './CalendarPage.module.css'
 
 // ── Time helpers ─────────────────────────────────────────────────────────
@@ -235,6 +236,7 @@ export function CalendarPage(): JSX.Element {
             recurrence
           }
         })
+        logInteraction('calendar.event-edited')
       } else {
         await window.api.memory.createEvent({
           summary: editor.summary,
@@ -245,6 +247,7 @@ export function CalendarPage(): JSX.Element {
           attendees,
           recurrence
         })
+        logInteraction('calendar.event-created')
       }
       closeEditor()
       void refresh()
@@ -259,6 +262,7 @@ export function CalendarPage(): JSX.Element {
     setError(null)
     try {
       await window.api.memory.deleteEvent(editor.ref)
+      logInteraction('calendar.event-deleted')
       closeEditor()
       void refresh()
     } catch (err) {
