@@ -20,7 +20,11 @@ import { ipcMain, ipcRenderer } from 'electron'
 //    duration of the migration.
 // 5. Handler exceptions are not wrapped. `ipcMain.handle` already rejects
 //    the renderer-side promise when the handler throws; preserving that
-//    behavior matches every existing hand-written handler.
+//    behavior matches every existing hand-written handler. The binding
+//    layer does strip Electron's `Error invoking remote method '<chan>':
+//    <ErrorClass>: ` envelope so renderer error handling can match the
+//    original main-side error message verbatim (e.g. `[email:<tag>]`
+//    sentinels).
 
 export interface IpcMethodSchema<TArgs extends readonly unknown[], TResult> {
   readonly __args?: TArgs
@@ -61,7 +65,13 @@ export function defineIpc<TMethods extends AnyMethodMap>(
 
   const bindings: Record<string, (...args: unknown[]) => Promise<unknown>> = {}
   for (const name of names) {
-    bindings[name] = (...args: unknown[]) => ipcRenderer.invoke(channel(name), ...args)
+    bindings[name] = async (...args: unknown[]) => {
+      try {
+        return await ipcRenderer.invoke(channel(name), ...args)
+      } catch (e) {
+        throw unwrapIpcError(e)
+      }
+    }
   }
 
   return {
@@ -75,4 +85,23 @@ export function defineIpc<TMethods extends AnyMethodMap>(
     },
     bindings: bindings as IpcBindings<TMethods>
   }
+}
+
+// Electron rejects `ipcRenderer.invoke` with an Error whose message is
+// `Error invoking remote method '<channel>': <ErrorClass>: <originalMessage>`.
+// Strip that envelope so renderer code sees the same message the main-side
+// handler threw — otherwise sentinel prefixes (e.g. `[email:scope-missing]`)
+// never appear at the start of the string and consumers can't match them.
+const IPC_ENVELOPE_RE = /^Error invoking remote method '[^']+': (?:[A-Za-z]\w*Error: )?/
+
+function unwrapIpcError(e: unknown): unknown {
+  if (e instanceof Error) {
+    const stripped = e.message.replace(IPC_ENVELOPE_RE, '')
+    if (stripped !== e.message) {
+      const fresh = new Error(stripped)
+      fresh.stack = e.stack
+      return fresh
+    }
+  }
+  return e
 }

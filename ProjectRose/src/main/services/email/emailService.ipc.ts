@@ -7,7 +7,6 @@ import type {
   EmailStatus,
   ForwardArgs,
   ListMessagesArgs,
-  QuarantineEntry,
   ReplyArgs,
   SaveImapTransportArgs,
   SearchArgs,
@@ -43,9 +42,5 @@ export const emailIpc = defineIpc('email', {
   archive: method<[messageId: string], void>(),
   move: method<[payload: { messageId: string; folder: string }], void>(),
   label: method<[payload: { messageId: string; label: string; add: boolean }], void>(),
-  deleteMessage: method<[messageId: string], void>(),
-
-  // Quarantine
-  listQuarantined: method<[limit?: number], QuarantineEntry[]>(),
-  releaseFromQuarantine: method<[messageId: string], void>()
+  deleteMessage: method<[messageId: string], void>()
 })

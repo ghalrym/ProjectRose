@@ -39,7 +39,7 @@ Load `rose:memory` if the user wants to understand what's in their memory beyond
 
 ## Email
 
-The user's inbox. They pick a provider (Gmail or IMAP/SMTP), enter credentials, and choose which folders to surface. Passwords are stored encrypted on their machine, not in the regular settings file. There's also a quarantine for messages that look suspicious — the user can review and release them.
+The user's inbox. They pick a provider (Gmail or IMAP/SMTP), enter credentials, and choose which folders to surface. Passwords are stored encrypted on their machine, not in the regular settings file.
 
 ## Tools
 

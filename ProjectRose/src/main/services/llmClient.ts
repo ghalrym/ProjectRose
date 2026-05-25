@@ -50,9 +50,7 @@ import {
   handleEmailArchive,
   handleEmailMove,
   handleEmailLabel,
-  handleEmailDelete,
-  handleEmailListQuarantined,
-  handleEmailReleaseFromQuarantine
+  handleEmailDelete
 } from './email/tools'
 import type { ExtensionToolCtx } from '../../shared/extension-types'
 import type { Message } from '../../shared/roseModelTypes'
@@ -565,7 +563,7 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
     }),
     // ─── rose-email: read group ───────────────────────────────────────
     email_list_messages: tool({
-      description: 'List messages in a folder. Quarantined messages (suspected prompt-injection) are filtered out and only visible via email_list_quarantined.',
+      description: 'List messages in a folder.',
       inputSchema: z.object({
         folder: z.string().optional().describe('Folder/label ID. Defaults to INBOX.'),
         limit: z.number().optional().describe('Max messages to return. Default 50.'),
@@ -574,7 +572,7 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
       execute: wrapExecute('email_list_messages', handleEmailListMessages, projectRoot, emit, toolCtx, hookCtx)
     }),
     email_search: tool({
-      description: 'Search messages by free-text query. Quarantined messages are excluded.',
+      description: 'Search messages by free-text query.',
       inputSchema: z.object({
         query: z.string().describe('Search query'),
         folder: z.string().optional().describe('Restrict to a folder/label ID'),
@@ -583,7 +581,7 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
       execute: wrapExecute('email_search', handleEmailSearch, projectRoot, emit, toolCtx, hookCtx)
     }),
     email_get_message: tool({
-      description: 'Fetch a full message by ID. Triggers quarantine scan on first sight; throws if flagged.',
+      description: 'Fetch a full message by ID.',
       inputSchema: z.object({ messageId: z.string().describe('Message ID returned by list/search') }),
       execute: wrapExecute('email_get_message', handleEmailGetMessage, projectRoot, emit, toolCtx, hookCtx)
     }),
@@ -660,17 +658,6 @@ export function buildCoreTools(ctx: ToolSourceContext): Record<string, any> {
       description: 'Move a message to Trash. Never hard-deletes.',
       inputSchema: z.object({ messageId: z.string() }),
       execute: wrapExecute('email_delete', handleEmailDelete, projectRoot, emit, toolCtx, hookCtx)
-    }),
-    // ─── rose-email: quarantine group ─────────────────────────────────
-    email_list_quarantined: tool({
-      description: 'List messages currently in the prompt-injection quarantine. Bodies remain hidden from read tools until released.',
-      inputSchema: z.object({ limit: z.number().optional() }),
-      execute: wrapExecute('email_list_quarantined', handleEmailListQuarantined, projectRoot, emit, toolCtx, hookCtx)
-    }),
-    email_release_from_quarantine: tool({
-      description: 'Release a quarantined message so email_get_message will return its body again.',
-      inputSchema: z.object({ messageId: z.string() }),
-      execute: wrapExecute('email_release_from_quarantine', handleEmailReleaseFromQuarantine, projectRoot, emit, toolCtx, hookCtx)
     }),
     // ── Settings snapshot (configuration + live connection tests) ───────────
     read_settings_snapshot: tool({

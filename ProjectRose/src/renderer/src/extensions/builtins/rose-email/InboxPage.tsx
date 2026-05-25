@@ -4,14 +4,11 @@ import type {
   EmailFolder,
   EmailMessage,
   EmailMessageSummary,
-  EmailStatus,
-  QuarantineEntry
+  EmailStatus
 } from '@shared/email'
 import { useAppsDrawerStore } from '../../../stores/useAppsDrawerStore'
 import { logInteraction } from '../../../lib/interactionLog'
 import styles from './InboxPage.module.css'
-
-type Tab = 'inbox' | 'quarantine'
 
 type GmailErrorCategory = 'scope-missing' | 'api-disabled' | 'generic'
 
@@ -43,7 +40,6 @@ function parseGmailError(message: string | null): GmailErrorInfo | null {
 
 export function InboxPage(): JSX.Element {
   const [status, setStatus] = useState<EmailStatus | null>(null)
-  const [tab, setTab] = useState<Tab>('inbox')
   const [folders, setFolders] = useState<EmailFolder[]>([])
   const [activeFolder, setActiveFolder] = useState<string | null>(null)
   const [messages, setMessages] = useState<EmailMessageSummary[]>([])
@@ -107,8 +103,8 @@ export function InboxPage(): JSX.Element {
   }, [status?.ready, loadFolders])
 
   useEffect(() => {
-    if (status?.ready && activeFolder && tab === 'inbox') void loadMessages()
-  }, [status?.ready, activeFolder, tab, loadMessages])
+    if (status?.ready && activeFolder) void loadMessages()
+  }, [status?.ready, activeFolder, loadMessages])
 
   useEffect(() => {
     if (!selectedId) { setReader(null); return }
@@ -146,18 +142,6 @@ export function InboxPage(): JSX.Element {
   return (
     <div className={styles.page}>
       <div className={styles.topBar}>
-        <button
-          className={tab === 'inbox' ? styles.tabBtnActive : styles.tabBtn}
-          onClick={() => setTab('inbox')}
-        >
-          Inbox
-        </button>
-        <button
-          className={tab === 'quarantine' ? styles.tabBtnActive : styles.tabBtn}
-          onClick={() => setTab('quarantine')}
-        >
-          Quarantine
-        </button>
         {busy && <span className={styles.busyText}>{busy}</span>}
         <button
           className={styles.composeBtn}
@@ -168,27 +152,23 @@ export function InboxPage(): JSX.Element {
         </button>
       </div>
 
-      {tab === 'inbox' ? (
-        <div className={styles.threePane}>
-          <FolderSidebar
-            folders={folders}
-            active={activeFolder}
-            onSelect={(id) => { setActiveFolder(id); setSelectedId(null) }}
-          />
-          <MessageList
-            messages={messages}
-            selected={selectedId}
-            onSelect={setSelectedId}
-          />
-          <ReaderPane
-            message={reader}
-            err={readerErr}
-            onRefreshList={() => { void loadMessages() }}
-          />
-        </div>
-      ) : (
-        <QuarantineList />
-      )}
+      <div className={styles.threePane}>
+        <FolderSidebar
+          folders={folders}
+          active={activeFolder}
+          onSelect={(id) => { setActiveFolder(id); setSelectedId(null) }}
+        />
+        <MessageList
+          messages={messages}
+          selected={selectedId}
+          onSelect={setSelectedId}
+        />
+        <ReaderPane
+          message={reader}
+          err={readerErr}
+          onRefreshList={() => { void loadMessages() }}
+        />
+      </div>
 
       {composeOpen && (
         <ComposeModal
@@ -543,58 +523,3 @@ function ComposeModal(props: {
   )
 }
 
-// ── Quarantine list ──────────────────────────────────────────────────────
-
-function QuarantineList(): JSX.Element {
-  const [entries, setEntries] = useState<QuarantineEntry[]>([])
-  const [busy, setBusy] = useState<string | null>(null)
-
-  const refresh = useCallback(async () => {
-    try {
-      setEntries(await window.api.email.listQuarantined(undefined))
-    } catch {
-      setEntries([])
-    }
-  }, [])
-
-  useEffect(() => { void refresh() }, [refresh])
-
-  const release = async (messageId: string): Promise<void> => {
-    setBusy(messageId)
-    try {
-      await window.api.email.releaseFromQuarantine(messageId)
-      logInteraction('email.released-from-quarantine')
-      void refresh()
-    } finally { setBusy(null) }
-  }
-
-  if (entries.length === 0) {
-    return <div className={styles.quarantineList}><div className={styles.quarantineEmpty}>No quarantined messages.</div></div>
-  }
-
-  return (
-    <div className={styles.quarantineList}>
-      {entries.map((e) => (
-        <div key={e.key} className={styles.quarantineEntry}>
-          <div className={styles.quarantineSubject}>{e.summary.subject || '(no subject)'}</div>
-          <div className={styles.quarantineMeta}>
-            From: {e.summary.from?.address ?? '(unknown)'} · Flagged {new Date(e.flaggedAt).toLocaleString()}
-            {e.released && ' · released'}
-          </div>
-          <div className={styles.quarantineReasons}>
-            {e.reasons.map((r, i) => (
-              <span key={i} className={styles.quarantineReason} title={r.detail}>{r.rule}</span>
-            ))}
-          </div>
-          <button
-            className={styles.btnPrimary}
-            onClick={() => void release(e.messageId)}
-            disabled={busy === e.messageId || e.released}
-          >
-            {e.released ? 'Released' : busy === e.messageId ? 'Releasing…' : 'Release'}
-          </button>
-        </div>
-      ))}
-    </div>
-  )
-}

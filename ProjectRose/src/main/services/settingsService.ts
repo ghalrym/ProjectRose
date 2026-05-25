@@ -89,6 +89,10 @@ export async function readSettings(_rootPath?: string): Promise<AppSettings> {
   // Drop any legacy navItems entry — the host no longer has a navigation bar.
   delete (merged as Record<string, unknown>).navItems
 
+  // Drop the legacy email quarantine block (the heuristic prompt-injection
+  // scanner was removed; old settings.json files may still carry it).
+  delete (merged.email as unknown as Record<string, unknown>).quarantine
+
   // Drop legacy provider config (anthropic/openai/bedrock/openai-compatible
   // were removed when ProjectRose narrowed to projectrose + ollama). Older
   // ~/.rose/settings.json files may still carry these fields.

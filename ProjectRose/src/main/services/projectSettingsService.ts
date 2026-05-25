@@ -140,19 +140,19 @@ const BUILTIN_EXTENSION_TOOLS: Record<string, BuiltinExtensionToolMeta> = {
     extensionId: 'rose-email',
     extensionName: 'Email',
     displayName: 'List Messages',
-    description: 'List inbox or folder messages (quarantined filtered out)'
+    description: 'List inbox or folder messages'
   },
   email_search: {
     extensionId: 'rose-email',
     extensionName: 'Email',
     displayName: 'Search',
-    description: 'Search messages by free-text query (quarantined filtered out)'
+    description: 'Search messages by free-text query'
   },
   email_get_message: {
     extensionId: 'rose-email',
     extensionName: 'Email',
     displayName: 'Get Message',
-    description: 'Fetch a full message; triggers prompt-injection quarantine scan'
+    description: 'Fetch a full message'
   },
   email_list_folders: {
     extensionId: 'rose-email',
@@ -217,19 +217,6 @@ const BUILTIN_EXTENSION_TOOLS: Record<string, BuiltinExtensionToolMeta> = {
     displayName: 'Delete',
     description: 'Move a message to Trash (no hard-delete)'
   },
-  email_list_quarantined: {
-    extensionId: 'rose-email',
-    extensionName: 'Email',
-    displayName: 'List Quarantined',
-    description: 'List messages flagged as suspected prompt-injection'
-  },
-  email_release_from_quarantine: {
-    extensionId: 'rose-email',
-    extensionName: 'Email',
-    displayName: 'Release From Quarantine',
-    description: 'Re-allow read tools to return a quarantined message.',
-    defaultDisabled: true
-  }
 }
 
 /**

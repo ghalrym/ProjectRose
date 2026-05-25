@@ -28,17 +28,11 @@ export interface EmailAccount {
   displayName: string | null
 }
 
-export interface EmailQuarantineSettings {
-  autoFlag: boolean            // master kill-switch for heuristic scanning
-  lastScanAt: number | null
-}
-
 export interface EmailSettings {
   transport: EmailTransportKind | null   // null = unconfigured / cleared
   account: EmailAccount
   imap: ImapConfig | null
   smtp: SmtpConfig | null
-  quarantine: EmailQuarantineSettings
   lastSyncAt: number | null
 }
 
@@ -47,7 +41,6 @@ export const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
   account: { address: null, displayName: null },
   imap: null,
   smtp: null,
-  quarantine: { autoFlag: true, lastScanAt: null },
   lastSyncAt: null
 }
 
@@ -71,8 +64,6 @@ export interface EmailFolder {
 
 /**
  * A single message. Body is text/plain unless `bodyHtml` is also populated.
- * The agent should never see bodies from quarantined messages — the
- * emailService filters them out of list/get tool results.
  */
 export interface EmailMessage {
   /** Stable transport-specific ID (IMAP UID-with-mailbox or Gmail message ID). */
@@ -108,26 +99,6 @@ export interface EmailMessageSummary {
   read: boolean
   labels: string[]
   hasAttachments: boolean
-}
-
-// ── Quarantine ──────────────────────────────────────────────────────────
-
-/** One reason flagged by the heuristic scanner. */
-export interface QuarantineReason {
-  rule: 'phrase' | 'hidden-text' | 'role-claim' | 'imperative-density'
-  detail: string
-}
-
-export interface QuarantineEntry {
-  /** `${transport}:${transportMessageId}` so IMAP UIDs and Gmail IDs never alias. */
-  key: string
-  transport: EmailTransportKind
-  messageId: string
-  /** Snapshot of the summary so we can show the queue even if the message moved on the server. */
-  summary: EmailMessageSummary
-  flaggedAt: number
-  reasons: QuarantineReason[]
-  released: boolean
 }
 
 // ── IPC + tool argument shapes ──────────────────────────────────────────

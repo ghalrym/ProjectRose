@@ -2,10 +2,10 @@
 // memory/tools.ts — (input, ...) => Promise<string> — so they can be wrapped
 // by `wrapExecute` and registered in `buildCoreTools` in llmClient.ts.
 //
-// Off-by-default destructive tools (send / reply / forward / release) are
-// declared in projectSettingsService's BUILTIN_EXTENSION_TOOLS with
-// `defaultDisabled: true`; the toolRegistry filters them out of the LLM's
-// catalog until the user toggles them on in Settings → Tools.
+// Off-by-default destructive tools (send / reply / forward) are declared in
+// projectSettingsService's BUILTIN_EXTENSION_TOOLS with `defaultDisabled:
+// true`; the toolRegistry filters them out of the LLM's catalog until the
+// user toggles them on in Settings → Tools.
 
 import {
   archiveMessage,
@@ -16,10 +16,8 @@ import {
   labelMessage,
   listFolders,
   listMessages,
-  listQuarantineEntries,
   markRead,
   moveMessage,
-  releaseQuarantineEntry,
   reply as emailReply,
   search as emailSearch,
   sendMessage
@@ -193,23 +191,3 @@ export async function handleEmailDelete(input: Record<string, unknown>): Promise
   return `Moved to Trash: ${messageId}`
 }
 
-// ── Quarantine ──────────────────────────────────────────────────────────
-
-export async function handleEmailListQuarantined(input: Record<string, unknown>): Promise<string> {
-  const limit = asNumber(input.limit)
-  const entries = await listQuarantineEntries(limit)
-  if (entries.length === 0) return 'No quarantined messages.'
-  return entries.map((e) => {
-    const from = e.summary.from?.address ?? '(unknown sender)'
-    const reasons = e.reasons.map((r) => r.rule).join(',')
-    const released = e.released ? ' [released]' : ''
-    return `${e.messageId}\t${from}\t${e.summary.subject}\t[${reasons}]${released}`
-  }).join('\n')
-}
-
-export async function handleEmailReleaseFromQuarantine(input: Record<string, unknown>): Promise<string> {
-  const messageId = asString(input.messageId)
-  if (!messageId) return 'Missing `messageId`.'
-  await releaseQuarantineEntry(messageId)
-  return `Released from quarantine: ${messageId}`
-}

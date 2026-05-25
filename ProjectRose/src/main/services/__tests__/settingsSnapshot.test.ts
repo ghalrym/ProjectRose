@@ -95,7 +95,6 @@ function baseSettings(overrides: Record<string, unknown> = {}): Record<string, u
       account: { address: null, displayName: null },
       imap: null,
       smtp: null,
-      quarantine: { autoFlag: true, lastScanAt: null },
       lastSyncAt: null
     },
     ...overrides
@@ -237,7 +236,6 @@ describe('buildSettingsSnapshot', () => {
         account: { address: 'me@e.com', displayName: 'Me' },
         imap: { host: 'imap.example.com', port: 993, secure: true, username: 'me@e.com' },
         smtp: { host: 'smtp.example.com', port: 587, secure: false, username: 'me@e.com' },
-        quarantine: { autoFlag: true, lastScanAt: null },
         lastSyncAt: null
       }
     })
@@ -260,7 +258,6 @@ describe('buildSettingsSnapshot', () => {
       account: { address: null, displayName: null },
       imap: { host: 'h', port: 993, secure: true, username: 'u' },
       smtp: { host: 'h', port: 587, secure: false, username: 'u' },
-      quarantine: { autoFlag: true, lastScanAt: null },
       lastSyncAt: null
     } })
     vi.mocked(hasImapPasswords).mockResolvedValue(true)

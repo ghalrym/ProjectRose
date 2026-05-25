@@ -13,6 +13,8 @@ export const RELEASES: ReleaseEntry[] = [
     date: null,
     title: 'Multi-query contact search',
     highlights: [
+      'Removed the email prompt-injection quarantine — incoming mail is no longer auto-flagged or hidden. The heuristic scanner, ledger, Quarantine tab, settings card, and the email_list_quarantined / email_release_from_quarantine agent tools are all gone',
+      'Cleaner IPC error messages — Electron\'s `Error invoking remote method \'…\': Error:` envelope is now stripped at the binding layer, so renderer error UIs see the original main-process message verbatim',
       'Contact search now accepts multiple queries in one call and ranks hits by how many matched',
       'New built-in Routines extension — schedule a prompt to fire the Agent on a weekly / bi-weekly / monthly / yearly cadence with a tool allowlist, and audit every fire',
       'Extensions settings page unified into a single view — Installed and Available extensions are now visible together instead of behind a tab switch',

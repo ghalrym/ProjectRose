@@ -32,7 +32,6 @@ You have a fixed set of capabilities. Each one is a "tool." This skill is what t
 - Read the inbox, search messages, view a specific message, list folders
 - Compose new messages, reply, forward, send
 - Mark read, archive, move, label, delete
-- Look at the quarantine for messages flagged as suspicious
 
 ### Calendar
 - Create events, edit events, look up an event, list events in a range, invite attendees, delete events

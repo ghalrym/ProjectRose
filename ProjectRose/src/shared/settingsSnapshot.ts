@@ -79,7 +79,6 @@ export interface SettingsSnapshot {
       accountDisplayName: string | null
       imap: { host: string; port: number; secure: boolean; username: string } | null
       smtp: { host: string; port: number; secure: boolean; username: string } | null
-      quarantineAutoFlag: boolean
       lastSyncAt: number | null
     }
     workspace: {

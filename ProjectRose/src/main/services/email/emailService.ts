@@ -1,10 +1,6 @@
 // Public facade for the rose-email built-in. IPC handlers and the agent
 // tool handlers both call into this module — they don't reach into the
-// transports directly. The facade is also where quarantine scanning runs:
-// new messages are scanned on first sight and persisted in the ledger so
-// they stay hidden from the agent's read tools until released.
-
-import log from 'electron-log/main'
+// transports directly.
 
 import type {
   DraftMessageArgs,
@@ -15,7 +11,6 @@ import type {
   EmailStatus,
   ForwardArgs,
   ListMessagesArgs,
-  QuarantineEntry,
   ReplyArgs,
   SaveImapTransportArgs,
   SearchArgs,
@@ -27,19 +22,7 @@ import { buildAuthedClient, googleAuthGetStatus } from '../google/googleAuth'
 import { google } from 'googleapis'
 import { callGmail } from './gmailTransport'
 
-import {
-  EmailTransportNotConfiguredError,
-  getActiveTransport,
-  getActiveTransportKind
-} from './emailTransport'
-import { scanForQuarantine } from './quarantineHeuristics'
-import {
-  clearQuarantineLedger,
-  isQuarantined,
-  listQuarantined,
-  recordQuarantine,
-  releaseFromQuarantine
-} from './quarantineStore'
+import { getActiveTransport } from './emailTransport'
 import {
   clearImapPasswords,
   hasImapPasswords,
@@ -121,12 +104,10 @@ async function assertGmailReady(): Promise<void> {
 /**
  * Clear the active transport. Wipes the inactive-side credentials (IMAP
  * passwords if leaving IMAP; we leave the shared Google refresh token alone
- * since Contacts may still need it) and the quarantine ledger, which is keyed
- * on transport-specific message ids that won't match the new transport's ids.
+ * since Contacts may still need it).
  */
 export async function clearEmailTransport(): Promise<EmailStatus> {
   await clearImapPasswords()
-  await clearQuarantineLedger()
   await patchEmailSettings({
     transport: null,
     account: { address: null, displayName: null },
@@ -137,17 +118,7 @@ export async function clearEmailTransport(): Promise<EmailStatus> {
   return getEmailStatus()
 }
 
-// ── Read operations (quarantine-aware) ──────────────────────────────────
-
-async function filterQuarantined<T extends { id: string }>(items: T[]): Promise<T[]> {
-  const kind = await getActiveTransportKind()
-  if (!kind) return items
-  const out: T[] = []
-  for (const item of items) {
-    if (!(await isQuarantined(kind, item.id))) out.push(item)
-  }
-  return out
-}
+// ── Read operations ─────────────────────────────────────────────────────
 
 export async function listFolders(): Promise<EmailFolder[]> {
   const t = await getActiveTransport()
@@ -156,58 +127,19 @@ export async function listFolders(): Promise<EmailFolder[]> {
 
 export async function listMessages(args: ListMessagesArgs): Promise<EmailMessageSummary[]> {
   const t = await getActiveTransport()
-  const summaries = await t.listMessages(args)
-  return filterQuarantined(summaries)
+  return t.listMessages(args)
 }
 
 export async function search(args: SearchArgs): Promise<EmailMessageSummary[]> {
   const t = await getActiveTransport()
-  const summaries = await t.search(args)
-  return filterQuarantined(summaries)
+  return t.search(args)
 }
 
-/**
- * Fetch a full message. Runs the quarantine scanner on first sight; if
- * flagged, the message is recorded in the ledger and the call throws so
- * the agent never reads the body. Already-released messages bypass scanning.
- */
 export async function getMessage(messageId: string): Promise<EmailMessage> {
   const t = await getActiveTransport()
-  if (await isQuarantined(t.kind, messageId)) {
-    throw new Error(`Message ${messageId} is quarantined.`)
-  }
   const msg = await t.getMessage(messageId)
-  const settings = await readSettings()
-  if (settings.email.quarantine?.autoFlag !== false) {
-    const verdict = scanForQuarantine(msg)
-    if (verdict.flagged) {
-      await recordQuarantine({
-        transport: t.kind,
-        messageId,
-        summary: toSummary(msg),
-        reasons: verdict.reasons
-      })
-      await patchEmailSettings({ quarantine: { ...settings.email.quarantine, lastScanAt: Date.now() } })
-      throw new Error(`Message ${messageId} was quarantined as suspected prompt-injection.`)
-    }
-  }
   await patchEmailSettings({ lastSyncAt: Date.now() })
   return msg
-}
-
-function toSummary(m: EmailMessage): EmailMessageSummary {
-  return {
-    id: m.id,
-    folder: m.folder,
-    threadId: m.threadId,
-    from: m.from,
-    subject: m.subject,
-    date: m.date,
-    snippet: m.snippet,
-    read: m.read,
-    labels: m.labels,
-    hasAttachments: m.hasAttachments
-  }
 }
 
 // ── Write operations ────────────────────────────────────────────────────
@@ -257,21 +189,6 @@ export async function labelMessage(messageId: string, label: string, add: boolea
 export async function deleteMessage(messageId: string): Promise<void> {
   const t = await getActiveTransport()
   await t.deleteMessage(messageId)
-}
-
-// ── Quarantine ──────────────────────────────────────────────────────────
-
-export async function listQuarantineEntries(limit?: number): Promise<QuarantineEntry[]> {
-  return listQuarantined(limit)
-}
-
-export async function releaseQuarantineEntry(messageId: string): Promise<void> {
-  const kind = await getActiveTransportKind()
-  if (!kind) throw new EmailTransportNotConfiguredError()
-  const entry = await releaseFromQuarantine(kind, messageId)
-  if (!entry) {
-    log.warn('[email] release_from_quarantine called for unknown messageId', messageId)
-  }
 }
 
 // ── Misc helpers ────────────────────────────────────────────────────────

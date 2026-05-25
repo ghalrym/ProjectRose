@@ -5,8 +5,7 @@ import styles from './InboxPage.module.css'
 
 // Drawer-cog SettingsView for rose-email. The user picks ONE transport
 // (IMAP/SMTP or Google) and configures it; switching transports requires a
-// confirmation that clears the inactive side's state and the quarantine
-// ledger.
+// confirmation that clears the inactive side's local state.
 
 export function EmailSettings(): JSX.Element {
   const [status, setStatus] = useState<EmailStatus | null>(null)
@@ -83,7 +82,7 @@ export function EmailSettings(): JSX.Element {
           </button>
         </div>
         <div className={styles.cardSub}>
-          One account at a time. Switching transports wipes the inactive side's local state and the quarantine ledger.
+          One account at a time. Switching transports wipes the inactive side's local state.
         </div>
         {status.account.address && (
           <div className={styles.cardSub}>
@@ -106,24 +105,6 @@ export function EmailSettings(): JSX.Element {
         />
       )}
 
-      <div className={styles.card}>
-        <div className={styles.cardTitle}>Quarantine</div>
-        <div className={styles.checkboxRow}>
-          <input
-            type="checkbox"
-            id="quarantineAutoFlag"
-            checked={status.transport !== null}
-            disabled
-            readOnly
-          />
-          <label htmlFor="quarantineAutoFlag">
-            Heuristic prompt-injection scanning is enabled. Flagged messages are hidden from read tools until released.
-          </label>
-        </div>
-        <div className={styles.hint}>
-          The agent's <code>email_release_from_quarantine</code> tool is off by default. Enable it in Settings → Tools if you want the agent to surface flagged messages.
-        </div>
-      </div>
     </div>
   )
 }
@@ -144,7 +125,7 @@ function SwitchConfirmModal(props: {
       <div className={styles.modal}>
         <div className={styles.cardTitle}>Switch transport?</div>
         <div className={styles.cardSub}>
-          Switching from {fromLabel} to {toLabel} will clear the {fromLabel} credentials and the quarantine ledger. Mail on the server is untouched.
+          Switching from {fromLabel} to {toLabel} will clear the {fromLabel} credentials. Mail on the server is untouched.
         </div>
         <div className={styles.modalActions}>
           <button className={styles.btn} onClick={props.onCancel}>Cancel</button>

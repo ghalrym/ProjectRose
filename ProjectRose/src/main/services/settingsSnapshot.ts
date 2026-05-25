@@ -220,7 +220,6 @@ export async function buildSettingsSnapshot(rootPath: string): Promise<SettingsS
             username: settings.email.smtp.username
           }
         : null,
-      quarantineAutoFlag: settings.email.quarantine.autoFlag,
       lastSyncAt: settings.email.lastSyncAt
     },
     workspace: {

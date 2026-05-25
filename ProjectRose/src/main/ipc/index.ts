@@ -144,9 +144,7 @@ import {
   archiveMessage as emailArchive,
   moveMessage as emailMove,
   labelMessage as emailLabel,
-  deleteMessage as emailDelete,
-  listQuarantineEntries,
-  releaseQuarantineEntry
+  deleteMessage as emailDelete
 } from '../services/email/emailService'
 import {
   listDiaryIndex,
@@ -419,9 +417,7 @@ export function registerIpcManifests(): void {
     archive: emailArchive,
     move: ({ messageId, folder }) => emailMove(messageId, folder),
     label: ({ messageId, label, add }) => emailLabel(messageId, label, add),
-    deleteMessage: emailDelete,
-    listQuarantined: listQuarantineEntries,
-    releaseFromQuarantine: releaseQuarantineEntry
+    deleteMessage: emailDelete
   })
   aiIpc.register({
     chat: ({ messages, rootPath, sessionId }) => chat(messages, rootPath, sessionId),
