@@ -15,13 +15,6 @@ export const FEATURED_CATALOG: CatalogEntry[] = [
     repoUrl: 'https://github.com/RoseAgent/projectrose-bond.git'
   },
   {
-    id: 'rose-crm',
-    name: 'CRM',
-    description: 'Contact management — store and retrieve people and places for the AI agent.',
-    author: 'ProjectRose',
-    repoUrl: 'https://github.com/RoseAgent/projectrose-crm.git'
-  },
-  {
     id: 'rose-discord',
     name: 'Discord',
     description: 'Discord channel integration and messaging.',
@@ -34,13 +27,6 @@ export const FEATURED_CATALOG: CatalogEntry[] = [
     description: 'Docker container management.',
     author: 'ProjectRose',
     repoUrl: 'https://github.com/RoseAgent/projectrose-docker.git'
-  },
-  {
-    id: 'rose-email',
-    name: 'Email',
-    description: 'IMAP email management with spam filtering and prompt-injection quarantine.',
-    author: 'ProjectRose',
-    repoUrl: 'https://github.com/RoseAgent/projectrose-email.git'
   },
   {
     id: 'rose-git',
