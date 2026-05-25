@@ -44,7 +44,6 @@ function ReleaseRow({ entry, isCurrent }: { entry: ReleaseEntry; isCurrent: bool
     <div className={upd.releaseRow}>
       <div className={upd.releaseHeader}>
         <span className={upd.releaseVersion}>v{entry.version}</span>
-        {entry.unreleased && <span className={`${upd.badge} ${upd.badgeUnreleased}`}>Unreleased</span>}
         {isCurrent && <span className={`${upd.badge} ${upd.badgeCurrent}`}>Current</span>}
         {entry.date && <span className={upd.releaseDate}>{entry.date}</span>}
       </div>
@@ -200,7 +199,7 @@ export function UpdatesTab(): JSX.Element {
             <ReleaseRow
               key={r.tag ?? r.version}
               entry={r}
-              isCurrent={!r.unreleased && r.version === __APP_VERSION__}
+              isCurrent={r.version === __APP_VERSION__}
             />
           ))}
         </div>

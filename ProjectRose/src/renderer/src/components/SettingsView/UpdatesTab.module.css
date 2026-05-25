@@ -128,12 +128,6 @@
   font-weight: 500;
 }
 
-.badgeUnreleased {
-  border-color: var(--color-border-strong);
-  color: var(--color-text-secondary);
-  background: var(--color-bg-secondary);
-}
-
 .badgeCurrent {
   border-color: var(--color-accent);
   color: var(--color-accent);

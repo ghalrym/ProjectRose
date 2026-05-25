@@ -4,7 +4,6 @@ export interface ReleaseEntry {
   date: string | null
   title: string
   highlights: string[]
-  unreleased?: boolean
 }
 
 export const RELEASES: ReleaseEntry[] = [
@@ -13,7 +12,6 @@ export const RELEASES: ReleaseEntry[] = [
     tag: null,
     date: null,
     title: 'Multi-query contact search',
-    unreleased: true,
     highlights: [
       'Contact search now accepts multiple queries in one call and ranks hits by how many matched'
     ]
@@ -23,7 +21,6 @@ export const RELEASES: ReleaseEntry[] = [
     tag: null,
     date: null,
     title: 'Provider trim and chat timeline fixes',
-    unreleased: true,
     highlights: [
       'Providers narrowed to ProjectRose (managed) and Ollama (local) — Anthropic, OpenAI, Amazon Bedrock, and OpenAI-compatible options have been removed',
       'Ollama now holds a single model name instead of a list — pick it once under Settings → Providers → Ollama',
@@ -43,7 +40,6 @@ export const RELEASES: ReleaseEntry[] = [
     tag: null,
     date: null,
     title: 'Built-in Contacts, Email, and Calendar',
-    unreleased: true,
     highlights: [
       'New built-in Contacts extension — list and edit people in agent memory, with two-way Google Contacts sync',
       'New built-in Email extension — single-account inbox and compose over IMAP/SMTP or Gmail, with a heuristic prompt-injection quarantine for incoming mail',
@@ -56,7 +52,6 @@ export const RELEASES: ReleaseEntry[] = [
     tag: null,
     date: null,
     title: 'Editor returns, smoother voice, and macOS fixes',
-    unreleased: true,
     highlights: [
       'Editor is back — switch between Bloom and Editor from the ProjectRose menu in the top-left; your choice is remembered across launches and the chat panel stays visible alongside the editor',
       'The floating dock button now slides over the editor instead of pushing its content up',
@@ -77,7 +72,6 @@ export const RELEASES: ReleaseEntry[] = [
     tag: null,
     date: null,
     title: 'Web search built into the agent',
-    unreleased: true,
     highlights: [
       'Agent can now search the web with a new built-in search_web tool, powered by the ProjectRose search API',
       'Toggle Web Search on or off per project from Settings → Tools'
@@ -88,7 +82,6 @@ export const RELEASES: ReleaseEntry[] = [
     tag: null,
     date: null,
     title: 'Account sign-in, Concrete CMS, and compression-toast fix',
-    unreleased: true,
     highlights: [
       'Sign in to your ProjectRose account from Settings → Providers — no API keys to copy around',
       'When you\'re signed in, chats automatically use your account; sign out and your other providers come back',
@@ -107,7 +100,6 @@ export const RELEASES: ReleaseEntry[] = [
     tag: null,
     date: null,
     title: 'Screen sharing, redesigned navigation, and new extensions',
-    unreleased: true,
     highlights: [
       'Chat composer can share a screen, a window, or a camera feed with the agent',
       'A fresh frame is attached automatically to each message you send while sharing is on',
@@ -126,7 +118,6 @@ export const RELEASES: ReleaseEntry[] = [
     tag: null,
     date: null,
     title: 'Extension prompts and session-aware extensions',
-    unreleased: true,
     highlights: [
       'Auto-update no longer forced — users can defer or skip versions',
       'Extensions can ship their own prompts',
