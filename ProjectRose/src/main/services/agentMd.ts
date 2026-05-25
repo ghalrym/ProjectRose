@@ -5,6 +5,7 @@ import { agentRoseMdPath } from '../lib/agentHome'
 import { readSettings } from './settingsService'
 import { buildRoseMd } from './roseSetupService'
 import { loadExtensionPrompts } from './promptService'
+import { BUILTIN_SKILL_NAMES } from './builtinSkills'
 
 /**
  * Compose the system prompt for a chat turn.
@@ -65,8 +66,13 @@ export async function buildAgentMd(rootPath: string): Promise<string> {
     console.error('[prompts] failed to load extension prompts:', err)
   }
 
+  const builtinSkillsBlock = `## Built-in skills
+ProjectRose ships reference skills you can load with the load_skill tool when the user asks about the app itself. Start with rose:about — it tells you which other skill to load. Available: ${BUILTIN_SKILL_NAMES.join(', ')}.
+`
+
   return `${rose}
 ${projectInstructions}${extensionPromptBlock}
+${builtinSkillsBlock}
 ## Environment
 - Operating system: ${os}
 - Shell: ${shell} (run_command uses ${shell})

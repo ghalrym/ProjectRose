@@ -5,6 +5,11 @@ import { z } from 'zod'
 import type { ToolExecutionOptions } from 'ai'
 import { prPath } from '../lib/projectPaths'
 import { IPC } from '../../shared/ipcChannels'
+import {
+  isBuiltinSkillName,
+  listBuiltinSkills,
+  loadBuiltinSkill
+} from './builtinSkills'
 
 type EmitFn = (channel: string, payload: unknown) => void
 
@@ -28,32 +33,37 @@ function parseSkillFile(raw: string): { description: string; body: string } {
 }
 
 export async function listSkills(rootPath: string): Promise<SkillMeta[]> {
+  const builtin = listBuiltinSkills()
   const dir = prPath(rootPath, 'skills')
   let files: string[]
   try {
     files = await readdir(dir)
   } catch {
-    return []
+    return builtin
   }
-  const skills: SkillMeta[] = []
+  const workspace: SkillMeta[] = []
   for (const file of files) {
     if (!file.endsWith('.md')) continue
     try {
       const raw = await readFile(join(dir, file), 'utf-8')
       const { description } = parseSkillFile(raw)
-      skills.push({ name: file.slice(0, -3), description })
+      workspace.push({ name: file.slice(0, -3), description })
     } catch {
       // skip unreadable files
     }
   }
-  return skills
+  return [...builtin, ...workspace]
 }
 
 export async function deleteSkill(rootPath: string, name: string): Promise<void> {
+  if (isBuiltinSkillName(name)) {
+    throw new Error(`Built-in skill "${name}" cannot be deleted — it ships with the app.`)
+  }
   await unlink(prPath(rootPath, 'skills', `${name}.md`))
 }
 
 export async function loadSkillContent(rootPath: string, skillName: string): Promise<SkillContent | null> {
+  if (isBuiltinSkillName(skillName)) return loadBuiltinSkill(skillName)
   const filePath = prPath(rootPath, 'skills', `${skillName}.md`)
   try {
     const raw = await readFile(filePath, 'utf-8')
